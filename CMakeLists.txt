@@ -1,0 +1,227 @@
+cmake_minimum_required(VERSION 3.11 FATAL_ERROR)
+file(READ "VERSION" BIPP_VERSION)
+string(STRIP ${BIPP_VERSION} BIPP_VERSION)
+project(bipp LANGUAGES CXX VERSION "${BIPP_VERSION}")
+set(BIPP_SO_VERSION ${CMAKE_PROJECT_VERSION_MAJOR})
+
+# allow {module}_ROOT variables to be set
+if(POLICY CMP0074)
+	cmake_policy(SET CMP0074 NEW)
+endif()
+
+# use INTERFACE_LINK_LIBRARIES property if available
+if(POLICY CMP0022)
+	cmake_policy(SET CMP0022 NEW)
+endif()
+
+# set default build type to RELEASE
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type" FORCE)
+	set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+		"Debug" "Release" "MinSizeRel" "RelWithDebInfo"
+	)
+endif()
+
+set(BIPP_BUILD_TYPE "OFF" CACHE STRING "If set, overrides the CMAKE_BUILD_TYPE variable.")
+set_property(CACHE BIPP_BUILD_TYPE PROPERTY STRINGS
+	"Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+if(BIPP_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE ${BIPP_BUILD_TYPE} CACHE STRING "Build type" FORCE)
+endif()
+
+
+# set language and standard
+set(CMAKE_CXX_STANDARD 17)
+set(CUDA_STANDARD 17)
+set(CUDA_STANDARD_REQUIRED ON)
+
+# Get GNU standard install prefixes
+include(GNUInstallDirs)
+
+#add local module path
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
+
+# Options
+option(BIPP_BUILD_TESTS "Build tests" OFF)
+option(BIPP_PYTHON "Build python module" ON)
+option(BIPP_MAGMA "Use MAGMA library as eigensolver" OFF)
+option(BIPP_PYBIND11_DOWNLOAD "Download pybind11 instead of looking for installation" OFF)
+option(BIPP_UMPIRE "Use Umpire memory pool library" OFF)
+option(BIPP_VC "Use VC vectorization library" OFF)
+option(BIPP_OMP "Use OpenMP for multi-threading" ON)
+
+set(BIPP_GPU "OFF" CACHE STRING "GPU backend")
+set_property(CACHE BIPP_GPU PROPERTY STRINGS
+	"OFF" "CUDA" "ROCM"
+	)
+set(BUILD_SHARED_LIBS "ON" CACHE STRING "Build as shared library") # default to shared
+set(BIPP_INSTALL "LIB" CACHE STRING "Install the librariy (LIB), the python module (PYTHON) or nothing (OFF). For use with pip install (PIP) is also available.")
+set_property(CACHE BIPP_INSTALL PROPERTY STRINGS
+	"LIB" "PYTHON" "PIP" "OFF"
+	)
+set(CMAKE_HIP_ARCHITECTURES "gfx803;gfx900;gfx906" CACHE STRING "HIP GPU architectures")
+
+set(BIPP_BUILD_TYPE "OFF" CACHE STRING "If set, overrides the CMAKE_BUILD_TYPE variable.")
+set_property(CACHE BIPP_BUILD_TYPE PROPERTY STRINGS
+	"Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+if(BIPP_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE ${BIPP_BUILD_TYPE} CACHE STRING "Build type" FORCE)
+endif()
+
+# Options combination check
+set(BIPP_CUDA OFF)
+set(BIPP_ROCM OFF)
+if(BIPP_GPU)
+	if(BIPP_GPU STREQUAL "CUDA")
+		set(BIPP_CUDA ON)
+	elseif(BIPP_GPU STREQUAL "ROCM")
+		set(BIPP_ROCM ON)
+		set(BIPP_MAGMA ON)
+	else()
+		message(FATAL_ERROR "Invalid GPU backend")
+	endif()
+endif()
+
+if(BIPP_INSTALL STREQUAL "PYTHON" OR BIPP_INSTALL STREQUAL "PIP")
+	set(BIPP_PYTHON ON)
+endif()
+
+
+set(BIPP_FLAGS "")
+set(BIPP_EXTERNAL_LIBS "")
+set(BIPP_INCLUDE_DIRS "")
+
+# CUDA
+if(BIPP_CUDA)
+	enable_language(CUDA)
+	if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.17.0") 
+		find_package(CUDAToolkit REQUIRED)
+	else()
+		find_library(CUDA_CUDART_LIBRARY cudart PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+		if(NOT TARGET CUDA::cudart)
+			add_library(CUDA::cudart INTERFACE IMPORTED)
+		endif()
+		set_property(TARGET CUDA::cudart PROPERTY INTERFACE_LINK_LIBRARIES ${CUDA_CUDART_LIBRARY})
+		set_property(TARGET CUDA::cudart PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+
+		find_library(CUDA_CUBLAS_LIBRARY cublas PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+		if(NOT TARGET CUDA::cublas)
+			add_library(CUDA::cublas INTERFACE IMPORTED)
+		endif()
+		set_property(TARGET CUDA::cublas PROPERTY INTERFACE_LINK_LIBRARIES ${CUDA_CUBLAS_LIBRARY})
+		set_property(TARGET CUDA::cublas PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+
+		find_library(CUDA_CUSOLVER_LIBRARY cusolver PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+		if(NOT TARGET CUDA::cusolver)
+			add_library(CUDA::cusolver INTERFACE IMPORTED)
+		endif()
+		set_property(TARGET CUDA::cusolver PROPERTY INTERFACE_LINK_LIBRARIES ${CUDA_CUSOLVER_LIBRARY})
+		set_property(TARGET CUDA::cusolver PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+	endif()
+
+	list(APPEND BIPP_EXTERNAL_LIBS CUDA::cudart CUDA::cublas CUDA::cusolver)
+endif()
+
+# ROCm
+if(BIPP_ROCM)
+	include(CheckCXXCompilerFlag)
+	check_cxx_compiler_flag("--amdgpu-target=gfx906" _IS_HIPCC)
+	if(NOT _IS_HIPCC)
+		message(FATAL_ERROR "ROCm build requires hipcc to be set as CXX compiler!")
+	endif()
+	list(APPEND BIPP_FLAGS -fno-gpu-rdc)
+	foreach(arch ${CMAKE_HIP_ARCHITECTURES})
+		list(APPEND BIPP_FLAGS --amdgpu-target=${arch})
+	endforeach()
+	find_package(hip CONFIG REQUIRED)
+	find_package(rocblas CONFIG REQUIRED)
+  list(APPEND BIPP_EXTERNAL_LIBS hip::host roc::rocblas)
+endif()
+
+# MAGMA
+if(BIPP_MAGMA)
+	find_package(MAGMA MODULE REQUIRED)
+	list(APPEND BIPP_EXTERNAL_LIBS MAGMA::MAGMA)
+	list(APPEND BIPP_FLAGS -DUSE_HIP) # required to compile magma header
+endif()
+
+# Umpire
+if(BIPP_UMPIRE)
+	find_package(umpire CONFIG REQUIRED)
+	list(APPEND BIPP_EXTERNAL_LIBS umpire)
+endif()
+
+set(BLA_SIZEOF_INTEGER 4) # 32 bit interface to blas / lapack
+
+# BLAS
+find_package(BLAS REQUIRED)
+if(NOT TARGET BLAS::BLAS)
+	# target is only available with CMake 3.18.0 and later
+	add_library(BLAS::BLAS INTERFACE IMPORTED)
+	set_property(TARGET BLAS::BLAS PROPERTY INTERFACE_LINK_LIBRARIES ${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS})
+endif()
+list(APPEND BIPP_EXTERNAL_LIBS BLAS::BLAS)
+
+# LAPACK
+find_package(LAPACK REQUIRED)
+if(NOT TARGET LAPACK::LAPACK)
+	# target is only available with CMake 3.18.0 and later
+	add_library(LAPACK::LAPACK INTERFACE IMPORTED)
+	set_property(TARGET LAPACK::LAPACK PROPERTY INTERFACE_LINK_LIBRARIES ${LAPACK_LINKER_FLAGS} ${LAPACK_LIBRARIES})
+endif()
+list(APPEND BIPP_EXTERNAL_LIBS LAPACK::LAPACK)
+
+find_package(FINUFFT REQUIRED)
+list(APPEND BIPP_EXTERNAL_LIBS FINUFFT::finufft)
+# finufft has fftw in interface headers
+find_package(FFTW REQUIRED)
+find_package(FFTWF REQUIRED)
+list(APPEND BIPP_EXTERNAL_LIBS FFTW::FFTW FFTWF::FFTWF)
+
+if(BIPP_CUDA OR BIPP_ROCM)
+	find_package(CUFINUFFT REQUIRED)
+	list(APPEND BIPP_EXTERNAL_LIBS CUFINUFFT::cufinufft)
+endif()
+
+# OpenMP
+if(BIPP_OMP)
+  find_package(OpenMP REQUIRED)
+  list(APPEND BIPP_EXTERNAL_LIBS OpenMP::OpenMP_CXX)
+endif()
+
+if(BIPP_VC)
+  find_package(Vc CONFIG REQUIRED)
+  list(APPEND BIPP_EXTERNAL_LIBS Vc::Vc)
+endif()
+
+# check if C api is available for blas and lapack
+# include(CheckCXXSymbolExists)
+set(CMAKE_REQUIRED_LIBRARIES ${BIPP_EXTERNAL_LIBS})
+include(CheckFunctionExists)
+
+unset(BIPP_BLAS_C CACHE) # Result is cached, so change of library will not lead to a new check automatically
+CHECK_FUNCTION_EXISTS(cblas_zgemm BIPP_BLAS_C)
+
+unset(BIPP_LAPACK_C CACHE) # Result is cached, so change of library will not lead to a new check automatically
+CHECK_FUNCTION_EXISTS(LAPACKE_zheevx BIPP_LAPACK_C)
+
+# generate config.h
+configure_file(include/bipp/config.h.in ${PROJECT_BINARY_DIR}/bipp/config.h)
+
+list(APPEND BIPP_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/src)
+list(APPEND BIPP_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include)
+list(APPEND BIPP_INCLUDE_DIRS ${PROJECT_BINARY_DIR})
+
+#############################################################################
+# All include dirs and definitions must be set before sub-directory is added!
+#############################################################################
+add_subdirectory(src)
+
+if(BIPP_PYTHON)
+	add_subdirectory(python)
+endif()
+
+# add tests for developement
+if(BIPP_BUILD_TESTS)
+	add_subdirectory(tests)
+endif()

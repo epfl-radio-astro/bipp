@@ -1,0 +1,5 @@
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/bippSharedConfig.cmake")
+	include("${CMAKE_CURRENT_LIST_DIR}/bippSharedConfig.cmake")
+else()
+	include("${CMAKE_CURRENT_LIST_DIR}/bippStaticConfig.cmake")
+endif()

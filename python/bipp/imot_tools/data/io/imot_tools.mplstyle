@@ -1,0 +1,90 @@
+# Patch settings
+patch.linewidth: 1
+patch.facecolor: 348ABD  # blue
+patch.edgecolor: EEEEEE
+patch.antialiased: True
+
+# Font settings
+# font.size: 12
+# font.family: sans-serif
+# font.serif: Palatino
+# font.weight: bold
+
+# Text
+text.color: 555555
+text.usetex: True
+
+# Axes
+axes.facecolor: E5E5E5  # Gray
+axes.edgecolor: 555555
+axes.linewidth: 1
+axes.grid: True
+axes.titlesize: x-large  # relative size
+axes.labelsize: medium
+axes.labelcolor: 555555
+axes.axisbelow: True  # grid/ticks are below elements (e.g., lines, text)
+axes3d.grid: True
+axes.prop_cycle: cycler('color', ['348ABD','E24A33', '988ED5', '777777', 'FBC15E', '8EBA42', 'FFB5B8'])
+# E24A33 : red
+# 348ABD : blue
+# 988ED5 : purple
+# 777777 : gray
+# FBC15E : yellow
+# 8EBA42 : green
+# FFB5B8 : pink
+
+# Lines
+lines.linewidth: 2
+lines.antialiased: True
+lines.markersize: 6
+
+# Legend
+legend.facecolor: white
+legend.edgecolor: 555555
+legend.fancybox: False
+
+# Ticks
+xtick.top: True
+xtick.color: 555555
+xtick.direction: out
+xtick.labelsize: medium
+
+ytick.right: True
+ytick.color: 555555
+ytick.direction: out
+ytick.labelsize: medium
+
+grid.color: white
+grid.linestyle: -  # solid line
+grid.linewidth: 0.9
+grid.alpha: 0.8
+
+# Figure
+figure.facecolor: white
+figure.edgecolor: 0.50
+figure.titlesize: x-large
+figure.dpi: 192
+figure.figsize: 6.4, 3.96  # (golden ratio 1.618)
+
+# subplot
+# The figure subplot parameters.  All dimensions are a fraction of the
+figure.subplot.left: 0.1  # the left side of the subplots of the figure
+figure.subplot.right: 0.9  # the right side of the subplots of the figure
+figure.subplot.bottom: 0.12  # the bottom of the subplots of the figure
+figure.subplot.top: 0.88  # the top of the subplots of the figure
+figure.subplot.wspace: 0.25  # the amount of width reserved for blank
+figure.subplot.hspace: 0.25  # the amount of height reserved for white
+
+### IMAGES
+image.aspect: equal  # equal | auto | a number
+image.interpolation: nearest  # see help(imshow) for options
+image.cmap: terrain  # A colormap name,: terrain, gist_earth, ocean
+
+### SAVING FIGURES
+savefig.dpi: 300
+savefig.format: png
+savefig.facecolor: white
+savefig.edgecolor: white
+savefig.bbox: tight
+savefig.pad_inches  : 0
+savefig.transparent: True

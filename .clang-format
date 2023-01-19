@@ -1,0 +1,5 @@
+BasedOnStyle: Google
+ColumnLimit: 100
+AccessModifierOffset: -2
+DerivePointerAlignment: False
+PointerAlignment: Left
