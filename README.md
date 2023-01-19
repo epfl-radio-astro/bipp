@@ -28,7 +28,7 @@ The Python module has the following dependencies:
 
 
 ## Installation
-Bipp uses CMAke to configure the build.
+Bipp uses CMake to configure the build.
 
 ### CMake options
 Bipp can be configured with the following options:
