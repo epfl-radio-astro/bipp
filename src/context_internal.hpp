@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <tuple>
+#include <optional>
 
 #include "bipp/bipp.h"
 #include "bipp/config.h"
@@ -42,12 +43,16 @@ public:
     } else {
       pu_ = pu;
     }
+
+#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+    if (pu_ == BIPP_PU_GPU) queue_.emplace();
+#endif
   }
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-  auto gpu_queue() -> gpu::Queue& { return queue_; }
+  auto gpu_queue() -> gpu::Queue& { return queue_.value(); }
 
-  auto gpu_queue() const -> const gpu::Queue& { return queue_; }
+  auto gpu_queue() const -> const gpu::Queue& { return queue_.value(); }
 #endif
 
   auto processing_unit() const -> BippProcessingUnit { return pu_; }
@@ -59,7 +64,7 @@ private:
   std::shared_ptr<Allocator> hostAlloc_;
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-  gpu::Queue queue_;
+  std::optional<gpu::Queue> queue_;
 #endif
 };
 

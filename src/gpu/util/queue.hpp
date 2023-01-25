@@ -75,6 +75,14 @@ public:
 #endif
   }
 
+  Queue(const Queue&) = delete;
+
+  Queue(Queue&& g) = default;
+
+  auto operator=(const Queue&) -> Queue& = delete;
+
+  auto operator=(Queue&&) -> Queue& = default;
+
   auto stream() const -> const api::StreamType& { return *stream_; }
 
   auto blas_handle() const -> const api::blas::HandleType& { return *blasHandle_; }
