@@ -91,7 +91,7 @@ struct NufftSynthesisInternal {
       auto uvwDevice = uvw;
       auto lduvwDevice = lduvw;
 
-      if (s && !gpu::is_device_ptr(w)) {
+      if (s && !gpu::is_device_ptr(s)) {
         sBuffer = queue.create_device_buffer<gpu::api::ComplexType<T>>(nBeam_ * nBeam_);
         ldsDevice = nBeam_;
         sDevice = sBuffer.get();
