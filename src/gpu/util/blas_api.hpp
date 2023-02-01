@@ -390,7 +390,7 @@ inline auto axpy(HandleType handle, int n, const float* alpha, const float* x, i
 #if defined(BIPP_CUDA)
   check_status(cublasSaxpy(handle, n, alpha, x, incx, y, incy));
 #else
-  check_status(rocblas_saxpy(handle, n, aplha, x, incx, incy));
+  check_status(rocblas_saxpy(handle, n, alpha, x, incx, y, incy));
 #endif  // BIPP_CUDA
 }
 
@@ -399,7 +399,7 @@ inline auto axpy(HandleType handle, int n, const double* alpha, const double* x,
 #if defined(BIPP_CUDA)
   check_status(cublasDaxpy(handle, n, alpha, x, incx, y, incy));
 #else
-  check_status(rocblas_daxpy(handle, n, aplha, x, incx, incy));
+  check_status(rocblas_daxpy(handle, n, alpha, x, incx, y, incy));
 #endif  // BIPP_CUDA
 }
 

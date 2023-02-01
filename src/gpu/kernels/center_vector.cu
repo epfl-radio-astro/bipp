@@ -1,11 +1,11 @@
 #include <algorithm>
-#include <cub/cub.cuh>
 
 #include "bipp/config.h"
 #include "gpu/kernels/center_vector.hpp"
 #include "gpu/util/kernel_launch_grid.hpp"
 #include "gpu/util/runtime.hpp"
 #include "gpu/util/runtime_api.hpp"
+#include "gpu/util/cub_api.hpp"
 
 namespace bipp {
 namespace gpu {
@@ -23,7 +23,7 @@ template <typename T>
 auto center_vector(Queue& q, std::size_t n, T* vec) -> void {
   std::size_t worksize = 0;
   api::check_status(
-      ::cub::DeviceReduce::Sum<const T*, T*>(nullptr, worksize, nullptr, nullptr, n, q.stream()));
+      api::cub::DeviceReduce::Sum<const T*, T*>(nullptr, worksize, nullptr, nullptr, n, q.stream()));
   worksize -= sizeof(T);
 
   auto workBuffer = q.create_device_buffer<char>(sizeof(T) + worksize);
@@ -32,7 +32,7 @@ auto center_vector(Queue& q, std::size_t n, T* vec) -> void {
   // provide remaining memory to reduce function
   T* sumPtr = reinterpret_cast<T*>(workBuffer.get());
 
-  api::check_status(::cub::DeviceReduce::Sum<const T*, T*>(
+  api::check_status(api::cub::DeviceReduce::Sum<const T*, T*>(
       reinterpret_cast<T*>(workBuffer.get()) + 1, worksize, vec, sumPtr, n, q.stream()));
 
   constexpr int blockSize = 256;
