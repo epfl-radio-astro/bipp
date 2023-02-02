@@ -1,0 +1,97 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build-test-gcc-cpu:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-22.04
+
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE
+    - uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y make g++ libopenblas-dev libfftw3-dev git cmake
+        cd ${HOME}
+        git clone https://github.com/flatironinstitute/finufft.git
+        cd ${HOME}/finufft
+        git checkout v2.1.0
+        make lib -j2
+
+    - name: Build
+      run: |
+        cd ${GITHUB_WORKSPACE}
+        mkdir -p build
+        cd build
+        cmake .. -DBIPP_GPU=OFF -DBIPP_PYTHON=OFF -DCMAKE_PREFIX_PATH=${HOME}/finufft -DBIPP_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=DEBUG
+        make -j2
+
+    - name: Run tests
+      run: |
+        export OMPI_MCA_btl_vader_single_copy_mechanism=none
+        export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HOME}/finufft/lib
+        ${GITHUB_WORKSPACE}/build/tests/run_tests
+
+  #################
+  # Build with CUDA
+  #################
+  build-cuda-docs:
+    runs-on: ubuntu-20.04
+    container: adhocman/bipp_build:main_x86_64_cuda_11_2
+
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE
+    - uses: actions/checkout@v3
+
+    - name: Build and install library
+      run: |
+        . /etc/profile
+        cd ${GITHUB_WORKSPACE}
+        mkdir -p build
+        cd build
+        CUDACXX=/usr/local/cuda/bin/nvcc cmake .. -DBIPP_GPU=CUDA -DCMAKE_CUDA_ARCHITECTURES="60;86" -DBIPP_PYTHON=ON -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_INSTALL_PREFIX=${HOME}/install_dir -DBIPP_INSTALL=PYTHON
+        make install -j2
+
+    - name: Build tests
+      run: |
+        . /etc/profile
+        cd ${GITHUB_WORKSPACE}
+        mkdir -p build_tests
+        cd build_tests
+        CUDACXX=/usr/local/cuda/bin/nvcc cmake .. -DBIPP_GPU=CUDA -DCMAKE_CUDA_ARCHITECTURES="60;86" -DBIPP_BUILD_TESTS=ON -DBIPP_PYTHON=ON
+        make -j2
+
+    - name: Build docs
+      run: |
+        . /etc/profile
+        cd ${GITHUB_WORKSPACE}/docs
+        SPHINXBUILD="python3 -m sphinx" make html
+
+    - name: Check python module import
+      run: |
+        . /etc/profile
+        export PYTHONPATH=$PYTHONPATH:${HOME}/install_dir
+        python3 -c "import bipp"
+
+  #################
+  # Build with ROCm
+  #################
+  build-rocm:
+    runs-on: ubuntu-20.04
+    container: adhocman/bipp_build:main_x86_64_rocm_5_4_2
+
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE
+    - uses: actions/checkout@v3
+
+    - name: Build library
+      run: |
+        . /etc/profile
+        cd ${GITHUB_WORKSPACE}
+        mkdir -p build
+        cd build
+        CXX=hipcc cmake .. -DBIPP_GPU=ROCM -DCMAKE_HIP_ARCHITECTURES="gfx906" -DBIPP_PYTHON=ON -DBIPP_OMP=OFF
+        make -j2
