@@ -1,8 +1,8 @@
 #include <algorithm>
-#include <cub/cub.cuh>
 
 #include "bipp/config.h"
 #include "gpu/kernels/gemmexp.hpp"
+#include "gpu/util/cub_api.hpp"
 #include "gpu/util/kernel_launch_grid.hpp"
 #include "gpu/util/runtime.hpp"
 #include "gpu/util/runtime_api.hpp"
@@ -41,14 +41,14 @@ struct ComplexOp {
 };
 }  // namespace
 
-template <typename T, int BLOCK_THREADS, cub::BlockReduceAlgorithm ALGORITHM>
+template <typename T, int BLOCK_THREADS, api::cub::BlockReduceAlgorithm ALGORITHM>
 static __global__ void gemmexp_kernel(size_t nEig, size_t nPixel, size_t nAntenna, T alpha,
                                       const api::ComplexType<T>* __restrict__ vUnbeam, size_t ldv,
                                       const T* __restrict__ xyz, size_t ldxyz,
                                       const T* __restrict__ pixelX, const T* __restrict__ pixelY,
                                       const T* __restrict__ pixelZ, T* __restrict__ out,
                                       size_t ldout) {
-  using BlockReduceType = cub::BlockReduce<ComplexOp<T>, BLOCK_THREADS, ALGORITHM>;
+  using BlockReduceType = api::cub::BlockReduce<ComplexOp<T>, BLOCK_THREADS, ALGORITHM>;
   __shared__ typename BlockReduceType::TempStorage tmpStorage;
 
   for (size_t idxEig = blockIdx.y; idxEig < nEig; idxEig += gridDim.y) {
@@ -63,7 +63,7 @@ static __global__ void gemmexp_kernel(size_t nEig, size_t nPixel, size_t nAntenn
             alpha * (pX * xyz[idxAnt] + pY * xyz[idxAnt + ldxyz] + pZ * xyz[idxAnt + 2 * ldxyz]);
         ComplexOp<T> sc;
         calc_sincos(imag, &(sc.y), &(sc.x));
-        localSum = localSum + sc * vUnbeam[idxEig * ldv + idxAnt];
+        localSum = localSum + sc * ComplexOp<T>(vUnbeam[idxEig * ldv + idxAnt]);
       }
 
       auto totalSum = BlockReduceType(tmpStorage).Sum(localSum);
@@ -75,25 +75,25 @@ static __global__ void gemmexp_kernel(size_t nEig, size_t nPixel, size_t nAntenn
 }
 
 template <typename T, int BLOCK_THREADS>
-static auto gemmexp_launch(Queue& q, std::size_t nEig, std::size_t nPixel, std::size_t nAntenna, T alpha,
-             const api::ComplexType<T>* vUnbeam, std::size_t ldv, const T* xyz, std::size_t ldxyz,
-             const T* pixelX, const T* pixelY, const T* pixelZ, T* out, std::size_t ldout) -> void {
+static auto gemmexp_launch(Queue& q, std::size_t nEig, std::size_t nPixel, std::size_t nAntenna,
+                           T alpha, const api::ComplexType<T>* vUnbeam, std::size_t ldv,
+                           const T* xyz, std::size_t ldxyz, const T* pixelX, const T* pixelY,
+                           const T* pixelZ, T* out, std::size_t ldout) -> void {
   const std::size_t nPixelPerThread = 8;
   const dim3 block(BLOCK_THREADS, 1, 1);
   const auto grid = kernel_launch_grid(
       q.device_prop(), {std::max<std::size_t>(nPixel / nPixelPerThread, 1), nEig, 1}, block);
 
-  api::launch_kernel(
-      gemmexp_kernel<T, BLOCK_THREADS, cub::BlockReduceAlgorithm::BLOCK_REDUCE_WARP_REDUCTIONS>,
-      grid, block, 0, q.stream(), nEig, nPixel, nAntenna, alpha, vUnbeam, ldv, xyz, ldxyz, pixelX,
-      pixelY, pixelZ, out, ldout);
+  api::launch_kernel(gemmexp_kernel<T, BLOCK_THREADS,
+                                    api::cub::BlockReduceAlgorithm::BLOCK_REDUCE_WARP_REDUCTIONS>,
+                     grid, block, 0, q.stream(), nEig, nPixel, nAntenna, alpha, vUnbeam, ldv, xyz,
+                     ldxyz, pixelX, pixelY, pixelZ, out, ldout);
 }
 
 template <typename T>
 auto gemmexp(Queue& q, std::size_t nEig, std::size_t nPixel, std::size_t nAntenna, T alpha,
              const api::ComplexType<T>* vUnbeam, std::size_t ldv, const T* xyz, std::size_t ldxyz,
              const T* pixelX, const T* pixelY, const T* pixelZ, T* out, std::size_t ldout) -> void {
-
   constexpr std::size_t nAntennaPerThread = 2;
 
   if (nAntenna >= 1024 / nAntennaPerThread && q.device_prop().maxThreadsDim[0] >= 1024) {

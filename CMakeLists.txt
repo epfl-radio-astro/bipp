@@ -124,18 +124,29 @@ endif()
 
 # ROCm
 if(BIPP_ROCM)
-	include(CheckCXXCompilerFlag)
-	check_cxx_compiler_flag("--amdgpu-target=gfx906" _IS_HIPCC)
-	if(NOT _IS_HIPCC)
-		message(FATAL_ERROR "ROCm build requires hipcc to be set as CXX compiler!")
-	endif()
 	list(APPEND BIPP_FLAGS -fno-gpu-rdc)
-	foreach(arch ${CMAKE_HIP_ARCHITECTURES})
-		list(APPEND BIPP_FLAGS --amdgpu-target=${arch})
-	endforeach()
+
+	include(CheckCXXCompilerFlag)
+
+	check_cxx_compiler_flag("--offload-arch=gfx906" _IS_OFFLOAD_HIPCC)
+	if(_IS_OFFLOAD_HIPCC)
+		foreach(arch ${CMAKE_HIP_ARCHITECTURES})
+			list(APPEND BIPP_FLAGS --offload-arch=${arch})
+		endforeach()
+	else()
+		check_cxx_compiler_flag("--amdgpu-target=gfx906" _IS_AMDGPU_HIPCC)
+		if(NOT _IS_AMDGPU_HIPCC)
+			message(FATAL_ERROR "ROCm build requires hipcc to be set as CXX compiler.")
+		endif()
+		foreach(arch ${CMAKE_HIP_ARCHITECTURES})
+			list(APPEND BIPP_FLAGS --amdgpu-target=${arch})
+		endforeach()
+	endif()
+
 	find_package(hip CONFIG REQUIRED)
 	find_package(rocblas CONFIG REQUIRED)
-  list(APPEND BIPP_EXTERNAL_LIBS hip::host roc::rocblas)
+	find_package(hipcub CONFIG REQUIRED)
+	list(APPEND BIPP_EXTERNAL_LIBS hip::host roc::rocblas hip::hipcub)
 endif()
 
 # MAGMA

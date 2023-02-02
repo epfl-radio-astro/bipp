@@ -126,7 +126,7 @@ auto solve(ContextInternal& ctx, char jobz, char range, char uplo, int n,
 
 #ifdef BIPP_MAGMA
   api::stream_synchronize(ctx.gpu_queue().stream());
-  const float abstol = 2 * lapack::slamch('S');
+  const float abstol = 2 * host::lapack::slamch('S');
 
   auto z = ctx.gpu_queue().create_device_buffer<api::ComplexType<float>>(n * n);
   int ldz = n;
@@ -200,7 +200,7 @@ auto solve(ContextInternal& ctx, char jobz, char range, char uplo, int n,
 
 #ifdef BIPP_MAGMA
   api::stream_synchronize(ctx.gpu_queue().stream());
-  const double abstol = 2 * lapack::dlamch('S');
+  const double abstol = 2 * host::lapack::dlamch('S');
 
   auto z = ctx.gpu_queue().create_device_buffer<api::ComplexType<double>>(n * n);
   int ldz = n;
@@ -285,7 +285,7 @@ auto solve(ContextInternal& ctx, char jobz, char range, char uplo, int n,
                        n, api::flag::MemcpyDeviceToHost, ctx.gpu_queue().stream());
   api::stream_synchronize(ctx.gpu_queue().stream());
 
-  const float abstol = 2 * lapack::slamch('S');
+  const float abstol = 2 * host::lapack::slamch('S');
 
   int ldz = n;
 
@@ -363,7 +363,7 @@ auto solve(ContextInternal& ctx, char jobz, char range, char uplo, int n,
                        n, api::flag::MemcpyDeviceToHost, ctx.gpu_queue().stream());
   api::stream_synchronize(ctx.gpu_queue().stream());
 
-  const double abstol = 2 * lapack::dlamch('S');
+  const double abstol = 2 * host::lapack::dlamch('S');
 
   int ldz = n;
 

@@ -119,13 +119,13 @@ public:
   // Enter "wait for stream" into queue
   auto sync_with_stream(const api::StreamType& s) -> void {
     api::event_record(*event_, s);
-    api::stream_wait_event(*stream_, *event_);
+    api::stream_wait_event(*stream_, *event_, 0);
   }
 
   // Input stream waits for queue
   auto signal_stream(const api::StreamType& s) -> void {
     api::event_record(*event_, *stream_);
-    api::stream_wait_event(s, *event_);
+    api::stream_wait_event(s, *event_, 0);
   }
 
   // Sync queue with host and deallocate unused memory
