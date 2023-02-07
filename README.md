@@ -1,5 +1,7 @@
 [![Documentation](https://readthedocs.org/projects/bipp/badge/?version=latest)](https://bipp.readthedocs.io/en/latest/?badge=latest)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![CI](https://github.com/epfl-radio-astro/bipp/actions/workflows/ci.yml/badge.svg)](https://github.com/epfl-radio-astro/bipp/actions/workflows/ci.yml)
+
 
 # BIPP - Bluebild Imaging++
 Image synthesis in radio astronomy is done with interferometry, a powerful technique allowing observation of the sky with antenna arrays with otherwise inaccessible angular resolutions and sensitivities. The Bluebild algorithm offers a novel approach to image synthesis, leveraging fPCA to decompose the sky image into distinct energy eigenimages. Bluebild Imaging++ is an HPC implementation of Bluebild.
