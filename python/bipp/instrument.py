@@ -64,6 +64,13 @@ def _as_InstrumentGeometry(df):
     XYZ = InstrumentGeometry(xyz=df.values, ant_idx=df.index)
     return XYZ
 
+def _check_requested_geometry(N_station_conf, N_station, instrument_configuration_file):
+    if N_station > N_station_conf:
+        msg = (f"Parameter[N_station] set to {N_station} exceeds the " +
+               f"number of stations ({N_station_conf}) in instrument\'s configuration file: " +
+               f"{instrument_configuration_file}")
+        raise ValueError(msg)
+
 
 class InstrumentGeometry(array.LabeledMatrix):
     """
@@ -337,10 +344,10 @@ class LofarBlock(EarthBoundInstrumentGeometryBlock):
     """
 
     def __init__(self, N_station=None, station_only=False):
-        XYZ = self._get_geometry(station_only)
+        XYZ = self._get_geometry(N_station, station_only)
         super().__init__(XYZ, N_station)
 
-    def _get_geometry(self, station_only):
+    def _get_geometry(self, N_station, station_only):
         """
         Load instrument geometry.
 
@@ -352,6 +359,11 @@ class LofarBlock(EarthBoundInstrumentGeometryBlock):
         abs_path = pkg.resource_filename("bipp", str(rel_path))
 
         itrs_geom = pd.read_csv(abs_path).set_index(["STATION_ID", "ANTENNA_ID"])
+
+        N_station_conf = len(itrs_geom.index.unique(level='STATION_ID'))
+
+        if N_station:
+            _check_requested_geometry(N_station_conf, N_station, abs_path)
 
         if station_only:
             itrs_geom = itrs_geom.groupby("STATION_ID").mean()
@@ -383,10 +395,10 @@ class MwaBlock(EarthBoundInstrumentGeometryBlock):
     """
 
     def __init__(self, N_station=None, station_only=False):
-        XYZ = self._get_geometry(station_only)
+        XYZ = self._get_geometry(N_station, station_only)
         super().__init__(XYZ, N_station)
 
-    def _get_geometry(self, station_only):
+    def _get_geometry(self, N_station, station_only):
         """
         Load instrument geometry.
 
@@ -402,6 +414,11 @@ class MwaBlock(EarthBoundInstrumentGeometryBlock):
         abs_path = pkg.resource_filename("bipp", str(rel_path))
 
         itrs_geom = pd.read_csv(abs_path).set_index("STATION_ID")
+
+        N_station_conf = len(itrs_geom.index.unique(level='STATION_ID'))
+
+        if N_station:
+            _check_requested_geometry(N_station_conf, N_station, abs_path)
 
         station_id = itrs_geom.index.get_level_values("STATION_ID")
         if station_only:
