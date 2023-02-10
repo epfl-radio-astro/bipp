@@ -1,17 +1,66 @@
 #pragma once
 
 #include <bipp/config.h>
+#include <bipp/enums.h>
 
+#include <array>
 #include <bipp/context.hpp>
 #include <complex>
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <type_traits>
+#include <utility>
+#include <variant>
 
 /*! \cond PRIVATE */
 namespace bipp {
 /*! \endcond */
+
+struct Partition {
+
+  struct Auto {};
+
+  struct None {};
+
+  struct Grid {
+    std::array<std::size_t, 3> dimensions = {1, 1, 1};
+  };
+
+  std::variant<Partition::Auto, Partition::None, Partition::Grid> method = Partition::Auto();
+};
+
+struct NufftSynthesisOptions {
+  float tolerance = 0.001f;
+
+  std::optional<std::size_t> collectGroupSize = std::nullopt;
+
+  Partition localImagePartition = Partition{Partition::Auto()};
+
+  Partition localUVWPartition = Partition{Partition::Auto()};
+
+  inline auto set_tolerance(float tol) -> NufftSynthesisOptions& {
+    tolerance = tol;
+    return *this;
+  }
+
+  inline auto set_collect_group_size(std::size_t size) -> NufftSynthesisOptions& {
+    collectGroupSize = size;
+    return *this;
+  }
+
+  inline auto set_local_image_partition(Partition p) -> NufftSynthesisOptions& {
+    localImagePartition = std::move(p);
+    return *this;
+  }
+
+  inline auto set_local_uvw_partition(Partition p) -> NufftSynthesisOptions& {
+    localUVWPartition = std::move(p);
+    return *this;
+  }
+};
+
 
 template <typename T>
 class BIPP_EXPORT NufftSynthesis {
@@ -23,7 +72,7 @@ public:
    * Create a nufft synthesis plan.
    *
    * @param[in] ctx Context handle.
-   * @param[in] tol Target precision tolorance.
+   * @param[in] opt Options.
    * @param[in] nAntenna Number of antenna.
    * @param[in] nBeam Number of beam.
    * @param[in] nIntervals Number of intervals.
@@ -34,7 +83,7 @@ public:
    * @param[in] lmnY Array of image y coordinates of size nPixel.
    * @param[in] lmnZ Array of image z coordinates of size nPixel.
    */
-  NufftSynthesis(Context& ctx, T tol, std::size_t nAntenna, std::size_t nBeam,
+  NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::size_t nAntenna, std::size_t nBeam,
                  std::size_t nIntervals, std::size_t nFilter, const BippFilter* filter,
                  std::size_t nPixel, const T* lmnX, const T* lmnY, const T* lmnZ);
 

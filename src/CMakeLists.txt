@@ -22,6 +22,7 @@ if(BIPP_CUDA OR BIPP_ROCM)
 		gpu/nufft_synthesis.cpp
 		gpu/virtual_vis.cpp
 		gpu/standard_synthesis.cpp
+		gpu/domain_partition.cu
 		gpu/util/solver_api.cpp
 		gpu/kernels/reverse.cu
 		gpu/kernels/gram.cu
@@ -82,6 +83,8 @@ if(BIPP_BUILD_TESTS)
 	# create library with default visibility if tests are build, to allow linking to internal symbols
 	bipp_create_library(bipp_test)
 	set_target_properties(bipp_test PROPERTIES VISIBILITY_INLINES_HIDDEN FALSE CXX_VISIBILITY_PRESET default)
+	target_include_directories(bipp_test INTERFACE ${BIPP_INCLUDE_DIRS})
+	target_link_libraries(bipp_test INTERFACE ${BIPP_EXTERNAL_LIBS})
 	target_compile_options(bipp_test PUBLIC -DBIPP_STATIC_DEFINE)
 endif()
 
