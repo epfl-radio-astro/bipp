@@ -179,14 +179,14 @@ auto DomainPartition::grid(const std::shared_ptr<ContextInternal>& ctx,
     // Compute permutation through sorting indices and group keys
     {
       std::size_t workSize = 0;
-      api::cub::DeviceRadixSort::SortPairs(
+      api::check_status(api::cub::DeviceRadixSort::SortPairs(
           nullptr, workSize, keyBuffer.get(), sortedKeyBuffer.get(), indicesBuffer.get(),
-          permutBuffer.get(), n, 0, sizeof(GroupIndexType) * 8, q.stream());
+          permutBuffer.get(), n, 0, sizeof(GroupIndexType) * 8, q.stream()));
 
       auto workBuffer = q.create_device_buffer<char>(workSize);
-      api::cub::DeviceRadixSort::SortPairs(
+      api::check_status(api::cub::DeviceRadixSort::SortPairs(
           workBuffer.get(), workSize, keyBuffer.get(), sortedKeyBuffer.get(), indicesBuffer.get(),
-          permutBuffer.get(), n, 0, sizeof(GroupIndexType) * 8, q.stream());
+          permutBuffer.get(), n, 0, sizeof(GroupIndexType) * 8, q.stream()));
     }
 
     // Compute the number of elements in each group
