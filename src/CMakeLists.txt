@@ -31,6 +31,7 @@ if(BIPP_CUDA OR BIPP_ROCM)
 		gpu/kernels/add_vector.cu
 		gpu/kernels/gemmexp.cu
 		gpu/kernels/center_vector.cu
+		gpu/kernels/min_max_element.cu
 		)
 endif()
 

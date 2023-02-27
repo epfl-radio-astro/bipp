@@ -10,10 +10,12 @@
 #include "gpu/eigensolver.hpp"
 #include "gpu/gram_matrix.hpp"
 #include "gpu/kernels/add_vector.hpp"
+#include "gpu/kernels/min_max_element.hpp"
 #include "gpu/nufft_3d3.hpp"
-#include "gpu/util/runtime_api.hpp"
 #include "gpu/util/device_pointer.hpp"
+#include "gpu/util/runtime_api.hpp"
 #include "gpu/virtual_vis.hpp"
+#include "nufft_util.hpp"
 
 namespace bipp {
 namespace gpu {
@@ -57,12 +59,12 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
   if (opt_.collectGroupSize && opt_.collectGroupSize.value() > 0) {
     nMaxInputCount_ = opt_.collectGroupSize.value();
   } else {
-    // use at most 33% of memory more accumulation, but not more than 200
+    // use at most 25% of memory more accumulation, but not more than 200
     // iterations.
     std::size_t freeMem, totalMem;
     api::mem_get_info(&freeMem, &totalMem);
     nMaxInputCount_ =
-        (totalMem / 3) / (nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ * sizeof(std::complex<T>));
+        (totalMem / 4) / (nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ * sizeof(std::complex<T>));
     nMaxInputCount_ = std::min<std::size_t>(std::max<std::size_t>(1, nMaxInputCount_), 200);
   }
 
@@ -134,14 +136,62 @@ auto NufftSynthesis<T>::computeNufft() -> void {
 
     const auto nInputPoints = nAntenna_ * nAntenna_ * collectCount_;
 
-    auto inputPartition = DomainPartition::none(ctx_, nInputPoints);
-
-    std::visit(
-        [&](auto&& arg) -> void {
+    auto inputPartition = std::visit(
+        [&](auto&& arg) -> DomainPartition {
           using ArgType = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<ArgType, Partition::Grid>) {
-            inputPartition = DomainPartition::grid<T>(ctx_, arg.dimensions, nInputPoints,
-                                                      {uvwX_.get(), uvwY_.get(), uvwZ_.get()});
+            return DomainPartition::grid<T>(ctx_, arg.dimensions, nInputPoints,
+                                            {uvwX_.get(), uvwY_.get(), uvwZ_.get()});
+
+          } else if constexpr (std::is_same_v<ArgType, Partition::None>) {
+            return DomainPartition::none(ctx_, nInputPoints);
+
+          } else if constexpr (std::is_same_v<ArgType, Partition::Auto>) {
+            auto minMaxBuffer = queue.create_device_buffer<T>(12);
+            min_element(queue, nInputPoints, uvwX_.get(), minMaxBuffer.get());
+            max_element(queue, nInputPoints, uvwX_.get(), minMaxBuffer.get() + 1);
+
+            min_element(queue, nInputPoints, uvwY_.get(), minMaxBuffer.get() + 2);
+            max_element(queue, nInputPoints, uvwY_.get(), minMaxBuffer.get() + 3);
+
+            min_element(queue, nInputPoints, uvwZ_.get(), minMaxBuffer.get() + 4);
+            max_element(queue, nInputPoints, uvwZ_.get(), minMaxBuffer.get() + 5);
+
+            min_element(queue, nPixel_, lmnX_.get(), minMaxBuffer.get() + 6);
+            max_element(queue, nPixel_, lmnX_.get(), minMaxBuffer.get() + 7);
+
+            min_element(queue, nPixel_, lmnY_.get(), minMaxBuffer.get() + 8);
+            max_element(queue, nPixel_, lmnY_.get(), minMaxBuffer.get() + 9);
+
+            min_element(queue, nPixel_, lmnZ_.get(), minMaxBuffer.get() + 10);
+            max_element(queue, nPixel_, lmnZ_.get(), minMaxBuffer.get() + 11);
+
+            auto minMaxHostBuffer = queue.create_host_buffer<T>(minMaxBuffer.size());
+
+            api::memcpy_async(minMaxHostBuffer.get(), minMaxBuffer.get(),
+                              minMaxBuffer.size_in_bytes(), api::flag::MemcpyDeviceToHost,
+                              queue.stream());
+
+            queue.sync();
+
+            const T* minMaxPtr = minMaxHostBuffer.get();
+
+            std::array<double, 3> uvwExtent = {minMaxPtr[1] - minMaxPtr[0],
+                                               minMaxPtr[3] - minMaxPtr[2],
+                                               minMaxPtr[5] - minMaxPtr[4]};
+            std::array<double, 3> imgExtent = {minMaxPtr[7] - minMaxPtr[6],
+                                               minMaxPtr[9] - minMaxPtr[8],
+                                               minMaxPtr[11] - minMaxPtr[10]};
+
+            // Use at most 25% of total memory for fft grid
+            const auto gridSize = optimal_nufft_input_partition(
+                uvwExtent, imgExtent,
+                queue.device_prop().totalGlobalMem / (4 * sizeof(api::ComplexType<T>)));
+
+            // set partition method to grid and create grid partition
+            opt_.localUVWPartition.method = Partition::Grid{gridSize};
+            return DomainPartition::grid<T>(ctx_, gridSize, nInputPoints,
+                                            {uvwX_.get(), uvwY_.get(), uvwZ_.get()});
           }
         },
         opt_.localUVWPartition.method);

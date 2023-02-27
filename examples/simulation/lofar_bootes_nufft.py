@@ -64,8 +64,9 @@ opt.set_collect_group_size(20)
 # Set the domain splitting methods for image and uvw coordinates.
 # Splitting decreases memory usage, but may lead to lower performance.
 # Best used with a wide spread of image or uvw coordinates.
+# Possible options are "grid", "none" or "auto"
 opt.set_local_image_partition(bipp.Partition.grid([1,1,1]))
-opt.set_local_uvw_partition(bipp.Partition.grid([1,1,1]))
+opt.set_local_uvw_partition(bipp.Partition.auto())
 precision = "single"
 
 

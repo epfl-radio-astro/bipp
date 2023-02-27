@@ -37,8 +37,9 @@ public:
     std::array<T, DIM> minCoord, maxCoord;
 
     for (std::size_t dimIdx = 0; dimIdx < DIM; ++dimIdx) {
-      minCoord[dimIdx] = *std::min_element(coord[dimIdx], coord[dimIdx] + n);
-      maxCoord[dimIdx] = *std::max_element(coord[dimIdx], coord[dimIdx] + n);
+      auto minMaxIt = std::minmax_element(coord[dimIdx], coord[dimIdx] + n);
+      minCoord[dimIdx] = *minMaxIt.first;
+      maxCoord[dimIdx] = *minMaxIt.second;
     }
 
     Buffer<Group> groups(ctx->host_alloc(), gridSize);

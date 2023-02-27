@@ -45,7 +45,7 @@ struct NufftSynthesisOptions {
     return *this;
   }
 
-  inline auto set_collect_group_size(std::size_t size) -> NufftSynthesisOptions& {
+  inline auto set_collect_group_size(std::optional<std::size_t> size) -> NufftSynthesisOptions& {
     collectGroupSize = size;
     return *this;
   }

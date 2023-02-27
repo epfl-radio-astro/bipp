@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <complex>
 #include <cstring>
@@ -17,15 +18,16 @@
 #include "host/nufft_3d3.hpp"
 #include "host/virtual_vis.hpp"
 #include "memory/buffer.hpp"
+#include "nufft_util.hpp"
 
 namespace bipp {
 namespace host {
 
-static auto system_memory() {
-  auto pages = sysconf(_SC_PHYS_PAGES);
-  auto pageSize = sysconf(_SC_PAGE_SIZE);
-  auto memory = pages * pageSize;
-  return memory > 0 ? memory : 1024;
+static auto system_memory() -> unsigned long long {
+  unsigned long long pages = sysconf(_SC_PHYS_PAGES);
+  unsigned long long pageSize = sysconf(_SC_PAGE_SIZE);
+  unsigned long long memory = pages * pageSize;
+  return memory > 0 ? memory : 8ull * 1024ull * 1024ull * 1024ull;
 }
 
 template <typename T>
@@ -48,6 +50,7 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
       collectCount_(0) {
   std::memcpy(filter_.get(), filter, sizeof(BippFilter) * nFilter_);
 
+  // Only partition image if explicitly set. Auto defaults to no partition.
   std::visit(
       [&](auto&& arg) -> void {
         using ArgType = std::decay_t<decltype(arg)>;
@@ -65,8 +68,8 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
   if (opt_.collectGroupSize && opt_.collectGroupSize.value() > 0) {
     nMaxInputCount_ = opt_.collectGroupSize.value();
   } else {
-    // use at most 33% of memory more accumulation, but not more than 200
-    nMaxInputCount_ = (system_memory() / 3) /
+    // use at most 25% of memory for accumulation, but not more than 200 iterations in total
+    nMaxInputCount_ = (system_memory() / 4) /
                       (nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ * sizeof(std::complex<T>));
     nMaxInputCount_ = std::min<std::size_t>(std::max<std::size_t>(1, nMaxInputCount_), 200);
   }
@@ -133,14 +136,42 @@ auto NufftSynthesis<T>::computeNufft() -> void {
 
     const auto nInputPoints = nAntenna_ * nAntenna_ * collectCount_;
 
-    auto inputPartition = DomainPartition::none(ctx_, nInputPoints);
-
-    std::visit(
-        [&](auto&& arg) -> void {
+    auto inputPartition = std::visit(
+        [&](auto&& arg) -> DomainPartition {
           using ArgType = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<ArgType, Partition::Grid>) {
-            inputPartition = DomainPartition::grid<T, 3>(ctx_, arg.dimensions, nInputPoints,
-                                                         {uvwX_.get(), uvwY_.get(), uvwZ_.get()});
+            return DomainPartition::grid<T, 3>(ctx_, arg.dimensions, nInputPoints,
+                                               {uvwX_.get(), uvwY_.get(), uvwZ_.get()});
+
+          } else if constexpr (std::is_same_v<ArgType, Partition::None>) {
+            return DomainPartition::none(ctx_, nInputPoints);
+
+          } else if constexpr (std::is_same_v<ArgType, Partition::Auto>) {
+            std::array<double, 3> uvwExtent{};
+            std::array<double, 3> imgExtent{};
+
+            auto minMaxIt = std::minmax_element(uvwX_.get(), uvwX_.get() + nInputPoints);
+            uvwExtent[0] = *minMaxIt.second - *minMaxIt.first;
+            minMaxIt = std::minmax_element(uvwY_.get(), uvwY_.get() + nInputPoints);
+            uvwExtent[1] = *minMaxIt.second - *minMaxIt.first;
+            minMaxIt = std::minmax_element(uvwZ_.get(), uvwZ_.get() + nInputPoints);
+            uvwExtent[2] = *minMaxIt.second - *minMaxIt.first;
+
+            minMaxIt = std::minmax_element(lmnX_.get(), lmnX_.get() + nPixel_);
+            imgExtent[0] = *minMaxIt.second - *minMaxIt.first;
+            minMaxIt = std::minmax_element(lmnY_.get(), lmnY_.get() + nPixel_);
+            imgExtent[1] = *minMaxIt.second - *minMaxIt.first;
+            minMaxIt = std::minmax_element(lmnZ_.get(), lmnZ_.get() + nPixel_);
+            imgExtent[2] = *minMaxIt.second - *minMaxIt.first;
+
+            // Use at most 25% of total memory for fft grid
+            const auto gridSize = optimal_nufft_input_partition(
+                uvwExtent, imgExtent, system_memory() / (4 * sizeof(std::complex<T>)));
+
+            // set partition method to grid and create grid partition
+            opt_.localUVWPartition.method = Partition::Grid{gridSize};
+            return DomainPartition::grid<T>(ctx_, gridSize, nInputPoints,
+                                            {uvwX_.get(), uvwY_.get(), uvwZ_.get()});
           }
         },
         opt_.localUVWPartition.method);
