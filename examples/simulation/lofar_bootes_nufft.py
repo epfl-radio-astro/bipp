@@ -60,13 +60,14 @@ opt = bipp.NufftSynthesisOptions()
 opt.set_tolerance(1e-3)
 # Set the maximum number of data packages that are processed together after collection.
 # A larger number increses memory usage, but usually improves performance.
-opt.set_collect_group_size(20)
+# If set to "None", an internal heuristic will be used.
+opt.set_collect_group_size(None)
 # Set the domain splitting methods for image and uvw coordinates.
 # Splitting decreases memory usage, but may lead to lower performance.
 # Best used with a wide spread of image or uvw coordinates.
 # Possible options are "grid", "none" or "auto"
 opt.set_local_image_partition(bipp.Partition.grid([1,1,1]))
-opt.set_local_uvw_partition(bipp.Partition.auto())
+opt.set_local_uvw_partition(bipp.Partition.none())
 precision = "single"
 
 
