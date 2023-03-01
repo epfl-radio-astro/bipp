@@ -388,11 +388,11 @@ PYBIND11_MODULE(pybipp, m) {
       .def(py::init())
       .def_readwrite("tolerance", &NufftSynthesisOptions::tolerance)
       .def("set_tolerance", &NufftSynthesisOptions::set_tolerance)
-      .def_readwrite("collectGroupSize", &NufftSynthesisOptions::collectGroupSize)
+      .def_readwrite("collect_group_size", &NufftSynthesisOptions::collectGroupSize)
       .def("set_collect_group_size", &NufftSynthesisOptions::set_collect_group_size)
-      .def_readwrite("localImagePartition", &NufftSynthesisOptions::localImagePartition)
+      .def_readwrite("local_image_partition", &NufftSynthesisOptions::localImagePartition)
       .def("set_local_image_partition", &NufftSynthesisOptions::set_local_image_partition)
-      .def_readwrite("localUVWPartition", &NufftSynthesisOptions::localUVWPartition)
+      .def_readwrite("local_uvw_partition", &NufftSynthesisOptions::localUVWPartition)
       .def("set_local_uvw_partition", &NufftSynthesisOptions::set_local_uvw_partition);
 
   pybind11::class_<NufftSynthesisDispatcher>(m, "NufftSynthesis")
