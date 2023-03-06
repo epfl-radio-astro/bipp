@@ -94,7 +94,7 @@ bipp
 
       Args
          p : :py:class:`~bipp.Partition`
-             Partition methid for image domain.
+             Partition method for image domain.
       Returns
          :py:class:`~bipp.NufftSynthesisOptions`
 
@@ -102,7 +102,7 @@ bipp
 
       Args
          p : :py:class:`~bipp.Partition`
-             Partition methid for uvw domain.
+             Partition method for uvw domain.
       Returns
          :py:class:`~bipp.NufftSynthesisOptions`
 

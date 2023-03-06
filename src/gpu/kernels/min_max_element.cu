@@ -1,6 +1,6 @@
 #include <cstddef>
 
-#include "bipp//config.h"
+#include "bipp/config.h"
 #include "gpu/util/cub_api.hpp"
 #include "gpu/util/queue.hpp"
 #include "gpu/util/runtime_api.hpp"

@@ -59,7 +59,7 @@ opt = bipp.NufftSynthesisOptions()
 # Set the tolerance for NUFFT, which is the maximum relative error.
 opt.set_tolerance(1e-3)
 # Set the maximum number of data packages that are processed together after collection.
-# A larger number increses memory usage, but usually improves performance.
+# A larger number increases memory usage, but usually improves performance.
 # If set to "None", an internal heuristic will be used.
 opt.set_collect_group_size(None)
 # Set the domain splitting methods for image and uvw coordinates.
