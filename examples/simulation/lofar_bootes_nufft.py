@@ -53,10 +53,26 @@ time = obs_start + (T_integration * u.s) * np.arange(3595)
 N_antenna = dev(time[0]).data.shape[0]
 obs_end = time[-1]
 
+# Nufft Synthesis options
+
+opt = bipp.NufftSynthesisOptions()
+# Set the tolerance for NUFFT, which is the maximum relative error.
+opt.set_tolerance(1e-3)
+# Set the maximum number of data packages that are processed together after collection.
+# A larger number increases memory usage, but usually improves performance.
+# If set to "None", an internal heuristic will be used.
+opt.set_collect_group_size(None)
+# Set the domain splitting methods for image and uvw coordinates.
+# Splitting decreases memory usage, but may lead to lower performance.
+# Best used with a wide spread of image or uvw coordinates.
+# Possible options are "grid", "none" or "auto"
+opt.set_local_image_partition(bipp.Partition.grid([1,1,1]))
+opt.set_local_uvw_partition(bipp.Partition.none())
+precision = "single"
+
+
 # Imaging
 N_pix = 350
-eps = 1e-3
-precision = "single"
 
 t1 = tt.time()
 N_level = 3
@@ -85,6 +101,7 @@ N_eig, intensity_intervals = I_est.infer_parameters()
 # Imaging
 imager = bipp.NufftSynthesis(
     ctx,
+    opt,
     N_antenna,
     N_station,
     intensity_intervals.shape[0],
@@ -93,7 +110,6 @@ imager = bipp.NufftSynthesis(
     lmn_grid[1],
     lmn_grid[2],
     precision,
-    eps,
 )
 
 for t in ProgressBar(time[::time_slice]):
@@ -123,6 +139,7 @@ sensitivity_intervals = np.array([[0, np.finfo("f").max]])
 imager = None  # release previous imager first to some additional memory
 imager = bipp.NufftSynthesis(
     ctx,
+    opt,
     N_antenna,
     N_station,
     sensitivity_intervals.shape[0],
@@ -131,7 +148,6 @@ imager = bipp.NufftSynthesis(
     lmn_grid[1],
     lmn_grid[2],
     precision,
-    eps,
 )
 
 for t in ProgressBar(time[::time_slice]):

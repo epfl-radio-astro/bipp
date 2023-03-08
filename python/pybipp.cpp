@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -236,10 +237,11 @@ struct StandardSynthesisDispatcher {
 };
 
 struct NufftSynthesisDispatcher {
-  NufftSynthesisDispatcher(Context& ctx, std::size_t nAntenna, std::size_t nBeam,
-                           std::size_t nIntervals, const std::vector<std::string>& filter,
-                           const py::array& lmnX, const py::array& lmnY, const py::array& lmnZ,
-                           const std::string& precision, double tol)
+  NufftSynthesisDispatcher(Context& ctx, NufftSynthesisOptions opt, std::size_t nAntenna,
+                           std::size_t nBeam, std::size_t nIntervals,
+                           const std::vector<std::string>& filter, const py::array& lmnX,
+                           const py::array& lmnY, const py::array& lmnZ,
+                           const std::string& precision)
       : nIntervals_(nIntervals), nPixel_(lmnX.shape(0)) {
     std::vector<BippFilter> filterEnums;
     for (const auto& f : filter) {
@@ -252,9 +254,9 @@ struct NufftSynthesisDispatcher {
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = NufftSynthesis<float>(ctx, tol, nAntenna, nBeam, nIntervals, filterEnums.size(),
-                                    filterEnums.data(), lmnXArray.shape(0), lmnXArray.data(0),
-                                    lmnYArray.data(0), lmnZArray.data(0));
+      plan_ = NufftSynthesis<float>(ctx, std::move(opt), nAntenna, nBeam, nIntervals,
+                                    filterEnums.size(), filterEnums.data(), lmnXArray.shape(0),
+                                    lmnXArray.data(0), lmnYArray.data(0), lmnZArray.data(0));
     } else if (precision == "double" || precision == "DOUBLE") {
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnXArray(lmnX);
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnYArray(lmnY);
@@ -262,9 +264,9 @@ struct NufftSynthesisDispatcher {
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = NufftSynthesis<double>(ctx, tol, nAntenna, nBeam, nIntervals, filterEnums.size(),
-                                     filterEnums.data(), lmnXArray.shape(0), lmnXArray.data(0),
-                                     lmnYArray.data(0), lmnZArray.data(0));
+      plan_ = NufftSynthesis<double>(ctx, std::move(opt), nAntenna, nBeam, nIntervals,
+                                     filterEnums.size(), filterEnums.data(), lmnXArray.shape(0),
+                                     lmnXArray.data(0), lmnYArray.data(0), lmnZArray.data(0));
     } else {
       throw InvalidParameterError();
     }
@@ -371,14 +373,36 @@ PYBIND11_MODULE(pybipp, m) {
       .def_property_readonly("processing_unit",
            [](const Context& ctx) { return processing_unit_to_string(ctx.processing_unit()); });
 
+  pybind11::class_<Partition>(m, "Partition")
+      .def(py::init())
+      .def_static("auto", []() { return Partition{Partition::Auto()}; })
+      .def_static("none", []() { return Partition{Partition::None()}; })
+      .def_static(
+          "grid",
+          [](std::array<std::size_t, 3> dimensions) {
+            return Partition{Partition::Grid{dimensions}};
+          },
+          pybind11::arg("dimensions"));
+
+  pybind11::class_<NufftSynthesisOptions>(m, "NufftSynthesisOptions")
+      .def(py::init())
+      .def_readwrite("tolerance", &NufftSynthesisOptions::tolerance)
+      .def("set_tolerance", &NufftSynthesisOptions::set_tolerance)
+      .def_readwrite("collect_group_size", &NufftSynthesisOptions::collectGroupSize)
+      .def("set_collect_group_size", &NufftSynthesisOptions::set_collect_group_size)
+      .def_readwrite("local_image_partition", &NufftSynthesisOptions::localImagePartition)
+      .def("set_local_image_partition", &NufftSynthesisOptions::set_local_image_partition)
+      .def_readwrite("local_uvw_partition", &NufftSynthesisOptions::localUVWPartition)
+      .def("set_local_uvw_partition", &NufftSynthesisOptions::set_local_uvw_partition);
+
   pybind11::class_<NufftSynthesisDispatcher>(m, "NufftSynthesis")
-      .def(pybind11::init<Context&, std::size_t, std::size_t, std::size_t,
+      .def(pybind11::init<Context&, NufftSynthesisOptions, std::size_t, std::size_t, std::size_t,
                           const std::vector<std::string>&, const py::array&, const py::array&,
-                          const py::array&, const std::string&, double>(),
-           pybind11::arg("ctx"), pybind11::arg("n_antenna"), pybind11::arg("n_beam"),
-           pybind11::arg("n_intervals"), pybind11::arg("filter"), pybind11::arg("lmn_x"),
-           pybind11::arg("lmn_y"), pybind11::arg("lmn_y"), pybind11::arg("precision"),
-           pybind11::arg("tol"))
+                          const py::array&, const std::string&>(),
+           pybind11::arg("ctx"), pybind11::arg("opt"), pybind11::arg("n_antenna"),
+           pybind11::arg("n_beam"), pybind11::arg("n_intervals"), pybind11::arg("filter"),
+           pybind11::arg("lmn_x"), pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
+           pybind11::arg("precision"))
       .def("collect", &NufftSynthesisDispatcher::collect, pybind11::arg("n_eig"),
            pybind11::arg("wl"), pybind11::arg("intervals"), pybind11::arg("w"),
            pybind11::arg("xyz"), pybind11::arg("uvw"),

@@ -48,6 +48,14 @@ public:
 
   inline auto data_handler() const noexcept -> const std::shared_ptr<void>& { return data_; }
 
+  inline auto begin() const -> const T* { return get(); }
+
+  inline auto begin() -> T* { return get(); }
+
+  inline auto end() const -> const T* { return get() + size_; }
+
+  inline auto end() -> T* { return get() + size_; }
+
 private:
   std::size_t size_;
   std::shared_ptr<void> data_;

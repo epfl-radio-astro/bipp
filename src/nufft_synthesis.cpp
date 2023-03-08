@@ -19,13 +19,13 @@ namespace bipp {
 
 template <typename T>
 struct NufftSynthesisInternal {
-  NufftSynthesisInternal(const std::shared_ptr<ContextInternal>& ctx, T tol, std::size_t nAntenna,
-                         std::size_t nBeam, std::size_t nIntervals, std::size_t nFilter,
-                         const BippFilter* filter, std::size_t nPixel, const T* lmnX, const T* lmnY,
-                         const T* lmnZ)
+  NufftSynthesisInternal(const std::shared_ptr<ContextInternal>& ctx, NufftSynthesisOptions opt,
+                         std::size_t nAntenna, std::size_t nBeam, std::size_t nIntervals,
+                         std::size_t nFilter, const BippFilter* filter, std::size_t nPixel,
+                         const T* lmnX, const T* lmnY, const T* lmnZ)
       : ctx_(ctx), nAntenna_(nAntenna), nBeam_(nBeam), nIntervals_(nIntervals), nPixel_(nPixel) {
     if (ctx_->processing_unit() == BIPP_PU_CPU) {
-      planHost_.emplace(ctx_, tol, nAntenna, nBeam, nIntervals, nFilter, filter, nPixel, lmnX, lmnY,
+      planHost_.emplace(ctx_, std::move(opt), nAntenna, nBeam, nIntervals, nFilter, filter, nPixel, lmnX, lmnY,
                         lmnZ);
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
@@ -59,8 +59,8 @@ struct NufftSynthesisInternal {
                                gpu::api::flag::MemcpyHostToDevice, queue.stream());
       }
 
-      planGPU_.emplace(ctx_, tol, nAntenna, nBeam, nIntervals, nFilter, filter, nPixel, lmnXDevice,
-                       lmnYDevice, lmnZDevice);
+      planGPU_.emplace(ctx_, std::move(opt), nAntenna, nBeam, nIntervals, nFilter, filter, nPixel,
+                       lmnXDevice, lmnYDevice, lmnZDevice);
 #else
       throw GPUSupportError();
 #endif
@@ -160,12 +160,13 @@ struct NufftSynthesisInternal {
 };
 
 template <typename T>
-NufftSynthesis<T>::NufftSynthesis(Context& ctx, T tol, std::size_t nAntenna, std::size_t nBeam,
-                                  std::size_t nIntervals, std::size_t nFilter,
+NufftSynthesis<T>::NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::size_t nAntenna,
+                                  std::size_t nBeam, std::size_t nIntervals, std::size_t nFilter,
                                   const BippFilter* filter, std::size_t nPixel, const T* lmnX,
                                   const T* lmnY, const T* lmnZ)
-    : plan_(new NufftSynthesisInternal<T>(InternalContextAccessor::get(ctx), tol, nAntenna, nBeam,
-                                          nIntervals, nFilter, filter, nPixel, lmnX, lmnY, lmnZ),
+    : plan_(new NufftSynthesisInternal<T>(InternalContextAccessor::get(ctx), std::move(opt),
+                                          nAntenna, nBeam, nIntervals, nFilter, filter, nPixel,
+                                          lmnX, lmnY, lmnZ),
             [](auto&& ptr) { delete reinterpret_cast<NufftSynthesisInternal<T>*>(ptr); }) {}
 
 template <typename T>
@@ -187,7 +188,152 @@ template class BIPP_EXPORT NufftSynthesis<double>;
 template class BIPP_EXPORT NufftSynthesis<float>;
 
 extern "C" {
-BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, float tol, size_t nAntenna,
+BIPP_EXPORT BippError bipp_ns_options_create(BippNufftSynthesisOptions* opt) {
+  try {
+    *reinterpret_cast<NufftSynthesisOptions**>(opt) = new NufftSynthesisOptions();
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
+BIPP_EXPORT BippError bipp_ns_options_destroy(BippNufftSynthesisOptions* opt) {
+  if (!opt || !(*opt)) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    delete *reinterpret_cast<NufftSynthesisOptions**>(opt);
+    *reinterpret_cast<Context**>(opt) = nullptr;
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
+BIPP_EXPORT BippError bipp_ns_options_set_tolerance(BippNufftSynthesisOptions opt, float tol) {
+  if (!opt) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<NufftSynthesisOptions*>(opt)->set_tolerance(tol);
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
+BIPP_EXPORT BippError bipp_ns_options_set_collect_group_size(BippNufftSynthesisOptions opt,
+                                                             size_t size) {
+  if (!opt) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<NufftSynthesisOptions*>(opt)->set_collect_group_size(size);
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
+BIPP_EXPORT BippError bipp_ns_options_set_local_image_partition_auto(BippNufftSynthesisOptions opt) {
+  if (!opt) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<NufftSynthesisOptions*>(opt)->set_local_image_partition({Partition::Auto{}});
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
+BIPP_EXPORT BippError bipp_ns_options_set_local_image_partition_none(BippNufftSynthesisOptions opt) {
+  if (!opt) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<NufftSynthesisOptions*>(opt)->set_local_image_partition({Partition::None{}});
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
+BIPP_EXPORT BippError bipp_ns_options_set_local_image_partition_grid(BippNufftSynthesisOptions opt,
+                                                                     size_t dimX, size_t dimY,
+                                                                     size_t dimZ) {
+  if (!opt) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<NufftSynthesisOptions*>(opt)->set_local_image_partition(
+        {Partition::Grid{{dimX, dimY, dimZ}}});
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
+BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_auto(BippNufftSynthesisOptions opt) {
+  if (!opt) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<NufftSynthesisOptions*>(opt)->set_local_uvw_partition({Partition::Auto{}});
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
+BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_none(BippNufftSynthesisOptions opt) {
+  if (!opt) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<NufftSynthesisOptions*>(opt)->set_local_uvw_partition({Partition::None{}});
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
+BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_grid(BippNufftSynthesisOptions opt,
+                                                                   size_t dimX, size_t dimY,
+                                                                   size_t dimZ) {
+  if (!opt) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<NufftSynthesisOptions*>(opt)->set_local_uvw_partition(
+        {Partition::Grid{{dimX, dimY, dimZ}}});
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
+BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSynthesisOptions opt, size_t nAntenna,
                                                     size_t nBeam, size_t nIntervals, size_t nFilter,
                                                     const BippFilter* filter, size_t nPixel,
                                                     const float* lmnX, const float* lmnY,
@@ -197,8 +343,9 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, float tol, 
   }
   try {
     *plan = new NufftSynthesisInternal<float>(
-        InternalContextAccessor::get(*reinterpret_cast<Context*>(ctx)), tol, nAntenna, nBeam,
-        nIntervals, nFilter, filter, nPixel, lmnX, lmnY, lmnZ);
+        InternalContextAccessor::get(*reinterpret_cast<Context*>(ctx)),
+        *reinterpret_cast<const NufftSynthesisOptions*>(opt), nAntenna, nBeam, nIntervals, nFilter,
+        filter, nPixel, lmnX, lmnY, lmnZ);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -257,7 +404,7 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_get_f(BippNufftSynthesisF plan, BippF
   return BIPP_SUCCESS;
 }
 
-BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, double tol, size_t nAntenna,
+BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, BippNufftSynthesisOptions opt, size_t nAntenna,
                                                   size_t nBeam, size_t nIntervals, size_t nFilter,
                                                   const BippFilter* filter, size_t nPixel,
                                                   const double* lmnX, const double* lmnY,
@@ -267,8 +414,9 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, double tol, s
   }
   try {
     *plan = new NufftSynthesisInternal<double>(
-        InternalContextAccessor::get(*reinterpret_cast<Context*>(ctx)), tol, nAntenna, nBeam,
-        nIntervals, nFilter, filter, nPixel, lmnX, lmnY, lmnZ);
+        InternalContextAccessor::get(*reinterpret_cast<Context*>(ctx)),
+        *reinterpret_cast<const NufftSynthesisOptions*>(opt), nAntenna, nBeam, nIntervals, nFilter,
+        filter, nPixel, lmnX, lmnY, lmnZ);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {

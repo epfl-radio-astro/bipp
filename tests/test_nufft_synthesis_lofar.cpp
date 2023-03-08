@@ -104,8 +104,8 @@ protected:
     const auto lmnZ = read_json_scalar_1d<T>(output_data["lmn_z"]);
     const std::size_t nPixel = imgRef.size() / nIntervals;
 
-    bipp::NufftSynthesis<T> imager(ctx_, tol, nAntenna, nBeam, nIntervals, 1, &filter, nPixel,
-                                   lmnX.data(), lmnY.data(), lmnZ.data());
+    bipp::NufftSynthesis<T> imager(ctx_, bipp::NufftSynthesisOptions(), nAntenna, nBeam, nIntervals,
+                                   1, &filter, nPixel, lmnX.data(), lmnY.data(), lmnZ.data());
 
     for (const auto& itData : data["data"]) {
       auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
@@ -145,8 +145,8 @@ protected:
     const auto lmnZ = read_json_scalar_1d<T>(output_data["lmn_z"]);
     const std::size_t nPixel = imgRef.size() / nIntervals;
 
-    bipp::NufftSynthesis<T> imager(ctx_, tol, nAntenna, nBeam, nIntervals, 1, &filter, nPixel,
-                                   lmnX.data(), lmnY.data(), lmnZ.data());
+    bipp::NufftSynthesis<T> imager(ctx_, bipp::NufftSynthesisOptions(), nAntenna, nBeam, nIntervals,
+                                   1, &filter, nPixel, lmnX.data(), lmnY.data(), lmnZ.data());
 
     for (const auto& itData : data["data"]) {
       auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
