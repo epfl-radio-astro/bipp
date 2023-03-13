@@ -1,9 +1,6 @@
 #pragma once
 
-#include <cassert>
-#include <functional>
 #include <memory>
-#include <tuple>
 #include <optional>
 
 #include "bipp/bipp.h"
