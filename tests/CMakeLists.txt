@@ -5,38 +5,33 @@ set(BUILD_GMOCK OFF CACHE BOOL "")
 set(INSTALL_GTEST OFF CACHE BOOL "")
 mark_as_advanced(BUILD_GMOCK INSTALL_GTEST)
 
-include(FetchContent)
 
-# add googletest
-FetchContent_Declare(
-  googletest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG        release-1.11.0
-)
-FetchContent_GetProperties(googletest)
-if(NOT googletest_POPULATED)
-  message(STATUS "Downloading Google Test repository...")
-  FetchContent_Populate(googletest)
-endif()
-add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
-list(APPEND BIPP_TEST_LIBRARIES gtest_main)
-
-# add json parser
 set(JSON_Install OFF CACHE BOOL "")
-FetchContent_Declare(
-  json
-  GIT_REPOSITORY https://github.com/nlohmann/json.git
-  GIT_TAG        v3.10.5
-)
-FetchContent_GetProperties(json)
-if(NOT json_POPULATED)
-  message(STATUS "Downloading json repository...")
-  FetchContent_Populate(json)
-endif()
 set(JSON_BuildTests OFF CACHE INTERNAL "")
-add_subdirectory(${json_SOURCE_DIR} ${json_BINARY_DIR})
-list(APPEND BIPP_TEST_LIBRARIES nlohmann_json::nlohmann_json)
 
+if(BIPP_BUNDLED_LIBS)
+  # add googletest
+  FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.13.0.tar.gz
+    URL_MD5 95b29f0038ec84a611df951d74d99897
+  )
+  FetchContent_MakeAvailable(googletest)
+
+  # add json parser
+  FetchContent_Declare(
+    json
+    URL https://github.com/nlohmann/json/archive/refs/tags/v3.11.2.tar.gz
+    URL_MD5 e8d56bc54621037842ee9f0aeae27746
+  )
+  FetchContent_MakeAvailable(json)
+
+else()
+  find_package(googletest CONFIG REQUIRED)
+  find_package(nlohmann_json CONFIG REQUIRED)
+endif()
+
+list(APPEND BIPP_TEST_LIBRARIES gtest_main nlohmann_json::nlohmann_json)
 
 # test executables
 add_executable(run_tests
