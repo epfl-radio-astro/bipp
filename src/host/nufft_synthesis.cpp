@@ -68,8 +68,8 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
   if (opt_.collectGroupSize && opt_.collectGroupSize.value() > 0) {
     nMaxInputCount_ = opt_.collectGroupSize.value();
   } else {
-    // use at most 25% of memory for accumulation, but not more than 200 iterations in total
-    nMaxInputCount_ = (system_memory() / 4) /
+    // use at most 20% of memory for accumulation, but not more than 200 iterations in total
+    nMaxInputCount_ = (system_memory() / 5) /
                       (nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ * sizeof(std::complex<T>));
     nMaxInputCount_ = std::min<std::size_t>(std::max<std::size_t>(1, nMaxInputCount_), 200);
   }
@@ -164,9 +164,9 @@ auto NufftSynthesis<T>::computeNufft() -> void {
             minMaxIt = std::minmax_element(lmnZ_.get(), lmnZ_.get() + nPixel_);
             imgExtent[2] = *minMaxIt.second - *minMaxIt.first;
 
-            // Use at most 25% of total memory for fft grid
+            // Use at most 12.5% of total memory for fft grid
             const auto gridSize = optimal_nufft_input_partition(
-                uvwExtent, imgExtent, system_memory() / (4 * sizeof(std::complex<T>)));
+                uvwExtent, imgExtent, system_memory() / (8 * sizeof(std::complex<T>)));
 
             // set partition method to grid and create grid partition
             opt_.localUVWPartition.method = Partition::Grid{gridSize};
