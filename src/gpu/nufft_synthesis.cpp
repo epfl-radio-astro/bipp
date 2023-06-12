@@ -11,6 +11,7 @@
 #include "gpu/gram_matrix.hpp"
 #include "gpu/kernels/add_vector.hpp"
 #include "gpu/kernels/min_max_element.hpp"
+#include "gpu/kernels/nuft_sum.hpp"
 #include "gpu/nufft_3d3.hpp"
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
@@ -217,27 +218,41 @@ auto NufftSynthesis<T>::computeNufft() -> void {
       for (const auto& [imgBegin, imgSize] : imgPartition_.groups()) {
         if (!imgSize) continue;
 
-        Nufft3d3<T> transform(1, opt_.tolerance, 1, inputSize, uvwX_.get() + inputBegin,
-                              uvwY_.get() + inputBegin, uvwZ_.get() + inputBegin, imgSize,
-                              lmnX_.get() + imgBegin, lmnY_.get() + imgBegin,
-                              lmnZ_.get() + imgBegin);
+        if (inputSize <= 1024) {
+          // Direct evaluation of sum for small input sizes
+          for (std::size_t i = 0; i < nFilter_; ++i) {
+            for (std::size_t j = 0; j < nIntervals_; ++j) {
+              auto imgPtr = img_.get() + (j + i * nIntervals_) * nPixel_ + imgBegin;
+              nuft_sum<T>(queue.device_prop(), nullptr, 1.0, inputSize,
+                          virtualVis_.get() + i * ldVirtVis1 + j * ldVirtVis2 + inputBegin,
+                          uvwX_.get() + inputBegin, uvwY_.get() + inputBegin,
+                          uvwZ_.get() + inputBegin, imgSize, lmnX_.get() + imgBegin,
+                          lmnY_.get() + imgBegin, lmnZ_.get() + imgBegin, imgPtr);
+            }
+          }
+        } else {
+          // Approximate sum through nufft
+          Nufft3d3<T> transform(1, opt_.tolerance, 1, inputSize, uvwX_.get() + inputBegin,
+                                uvwY_.get() + inputBegin, uvwZ_.get() + inputBegin, imgSize,
+                                lmnX_.get() + imgBegin, lmnY_.get() + imgBegin,
+                                lmnZ_.get() + imgBegin);
 
-        for (std::size_t i = 0; i < nFilter_; ++i) {
-          for (std::size_t j = 0; j < nIntervals_; ++j) {
-            auto imgPtr = img_.get() + (j + i * nIntervals_) * nPixel_ + imgBegin;
-            transform.execute(virtualVis_.get() + i * ldVirtVis1 + j * ldVirtVis2 + inputBegin,
-                              outputPtr);
+          for (std::size_t i = 0; i < nFilter_; ++i) {
+            for (std::size_t j = 0; j < nIntervals_; ++j) {
+              auto imgPtr = img_.get() + (j + i * nIntervals_) * nPixel_ + imgBegin;
+              transform.execute(virtualVis_.get() + i * ldVirtVis1 + j * ldVirtVis2 + inputBegin,
+                                outputPtr);
 
-            // add dependency on default stream for correct ordering
-            queue.sync_with_stream(nullptr);
-            add_vector_real_to_complex<T>(queue, imgSize, outputPtr, imgPtr);
-            queue.signal_stream(nullptr);
+              add_vector_real_of_complex<T>(queue.device_prop(), nullptr, imgSize, outputPtr,
+                                            imgPtr);
+            }
           }
         }
       }
     }
   }
 
+  queue.sync_with_stream(nullptr);
   collectCount_ = 0;
 }
 

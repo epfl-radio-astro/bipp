@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <complex>
-#include <iostream>
 #include <vector>
 
 #include "host/omp_definitions.hpp"
