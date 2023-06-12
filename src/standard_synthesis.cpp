@@ -60,7 +60,6 @@ struct StandardSynthesisInternal {
 
       planGPU_.emplace(ctx_, nAntenna, nBeam, nIntervals, nFilter, filter, nPixel, pixelXDevice,
                        pixelYDevice, pixelZDevice);
-      ctx_->gpu_queue().sync();
 #else
       throw GPUSupportError();
 #endif
@@ -75,8 +74,8 @@ struct StandardSynthesisInternal {
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       auto& queue = ctx_->gpu_queue();
+      // Syncronize with default stream.
       queue.sync_with_stream(nullptr);
-      queue.sync();  // make sure unused allocated memory is available
 
       Buffer<gpu::api::ComplexType<T>> wBuffer, sBuffer;
       Buffer<T> xyzBuffer;
@@ -113,12 +112,9 @@ struct StandardSynthesisInternal {
                                 nAntenna_ * sizeof(T), 3, gpu::api::flag::MemcpyDefault,
                                 queue.stream());
 
-      // sync before call, such that host memory can be safely discarded by
-      // caller, while computation is continued asynchronously
-      queue.sync();
-
       planGPU_->collect(nEig, wl, intervals, ldIntervals, sDevice, ldsDevice, wDevice, ldwDevice,
                         xyzDevice, ldxyzDevice);
+      queue.sync();
 #else
       throw GPUSupportError();
 #endif
