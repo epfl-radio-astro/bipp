@@ -11,6 +11,7 @@ set(BIPP_SOURCE_FILES
 	host/nufft_3d3.cpp
 	host/virtual_vis.cpp
 	host/kernels/gemmexp.cpp
+	host/kernels/nuft_sum.cpp
 	host/standard_synthesis.cpp
 	)
 

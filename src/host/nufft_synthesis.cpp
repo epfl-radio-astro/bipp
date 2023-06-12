@@ -15,6 +15,7 @@
 #include "bipp/exceptions.hpp"
 #include "host/eigensolver.hpp"
 #include "host/gram_matrix.hpp"
+#include "host/kernels/nuft_sum.hpp"
 #include "host/nufft_3d3.hpp"
 #include "host/virtual_vis.hpp"
 #include "memory/buffer.hpp"
@@ -197,20 +198,35 @@ auto NufftSynthesis<T>::computeNufft() -> void {
       for (const auto& [imgBegin, imgSize] : imgPartition_.groups()) {
         if (!imgSize) continue;
 
-        Nufft3d3<T> transform(1, opt_.tolerance, 1, inputSize, uvwX_.get() + inputBegin,
-                              uvwY_.get() + inputBegin, uvwZ_.get() + inputBegin, imgSize,
-                              lmnX_.get() + imgBegin, lmnY_.get() + imgBegin,
-                              lmnZ_.get() + imgBegin);
+        if (inputSize <= 32) {
+          // Direct evaluation of sum for small input sizes
+          for (std::size_t i = 0; i < nFilter_; ++i) {
+            for (std::size_t j = 0; j < nIntervals_; ++j) {
+              auto imgPtr = img_.get() + (j + i * nIntervals_) * nPixel_ + imgBegin;
+              nuft_sum<T>(1.0, inputSize,
+                          virtualVis_.get() + i * ldVirtVis1 + j * ldVirtVis2 + inputBegin,
+                          uvwX_.get() + inputBegin, uvwY_.get() + inputBegin,
+                          uvwZ_.get() + inputBegin, imgSize, lmnX_.get() + imgBegin,
+                          lmnY_.get() + imgBegin, lmnZ_.get() + imgBegin, imgPtr);
+            }
+          }
+        } else {
+          // Approximate sum through nufft
+          Nufft3d3<T> transform(1, opt_.tolerance, 1, inputSize, uvwX_.get() + inputBegin,
+                                uvwY_.get() + inputBegin, uvwZ_.get() + inputBegin, imgSize,
+                                lmnX_.get() + imgBegin, lmnY_.get() + imgBegin,
+                                lmnZ_.get() + imgBegin);
 
-        for (std::size_t i = 0; i < nFilter_; ++i) {
-          for (std::size_t j = 0; j < nIntervals_; ++j) {
-            auto imgPtr = img_.get() + (j + i * nIntervals_) * nPixel_ + imgBegin;
+          for (std::size_t i = 0; i < nFilter_; ++i) {
+            for (std::size_t j = 0; j < nIntervals_; ++j) {
+              auto imgPtr = img_.get() + (j + i * nIntervals_) * nPixel_ + imgBegin;
 
-            transform.execute(virtualVis_.get() + i * ldVirtVis1 + j * ldVirtVis2 + inputBegin,
-                              outputPtr);
+              transform.execute(virtualVis_.get() + i * ldVirtVis1 + j * ldVirtVis2 + inputBegin,
+                                outputPtr);
 
-            for (std::size_t k = 0; k < imgSize; ++k) {
-              imgPtr[k] += outputPtr[k].real();
+              for (std::size_t k = 0; k < imgSize; ++k) {
+                imgPtr[k] += outputPtr[k].real();
+              }
             }
           }
         }

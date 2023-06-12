@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <complex>
-#include <iostream>
 #include <limits>
 
 #include "bipp/bipp.h"
