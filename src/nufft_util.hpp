@@ -11,13 +11,15 @@ inline auto optimal_nufft_input_partition(std::array<double, 3> inputExtent,
                                           std::array<double, 3> outputExtent,
                                           std::size_t maxFFTGridSize)
     -> std::array<std::size_t, 3> {
-  constexpr double upsampfactor = 2.0;  // upsampling factor option used for finufft
+  // upsampling factor option used for finufft
+  // Note: On CPU, finufft will set this to 1.25 for type 3 transforms if eps > 1e-9
+  constexpr double upsampfactor = 2.0;
   constexpr double pi = 3.14159265358979323846;
 
   std::size_t fftGridSize = 1;
   for (std::size_t i = 0; i < inputExtent.size(); ++i) {
     fftGridSize *=
-        static_cast<std::size_t>(2.0 * upsampfactor * inputExtent[i] * outputExtent[i] / pi);
+        static_cast<std::size_t>(upsampfactor * inputExtent[i] * outputExtent[i] / (2 * pi));
   }
 
   const auto partitionSizeTarget = (fftGridSize + maxFFTGridSize - 1) / maxFFTGridSize;

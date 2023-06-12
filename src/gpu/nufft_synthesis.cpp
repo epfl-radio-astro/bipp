@@ -11,6 +11,7 @@
 #include "gpu/gram_matrix.hpp"
 #include "gpu/kernels/add_vector.hpp"
 #include "gpu/kernels/min_max_element.hpp"
+#include "gpu/kernels/nuft_sum.hpp"
 #include "gpu/nufft_3d3.hpp"
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
@@ -64,12 +65,12 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
   if (opt_.collectGroupSize && opt_.collectGroupSize.value() > 0) {
     nMaxInputCount_ = opt_.collectGroupSize.value();
   } else {
-    // use at most 25% of memory more accumulation, but not more than 200
+    // use at most 20% of memory more accumulation, but not more than 200
     // iterations.
     std::size_t freeMem, totalMem;
     api::mem_get_info(&freeMem, &totalMem);
     nMaxInputCount_ =
-        (totalMem / 4) / (nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ * sizeof(std::complex<T>));
+        (totalMem / 5) / (nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ * sizeof(std::complex<T>));
     nMaxInputCount_ = std::min<std::size_t>(std::max<std::size_t>(1, nMaxInputCount_), 200);
   }
 
@@ -192,10 +193,10 @@ auto NufftSynthesis<T>::computeNufft() -> void {
                                                minMaxPtr[9] - minMaxPtr[8],
                                                minMaxPtr[11] - minMaxPtr[10]};
 
-            // Use at most 25% of total memory for fft grid
+            // Use at most 12.5% of total memory for fft grid
             const auto gridSize = optimal_nufft_input_partition(
                 uvwExtent, imgExtent,
-                queue.device_prop().totalGlobalMem / (4 * sizeof(api::ComplexType<T>)));
+                queue.device_prop().totalGlobalMem / (8 * sizeof(api::ComplexType<T>)));
 
             ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "uvw partition: grid ({}, {}, {})", gridSize[0],
                                gridSize[1], gridSize[2]);
@@ -228,33 +229,46 @@ auto NufftSynthesis<T>::computeNufft() -> void {
       if (!inputSize) continue;
       for (const auto& [imgBegin, imgSize] : imgPartition_.groups()) {
         if (!imgSize) continue;
+        
+        if (inputSize <= 1024) {
+          ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "nufft size {}, direct evaluation", inputSize);
+          // Direct evaluation of sum for small input sizes
+          for (std::size_t i = 0; i < nFilter_; ++i) {
+            for (std::size_t j = 0; j < nIntervals_; ++j) {
+              auto imgPtr = img_.get() + (j + i * nIntervals_) * nPixel_ + imgBegin;
+              nuft_sum<T>(queue.device_prop(), nullptr, 1.0, inputSize,
+                          virtualVis_.get() + i * ldVirtVis1 + j * ldVirtVis2 + inputBegin,
+                          uvwX_.get() + inputBegin, uvwY_.get() + inputBegin,
+                          uvwZ_.get() + inputBegin, imgSize, lmnX_.get() + imgBegin,
+                          lmnY_.get() + imgBegin, lmnZ_.get() + imgBegin, imgPtr);
+            }
+          }
+        } else {
+          ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "nufft size {}, calling cuFINUFFT", inputSize);
+          // Approximate sum through nufft
+          Nufft3d3<T> transform(1, opt_.tolerance, 1, inputSize, uvwX_.get() + inputBegin,
+                                uvwY_.get() + inputBegin, uvwZ_.get() + inputBegin, imgSize,
+                                lmnX_.get() + imgBegin, lmnY_.get() + imgBegin,
+                                lmnZ_.get() + imgBegin);
 
-        Nufft3d3<T> transform(1, opt_.tolerance, 1, inputSize, uvwX_.get() + inputBegin,
-                              uvwY_.get() + inputBegin, uvwZ_.get() + inputBegin, imgSize,
-                              lmnX_.get() + imgBegin, lmnY_.get() + imgBegin,
-                              lmnZ_.get() + imgBegin);
-
-        for (std::size_t i = 0; i < nFilter_; ++i) {
-          for (std::size_t j = 0; j < nIntervals_; ++j) {
-            auto imgPtr = img_.get() + (j + i * nIntervals_) * nPixel_ + imgBegin;
-            ctx_->logger().log_matrix(
-                BIPP_LOG_LEVEL_DEBUG, "NUFFT input", inputSize, 1,
-                virtualVis_.get() + i * ldVirtVis1 + j * ldVirtVis2 + inputBegin, inputSize);
-            transform.execute(virtualVis_.get() + i * ldVirtVis1 + j * ldVirtVis2 + inputBegin,
-                              outputPtr);
-            ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output", imgSize, 1, outputPtr,
+          for (std::size_t i = 0; i < nFilter_; ++i) {
+            for (std::size_t j = 0; j < nIntervals_; ++j) {
+              auto imgPtr = img_.get() + (j + i * nIntervals_) * nPixel_ + imgBegin;
+              transform.execute(virtualVis_.get() + i * ldVirtVis1 + j * ldVirtVis2 + inputBegin,
+                                outputPtr);
+              ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output", imgSize, 1, outputPtr,
                                       imgSize);
 
-            // add dependency on default stream for correct ordering
-            queue.sync_with_stream(nullptr);
-            add_vector_real_to_complex<T>(queue, imgSize, outputPtr, imgPtr);
-            queue.signal_stream(nullptr);
+              add_vector_real_of_complex<T>(queue.device_prop(), nullptr, imgSize, outputPtr,
+                                            imgPtr);
+            }
           }
         }
       }
     }
   }
 
+  queue.sync_with_stream(nullptr);
   collectCount_ = 0;
 }
 

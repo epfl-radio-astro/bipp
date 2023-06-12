@@ -12,6 +12,7 @@ set(BIPP_SOURCE_FILES
 	host/nufft_3d3.cpp
 	host/virtual_vis.cpp
 	host/kernels/gemmexp.cpp
+	host/kernels/nuft_sum.cpp
 	host/standard_synthesis.cpp
 	)
 
@@ -33,6 +34,7 @@ if(BIPP_CUDA OR BIPP_ROCM)
 		gpu/kernels/gemmexp.cu
 		gpu/kernels/center_vector.cu
 		gpu/kernels/min_max_element.cu
+		gpu/kernels/nuft_sum.cu
 		)
 endif()
 

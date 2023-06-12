@@ -111,8 +111,8 @@ struct NufftSynthesisInternal {
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       auto& queue = ctx_->gpu_queue();
+      // Syncronize with default stream.
       queue.sync_with_stream(nullptr);
-      queue.sync();  // make sure unused allocated memory is available
 
       Buffer<gpu::api::ComplexType<T>> wBuffer, sBuffer;
       Buffer<T> xyzBuffer, uvwBuffer;
@@ -161,12 +161,9 @@ struct NufftSynthesisInternal {
                                   gpu::api::flag::MemcpyHostToDevice, queue.stream());
       }
 
-      // sync before call, such that host memory can be safely discarded by
-      // caller, while computation is continued asynchronously
-      queue.sync();
-
       planGPU_->collect(nEig, wl, intervals, ldIntervals, sDevice, ldsDevice, wDevice, ldwDevice,
                         xyzDevice, ldxyzDevice, uvwDevice, lduvwDevice);
+      queue.sync();
 #else
       throw GPUSupportError();
 #endif
