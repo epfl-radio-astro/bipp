@@ -9,7 +9,7 @@ mark_as_advanced(BUILD_GMOCK INSTALL_GTEST)
 set(JSON_Install OFF CACHE BOOL "")
 set(JSON_BuildTests OFF CACHE INTERNAL "")
 
-if(BIPP_BUNDLED_LIBS)
+if(BIPP_BUNDLED_GOOGLETEST)
   # add googletest
   FetchContent_Declare(
     googletest
@@ -17,7 +17,11 @@ if(BIPP_BUNDLED_LIBS)
     URL_MD5 95b29f0038ec84a611df951d74d99897
   )
   FetchContent_MakeAvailable(googletest)
+else()
+  find_package(googletest CONFIG REQUIRED)
+endif()
 
+if(BIPP_BUNDLED_JSON)
   # add json parser
   FetchContent_Declare(
     json
@@ -25,9 +29,7 @@ if(BIPP_BUNDLED_LIBS)
     URL_MD5 e8d56bc54621037842ee9f0aeae27746
   )
   FetchContent_MakeAvailable(json)
-
 else()
-  find_package(googletest CONFIG REQUIRED)
   find_package(nlohmann_json CONFIG REQUIRED)
 endif()
 

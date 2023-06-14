@@ -44,6 +44,7 @@ set(CUDA_STANDARD_REQUIRED ON)
 include(GNUInstallDirs)
 
 include(FetchContent)
+include(CMakeDependentOption)
 
 #add local module path
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
@@ -52,11 +53,15 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
 option(BIPP_BUILD_TESTS "Build tests" OFF)
 option(BIPP_PYTHON "Build python module" ON)
 option(BIPP_MAGMA "Use MAGMA library as eigensolver" OFF)
-option(BIPP_PYBIND11_DOWNLOAD "Download pybind11 instead of looking for installation" OFF)
 option(BIPP_UMPIRE "Use Umpire memory pool library" OFF)
 option(BIPP_VC "Use VC vectorization library" OFF)
 option(BIPP_OMP "Use OpenMP for multi-threading" ON)
 option(BIPP_BUNDLED_LIBS "Use bundled libraries for spdlog, googletest and json" ON)
+
+cmake_dependent_option(BIPP_BUNDLED_SPDLOG "Use bundled spdlog lib" ON "BIPP_BUNDLED_LIBS" OFF)
+cmake_dependent_option(BIPP_BUNDLED_PYBIND11 "Use bundled pybind11 lib" ON "BIPP_BUNDLED_LIBS" OFF)
+cmake_dependent_option(BIPP_BUNDLED_GOOGLETEST "Use bundled googletest lib" ON "BIPP_BUNDLED_LIBS" OFF)
+cmake_dependent_option(BIPP_BUNDLED_JSON "Use bundled json lib" ON "BIPP_BUNDLED_LIBS" OFF)
 
 set(BIPP_GPU "OFF" CACHE STRING "GPU backend")
 set_property(CACHE BIPP_GPU PROPERTY STRINGS
@@ -214,7 +219,7 @@ if(BIPP_VC)
 endif()
 
 
-if(BIPP_BUNDLED_LIBS)
+if(BIPP_BUNDLED_SPDLOG)
   FetchContent_Declare(
 	spdlog
 	URL https://github.com/gabime/spdlog/archive/refs/tags/v1.11.0.tar.gz

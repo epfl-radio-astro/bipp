@@ -35,6 +35,7 @@ setup(
         "-DBIPP_OMP=" + bipp_omp,
         "-DBIPP_VC=" + bipp_vc,
         "-DBIPP_MAGMA=" + bipp_magma,
+        "-DBIPP_BUNDLED_LIBS=ON",
         "-DBUILD_SHARED_LIBS=ON",
         "-DBIPP_INSTALL=PIP",
     ]

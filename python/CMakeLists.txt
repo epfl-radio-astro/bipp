@@ -1,12 +1,11 @@
 set(Python_FIND_FRAMEWORK LAST) # Prefer Brew/Conda to Apple framework python
 find_package(Python 3.6 COMPONENTS Interpreter Development REQUIRED)
 
-if (BIPP_PYBIND11_DOWNLOAD)
-	include(FetchContent)
+if (BIPP_BUNDLED_PYBIND11)
 	FetchContent_Declare(
 		pybind11
-		GIT_REPOSITORY https://github.com/pybind/pybind11.git
-		GIT_TAG        v2.9.2
+		URL https://github.com/pybind/pybind11/archive/refs/tags/v2.10.4.tar.gz
+		URL_MD5 812eda11d2a114fc0e841faf9626d2c9
 	)
 	FetchContent_MakeAvailable(pybind11)
 else()
