@@ -95,6 +95,8 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals,
 
   gemmexp(nEig, nPixel_, nAntenna_, alpha, vUnbeam.get(), nAntenna_, xyzCentered.get(), nAntenna_,
           pixelX_.get(), pixelY_.get(), pixelZ_.get(), unlayeredStats.get(), nPixel_);
+  ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gemmexp", nPixel_, nEig, unlayeredStats.get(),
+                            nPixel_);
 
   // cluster eigenvalues / vectors based on invervals
   for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
@@ -110,6 +112,11 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals,
         auto unlayeredStatsCurrent = unlayeredStats.get() + nPixel_ * idxEig;
 
         constexpr auto maxInt = static_cast<std::size_t>(std::numeric_limits<int>::max());
+
+        ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
+                           "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
+                           *(d.get() + idxEig), scale, intervals[idxInt * ldIntervals],
+                           intervals[idxInt * ldIntervals + 1]);
 
         for (std::size_t idxPix = 0; idxPix < nPixel_; idxPix += maxInt) {
           const auto nPixBlock = std::min(nPixel_ - idxPix, maxInt);
@@ -135,6 +142,8 @@ auto StandardSynthesis<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
   for (std::size_t i = 0; i < nIntervals_; ++i) {
     std::memcpy(out + i * ld, img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_,
                 sizeof(T) * nPixel_);
+    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", nPixel_, 1, out + i * ld,
+                              nPixel_);
   }
 }
 

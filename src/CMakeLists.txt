@@ -4,6 +4,7 @@ set(BIPP_SOURCE_FILES
 	standard_synthesis.cpp
 	context.cpp
 	nufft_synthesis.cpp
+	logger.cpp
 	memory/allocator_factory.cpp
 	host/eigensolver.cpp
 	host/gram_matrix.cpp

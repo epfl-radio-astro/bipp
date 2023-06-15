@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"

@@ -14,6 +14,11 @@ if(POLICY CMP0022)
 	cmake_policy(SET CMP0022 NEW)
 endif()
 
+# update time stamps when using FetchContent
+if(POLICY CMP0135)
+	cmake_policy(SET CMP0135 NEW)
+endif()
+
 # set default build type to RELEASE
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type" FORCE)
@@ -38,6 +43,9 @@ set(CUDA_STANDARD_REQUIRED ON)
 # Get GNU standard install prefixes
 include(GNUInstallDirs)
 
+include(FetchContent)
+include(CMakeDependentOption)
+
 #add local module path
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
 
@@ -45,10 +53,15 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
 option(BIPP_BUILD_TESTS "Build tests" OFF)
 option(BIPP_PYTHON "Build python module" ON)
 option(BIPP_MAGMA "Use MAGMA library as eigensolver" OFF)
-option(BIPP_PYBIND11_DOWNLOAD "Download pybind11 instead of looking for installation" OFF)
 option(BIPP_UMPIRE "Use Umpire memory pool library" OFF)
 option(BIPP_VC "Use VC vectorization library" OFF)
 option(BIPP_OMP "Use OpenMP for multi-threading" ON)
+option(BIPP_BUNDLED_LIBS "Use bundled libraries for spdlog, googletest and json" ON)
+
+cmake_dependent_option(BIPP_BUNDLED_SPDLOG "Use bundled spdlog lib" ON "BIPP_BUNDLED_LIBS" OFF)
+cmake_dependent_option(BIPP_BUNDLED_PYBIND11 "Use bundled pybind11 lib" ON "BIPP_BUNDLED_LIBS" OFF)
+cmake_dependent_option(BIPP_BUNDLED_GOOGLETEST "Use bundled googletest lib" ON "BIPP_BUNDLED_LIBS" OFF)
+cmake_dependent_option(BIPP_BUNDLED_JSON "Use bundled json lib" ON "BIPP_BUNDLED_LIBS" OFF)
 
 set(BIPP_GPU "OFF" CACHE STRING "GPU backend")
 set_property(CACHE BIPP_GPU PROPERTY STRINGS
@@ -203,6 +216,23 @@ endif()
 if(BIPP_VC)
   find_package(Vc CONFIG REQUIRED)
   list(APPEND BIPP_EXTERNAL_LIBS Vc::Vc)
+endif()
+
+
+if(BIPP_BUNDLED_SPDLOG)
+  FetchContent_Declare(
+	spdlog
+	URL https://github.com/gabime/spdlog/archive/refs/tags/v1.11.0.tar.gz
+	URL_MD5 287c6492c25044fd2da9947ab120b2bd
+  )
+  FetchContent_GetProperties(spdlog)
+  if(NOT spdlog_POPULATED)
+	FetchContent_Populate(spdlog)
+  endif()
+  list(APPEND BIPP_INCLUDE_DIRS ${spdlog_SOURCE_DIR}/include)
+else()
+  find_package(spdlog CONFIG REQUIRED)
+  list(APPEND BIPP_EXTERNAL_LIBS spdlog::spdlog)
 endif()
 
 # check if C api is available for blas and lapack

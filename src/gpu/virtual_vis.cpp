@@ -64,6 +64,12 @@ auto virtual_vis(ContextInternal& ctx, std::size_t nFilter, const BippFilter* fi
         scale_matrix<T>(queue, nAntenna, size, V + start * ldv, ldv, DFilteredBuffer.get() + start,
                         VMulDBuffer.get(), nAntenna);
 
+        for (std::size_t k = 0; k < size; ++k) {
+          ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} to inverval [{}, {}]",
+                           *(DBufferHost.get() + start + k), intervalsHost[j * ldIntervals],
+                           intervalsHost[j * ldIntervals + 1]);
+        }
+
         // Matrix multiplication of the previously scaled V and the original V
         // with the selected eigenvalues
         api::blas::gemm(queue.blas_handle(), api::blas::operation::None,

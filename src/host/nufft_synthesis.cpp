@@ -56,8 +56,13 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
       [&](auto&& arg) -> void {
         using ArgType = std::decay_t<decltype(arg)>;
         if constexpr (std::is_same_v<ArgType, Partition::Grid>) {
+          ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "image partition: grid ({}, {}, {})",
+                             arg.dimensions[0], arg.dimensions[1], arg.dimensions[2]);
           imgPartition_ =
               DomainPartition::grid<T, 3>(ctx_, arg.dimensions, nPixel_, {lmnX, lmnY, lmnZ});
+        } else if constexpr (std::is_same_v<ArgType, Partition::None> ||
+                             std::is_same_v<ArgType, Partition::Auto>) {
+          ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "image partition: none");
         }
       },
       opt_.localImagePartition.method);
@@ -124,6 +129,7 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals, std:
               nMaxInputCount_ * nAntenna_ * nAntenna_, nAntenna_);
 
   ++collectCount_;
+  ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "collect count: {} / {}", collectCount_, nMaxInputCount_);
   if (collectCount_ >= nMaxInputCount_) {
     computeNufft();
   }
@@ -137,14 +143,18 @@ auto NufftSynthesis<T>::computeNufft() -> void {
 
     const auto nInputPoints = nAntenna_ * nAntenna_ * collectCount_;
 
+    ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "computing nufft for collected data");
+
     auto inputPartition = std::visit(
         [&](auto&& arg) -> DomainPartition {
           using ArgType = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<ArgType, Partition::Grid>) {
+            ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "uvw partition: grid ({}, {}, {})",
+                               arg.dimensions[0], arg.dimensions[1], arg.dimensions[2]);
             return DomainPartition::grid<T, 3>(ctx_, arg.dimensions, nInputPoints,
                                                {uvwX_.get(), uvwY_.get(), uvwZ_.get()});
-
           } else if constexpr (std::is_same_v<ArgType, Partition::None>) {
+            ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "uvw partition: none");
             return DomainPartition::none(ctx_, nInputPoints);
 
           } else if constexpr (std::is_same_v<ArgType, Partition::Auto>) {
@@ -168,6 +178,9 @@ auto NufftSynthesis<T>::computeNufft() -> void {
             // Use at most 12.5% of total memory for fft grid
             const auto gridSize = optimal_nufft_input_partition(
                 uvwExtent, imgExtent, system_memory() / (8 * sizeof(std::complex<T>)));
+
+            ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "uvw partition: grid ({}, {}, {})",
+                               gridSize[0], gridSize[1], gridSize[2]);
 
             // set partition method to grid and create grid partition
             opt_.localUVWPartition.method = Partition::Grid{gridSize};
@@ -200,6 +213,7 @@ auto NufftSynthesis<T>::computeNufft() -> void {
 
         if (inputSize <= 32) {
           // Direct evaluation of sum for small input sizes
+          ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "nufft size {}, direct evaluation", inputSize);
           for (std::size_t i = 0; i < nFilter_; ++i) {
             for (std::size_t j = 0; j < nIntervals_; ++j) {
               auto imgPtr = img_.get() + (j + i * nIntervals_) * nPixel_ + imgBegin;
@@ -212,6 +226,7 @@ auto NufftSynthesis<T>::computeNufft() -> void {
           }
         } else {
           // Approximate sum through nufft
+          ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "nufft size {}, calling fiNUFFT", inputSize);
           Nufft3d3<T> transform(1, opt_.tolerance, 1, inputSize, uvwX_.get() + inputBegin,
                                 uvwY_.get() + inputBegin, uvwZ_.get() + inputBegin, imgSize,
                                 lmnX_.get() + imgBegin, lmnY_.get() + imgBegin,
@@ -223,6 +238,8 @@ auto NufftSynthesis<T>::computeNufft() -> void {
 
               transform.execute(virtualVis_.get() + i * ldVirtVis1 + j * ldVirtVis2 + inputBegin,
                                 outputPtr);
+              ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output", imgSize, 1, outputPtr,
+                                      imgSize);
 
               for (std::size_t k = 0; k < imgSize; ++k) {
                 imgPtr[k] += outputPtr[k].real();
@@ -252,7 +269,10 @@ auto NufftSynthesis<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
   if (index == nFilter_) throw InvalidParameterError();
 
   for (std::size_t i = 0; i < nIntervals_; ++i) {
+    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image permuted", nPixel_, 1,
+                              img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_, nPixel_);
     imgPartition_.reverse(img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_, out + i * ld);
+    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", nPixel_, 1, out + i * ld, nPixel_);
   }
 }
 

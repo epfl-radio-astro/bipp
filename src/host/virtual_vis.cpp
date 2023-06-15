@@ -52,6 +52,10 @@ auto virtual_vis(ContextInternal& ctx, std::size_t nFilter, const BippFilter* fi
           auto VMulD = VMulDBuffer.get() + k * nAntenna;
           const auto VSelect = V + (start + k) * ldv;
           const auto DVal = DFiltered[start + k];
+
+          ctx.logger().log(
+              BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
+              D[start + k], DVal, intervals[j * ldIntervals], intervals[j * ldIntervals + 1]);
           for (std::size_t l = 0; l < nAntenna; ++l) {
             VMulD[l] = VSelect[l] * DVal;
           }

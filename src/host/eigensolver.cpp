@@ -51,6 +51,8 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
                          &hMeig, bufferD.get(), bufferV.get(), m, bufferIfail.get())) {
     throw EigensolverError();
   }
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", hMeig, 1, bufferD.get(), hMeig);
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", m, m, bufferV.get(), m);
 
   if (b) {
     if (static_cast<std::size_t>(hMeig) != m) {
@@ -84,6 +86,8 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
                            bufferV.get(), m, bufferIfail.get())) {
       throw EigensolverError();
     }
+    ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gen. eigenvalues", hMeig, 1, bufferD.get(), hMeig);
+    ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gen. eigenvectors", m, m, bufferV.get(), m);
   }
 
   // reorder into descending order. At most nEig eigenvalues / eigenvectors.
