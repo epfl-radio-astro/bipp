@@ -12,17 +12,18 @@ set(_CMAKE_MODULE_PATH_SAVE ${CMAKE_MODULE_PATH})
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/modules")
 
 # options used for building library
-set(bipp_GPU @bipp_GPU@)
-set(bipp_CUDA @bipp_CUDA@)
-set(bipp_ROCM @bipp_ROCM@)
+set(BIPP_GPU @BIPP_GPU@)
+set(BIPP_CUDA @BIPP_CUDA@)
+set(BIPP_ROCM @BIPP_ROCM@)
+set(BIPP_BUNDLED_SPDLOG @BIPP_BUNDLED_SPDLOG@)
 
-if(bipp_ROCM)
+if(BIPP_ROCM)
 	find_dependency(hip CONFIG)
 	find_dependency(rocblas CONFIG)
 endif()
 
 
-if(bipp_CUDA)
+if(BIPP_CUDA)
 	if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.17.0") 
 		find_dependency(CUDAToolkit)
 	else()
@@ -48,6 +49,10 @@ if(NOT TARGET BLAS::blas)
 	# target is only available with CMake 3.18.0 and later
 	add_library(BLAS::blas INTERFACE IMPORTED)
 	set_property(TARGET BLAS::blas PROPERTY INTERFACE_LINK_LIBRARIES ${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS})
+endif()
+
+if(NOT BIPP_BUNDLED_SPDLOG)
+	find_dependency(spdlog CONFIG)
 endif()
 
 set(CMAKE_MODULE_PATH ${_CMAKE_MODULE_PATH_SAVE}) # restore module path

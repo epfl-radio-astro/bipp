@@ -4,6 +4,7 @@
 #include <functional>
 #include <list>
 #include <memory>
+#include <tuple>
 
 #include "bipp/config.h"
 #include "gpu/util/blas_api.hpp"
@@ -117,19 +118,19 @@ public:
   }
 
   // Enter "wait for stream" into queue
-  auto sync_with_stream(const api::StreamType& s) -> void {
+  inline auto sync_with_stream(const api::StreamType& s) -> void {
     api::event_record(*event_, s);
     api::stream_wait_event(*stream_, *event_, 0);
   }
 
   // Input stream waits for queue
-  auto signal_stream(const api::StreamType& s) -> void {
+  inline auto signal_stream(const api::StreamType& s) -> void {
     api::event_record(*event_, *stream_);
     api::stream_wait_event(s, *event_, 0);
   }
 
   // Sync queue with host and deallocate unused memory
-  auto sync() -> void {
+  inline auto sync() -> void {
     api::stream_synchronize(*stream_);
     allocatedData_.remove_if([](const auto& b) { return b.use_count() <= 1; });
   }
@@ -162,7 +163,13 @@ public:
     Queue* q_;
   };
 
-  auto sync_guard() -> SyncGuard { return SyncGuard(*this); }
+  inline auto sync_guard() -> SyncGuard { return SyncGuard(*this); }
+
+  // return size of allocated (host, pinned, device) memory
+  inline auto allocated_memory() {
+    return std::make_tuple(hostAllocator_->size(), pinnedAllocator_->size(),
+                           deviceAllocator_->size());
+  }
 
 private:
   std::shared_ptr<Allocator> hostAllocator_;

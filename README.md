@@ -1,3 +1,8 @@
+[![Documentation](https://readthedocs.org/projects/bipp/badge/?version=latest)](https://bipp.readthedocs.io/en/latest/?badge=latest)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![CI](https://github.com/epfl-radio-astro/bipp/actions/workflows/ci.yml/badge.svg)](https://github.com/epfl-radio-astro/bipp/actions/workflows/ci.yml)
+
+
 # BIPP - Bluebild Imaging++
 Image synthesis in radio astronomy is done with interferometry, a powerful technique allowing observation of the sky with antenna arrays with otherwise inaccessible angular resolutions and sensitivities. The Bluebild algorithm offers a novel approach to image synthesis, leveraging fPCA to decompose the sky image into distinct energy eigenimages. Bluebild Imaging++ is an HPC implementation of Bluebild.
 
@@ -34,17 +39,17 @@ Bipp uses CMake to configure the build.
 
 ### CMake options
 Bipp can be configured with the following options:
-| Option                   |  Values                   | Default | Description                                                   |
-|--------------------------|---------------------------|---------|---------------------------------------------------------------|
-| `BIPP_PYTHON`            |  `ON`, `OFF`              | `ON`    | Build Python interface                                        |
-| `BIPP_OMP`               |  `ON`, `OFF`              | `ON`    | Enable multi-threading with OpenMP                            |
-| `BIPP_VC`                |  `ON`, `OFF`              | `OFF`   | Use the VC library for vectorization                          |
-| `BIPP_GPU`               |  `OFF`, `CUDA`, `ROCM`    | `OFF`   | Select GPU backend                                            |
-| `BIPP_MAGMA`             |  `ON`, `OFF`              | `OFF`   | Use MAGMA as eigensolver on GPU                               |
-| `BIPP_BUILD_TESTS`       |  `ON`, `OFF`              | `OFF`   | Build test executables                                        |
-| `BIPP_INSTALL`           |  `LIB`, `PYTHON`, `OFF`   | `LIB`   | Set installation target                                       |
-| `BIPP_UMPIRE`            |  `ON`, `OFF`              | `OFF`   | Use the UMPIRE library for memory allocations                 |
-| `BIPP_PYBIND11_DOWNLOAD` |  `ON`, `OFF`              | `OFF`   | Download pybind11 instead of using external installation      |
+| Option                   |  Values                   | Default | Description                                                             |
+|--------------------------|---------------------------|---------|-------------------------------------------------------------------------|
+| `BIPP_PYTHON`            |  `ON`, `OFF`              | `ON`    | Build Python interface                                                  |
+| `BIPP_OMP`               |  `ON`, `OFF`              | `ON`    | Enable multi-threading with OpenMP                                      |
+| `BIPP_VC`                |  `ON`, `OFF`              | `OFF`   | Use the VC library for vectorization                                    |
+| `BIPP_GPU`               |  `OFF`, `CUDA`, `ROCM`    | `OFF`   | Select GPU backend                                                      |
+| `BIPP_MAGMA`             |  `ON`, `OFF`              | `OFF`   | Use MAGMA as eigensolver on GPU                                         |
+| `BIPP_BUILD_TESTS`       |  `ON`, `OFF`              | `OFF`   | Build test executables                                                  |
+| `BIPP_INSTALL`           |  `LIB`, `PYTHON`, `OFF`   | `LIB`   | Set installation target                                                 |
+| `BIPP_UMPIRE`            |  `ON`, `OFF`              | `OFF`   | Use the UMPIRE library for memory allocations                           |
+| `BIPP_BUNDLED_LIBS`      |  `ON`, `OFF`              | `ON`    | Download and build spdlog, pybind11, googletest and json library.       |
 
 
 Some useful general CMake options are:

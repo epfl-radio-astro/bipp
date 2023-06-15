@@ -97,6 +97,8 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervalsHos
   T alpha = 2.0 * M_PI / wl;
   gemmexp<T>(queue, nEig, nPixel_, nAntenna_, alpha, vUnbeam.get(), nAntenna_, xyz, ldxyz,
              pixelX_.get(), pixelY_.get(), pixelZ_.get(), unlayeredStats.get(), nPixel_);
+  ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gemmexp", nPixel_, nEig, unlayeredStats.get(),
+                            nPixel_);
 
   // cluster eigenvalues / vectors based on invervals
   for (std::size_t idxFilter = 0; idxFilter < static_cast<std::size_t>(nFilter_); ++idxFilter) {
@@ -111,6 +113,10 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervalsHos
 
       auto imgCurrent = img_.get() + (idxFilter * nIntervals_ + idxInt) * nPixel_;
       for (std::size_t idxEig = start; idxEig < start + size; ++idxEig) {
+        ctx_->logger().log(
+            BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
+            *(DBufferHost.get() + idxEig), *(DFilteredBufferHost.get() + idxEig),
+            intervalsHost[idxInt * ldIntervals], intervalsHost[idxInt * ldIntervals + 1]);
         const auto scale = DFilteredBufferHost.get()[idxEig];
         auto unlayeredStatsCurrent = unlayeredStats.get() + nPixel_ * idxEig;
         api::blas::axpy(queue.blas_handle(), nPixel_, &scale, unlayeredStatsCurrent, 1, imgCurrent,
@@ -136,6 +142,10 @@ auto StandardSynthesis<T>::get(BippFilter f, T* outHostOrDevice, std::size_t ld)
   api::memcpy_2d_async(outHostOrDevice, ld * sizeof(T), img_.get() + index * nIntervals_ * nPixel_,
                        nPixel_ * sizeof(T), nPixel_ * sizeof(T), nIntervals_,
                        api::flag::MemcpyDefault, queue.stream());
+  for (std::size_t i = 0; i < nIntervals_; ++i) {
+    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", nPixel_, 1,
+                              outHostOrDevice + i * ld, nPixel_);
+  }
 }
 
 template class StandardSynthesis<float>;

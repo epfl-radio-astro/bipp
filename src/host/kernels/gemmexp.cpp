@@ -2,7 +2,7 @@
 
 #include <cmath>
 #include <complex>
-#include <iostream>
+#include <vector>
 
 #include "host/omp_definitions.hpp"
 
@@ -96,24 +96,31 @@ auto gemmexp(std::size_t nEig, std::size_t nPixel, std::size_t nAntenna, T alpha
 
 #else
 
-  BIPP_OMP_PRAGMA("omp parallel for schedule(static)")
-  for (std::size_t idxPix = 0; idxPix < nPixel; ++idxPix) {
-    const auto pX = pixelX[idxPix];
-    const auto pY = pixelY[idxPix];
-    const auto pZ = pixelZ[idxPix];
-    for (std::size_t idxEig = 0; idxEig < nEig; ++idxEig) {
-      std::complex<T> pixSum{0, 0};
+  BIPP_OMP_PRAGMA("omp parallel") {
+    std::vector<std::complex<T> > pixSumVec(nEig);
+
+    BIPP_OMP_PRAGMA("omp for schedule(static)")
+    for (std::size_t idxPix = 0; idxPix < nPixel; ++idxPix) {
+      const auto pX = pixelX[idxPix];
+      const auto pY = pixelY[idxPix];
+      const auto pZ = pixelZ[idxPix];
       for (std::size_t idxAnt = 0; idxAnt < nAntenna; ++idxAnt) {
         const auto imag =
             alpha * (pX * xyz[idxAnt] + pY * xyz[idxAnt + ldxyz] + pZ * xyz[idxAnt + 2 * ldxyz]);
-        const auto sinValue = std::sin(imag);
-        const auto cosValue = std::cos(imag);
-
-        pixSum += vUnbeam[idxEig * ldv + idxAnt] * std::complex<T>(cosValue, sinValue);
+        const std::complex<T> ie{std::cos(imag), std::sin(imag)};
+        for (std::size_t idxEig = 0; idxEig < nEig; ++idxEig) {
+          pixSumVec[idxEig] += vUnbeam[idxEig * ldv + idxAnt] * ie;
+        }
       }
-      out[idxEig * ldout + idxPix] = pixSum.real() * pixSum.real() + pixSum.imag() * pixSum.imag();
+
+      for (std::size_t idxEig = 0; idxEig < nEig; ++idxEig) {
+        const auto pv = pixSumVec[idxEig];
+        pixSumVec[idxEig] = 0;
+        out[idxEig * ldout + idxPix] = pv.real() * pv.real() + pv.imag() * pv.imag();
+      }
     }
   }
+
 #endif
 }
 
