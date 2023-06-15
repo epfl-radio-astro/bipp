@@ -52,6 +52,8 @@ auto gram_matrix(ContextInternal& ctx, std::size_t m, std::size_t n, const std::
              bufferC.get(), m);
   blas::gemm(CblasColMajor, CblasConjTrans, CblasNoTrans, n, n, m, {1, 0}, w, ldw, bufferC.get(), m,
              {0, 0}, g, ldg);
+
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gram", n, n, g, ldg);
 }
 
 template auto gram_matrix<float>(ContextInternal& ctx, std::size_t m, std::size_t n,

@@ -37,6 +37,8 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const api::Comp
   eigensolver::solve(ctx, 'V', 'V', 'L', m, aBuffer.get(), m, std::numeric_limits<T>::epsilon(),
                      std::numeric_limits<T>::max(), 1, m, &hMeig, dBuffer.get());
 
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", hMeig, 1, dBuffer.get(), hMeig);
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", m, m, aBuffer.get(), m);
   if (b) {
     auto bBuffer = queue.create_device_buffer<ComplexType>(m * m);  // Matrix B
     api::memcpy_2d_async(bBuffer.get(), m * sizeof(ComplexType), b, ldb * sizeof(ComplexType),
@@ -73,6 +75,9 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const api::Comp
     eigensolver::solve(ctx, 'V', 'V', 'L', m, aBuffer.get(), m, bBuffer.get(), m,
                        std::numeric_limits<T>::epsilon(), std::numeric_limits<T>::max(), 1, m,
                        &hMeig, dBuffer.get());
+    ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gen. eigenvalues", hMeig, 1, dBuffer.get(),
+                            hMeig);
+    ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gen. eigenvectors", m, m, aBuffer.get(), m);
   }
 
   if (hMeig > 1) {
