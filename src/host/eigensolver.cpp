@@ -7,7 +7,7 @@
 #include <limits>
 #include <memory>
 #include <utility>
-
+#include <cassert>
 #include "bipp/bipp.h"
 #include "bipp/config.h"
 #include "context_internal.hpp"
@@ -32,8 +32,8 @@ static auto copy_2d(std::size_t m, std::size_t n, const T* a, std::size_t lda, T
 
 template <typename T>
 auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::complex<T>* a,
-          std::size_t lda, const std::complex<T>* b, std::size_t ldb, std::size_t* nEigOut, T* d,
-          std::complex<T>* v, std::size_t ldv) -> void {
+          std::size_t lda, const std::complex<T>* b, std::size_t ldb, const char range,
+          std::size_t* nEigOut, T* d, std::complex<T>* v, std::size_t ldv) -> void {
   // copy input into buffer since eigensolver will overwrite
   auto bufferA = Buffer<std::complex<T>>(ctx.host_alloc(), m * m);
   copy_2d(m, m, a, lda, bufferA.get(), m);
@@ -46,7 +46,8 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
   auto bufferPtrV = bufferV.get();
 
   int hMeig = 0;
-  if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 'V', 'V', 'L', m, bufferA.get(), m,
+
+  if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 'V', range, 'L', m, bufferA.get(), m,
                          std::numeric_limits<T>::epsilon(), std::numeric_limits<T>::max(), 0, m - 1,
                          &hMeig, bufferD.get(), bufferV.get(), m, bufferIfail.get())) {
     throw EigensolverError();
@@ -80,7 +81,7 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
     auto bufferB = Buffer<std::complex<T>>(ctx.host_alloc(), m * m);
     copy_2d(m, m, b, ldb, bufferB.get(), m);
 
-    if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, 'V', 'V', 'L', m, bufferA.get(), m,
+    if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, 'V', range, 'L', m, bufferA.get(), m,
                            bufferB.get(), m, std::numeric_limits<T>::epsilon(),
                            std::numeric_limits<T>::max(), 0, m - 1, &hMeig, bufferD.get(),
                            bufferV.get(), m, bufferIfail.get())) {
@@ -90,7 +91,10 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
     ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gen. eigenvectors", m, m, bufferV.get(), m);
   }
 
-  // reorder into descending order. At most nEig eigenvalues / eigenvectors.
+  if (range == 'A')
+      assert(nEig == hMeig);
+
+  // reorder into descending order. At most nEig eigenvalues / eigenvectors
   for (std::size_t i = 0; i < std::min<std::size_t>(hMeig, nEig); ++i) {
     d[i] = bufferPtrD[hMeig - i - 1];
     std::memcpy(v + i * ldv, bufferPtrV + (hMeig - i - 1) * m, m * sizeof(std::complex<T>));
@@ -105,12 +109,12 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
 
 template auto eigh<float>(ContextInternal& ctx, std::size_t m, std::size_t nEig,
                           const std::complex<float>* a, std::size_t lda,
-                          const std::complex<float>* b, std::size_t ldb, std::size_t* nEigOut,
-                          float* d, std::complex<float>* v, std::size_t ldv) -> void;
+                          const std::complex<float>* b, std::size_t ldb, const char range,
+                          std::size_t* nEigOut, float* d, std::complex<float>* v, std::size_t ldv) -> void;
 
 template auto eigh<double>(ContextInternal& ctx, std::size_t m, std::size_t nEig,
                            const std::complex<double>* a, std::size_t lda,
-                           const std::complex<double>* b, std::size_t ldb, std::size_t* nEigOut,
-                           double* d, std::complex<double>* v, std::size_t ldv) -> void;
+                           const std::complex<double>* b, std::size_t ldb, const char range,
+                           std::size_t* nEigOut, double* d, std::complex<double>* v, std::size_t ldv) -> void;
 }  // namespace host
 }  // namespace bipp

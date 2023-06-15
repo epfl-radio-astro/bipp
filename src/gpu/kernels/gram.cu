@@ -12,13 +12,12 @@ namespace gpu {
 static __device__ __forceinline__ float calc_sqrt(float x) { return sqrtf(x); }
 static __device__ __forceinline__ double calc_sqrt(double x) { return sqrt(x); }
 
-// compute pi * sinc(x) = pi * (sin(a * x) / (pi * x)u
-static __device__ __forceinline__ float calc_pi_sinc(float a, float x) {
-  return x ? sinf(a * x) / x : float(3.14159265358979323846);
+static __device__ __forceinline__ float calc_sinc(float a, float x) {
+    return x ? sinf(a * x) / (float(3.14159265358979323846) * x) : float(1.0);
 }
 
-static __device__ __forceinline__ double calc_pi_sinc(double a, double x) {
-  return x ? sin(a * x) / x : double(3.14159265358979323846);
+static __device__ __forceinline__ double calc_sinc(double a, double x) {
+    return x ? sin(a * x) / (double(3.14159265358979323846) * x) : double(1.0);
 }
 
 template <typename T>
@@ -36,7 +35,7 @@ static __global__ void gram_kernel(std::size_t n, const T* __restrict__ x, const
       T diffZ = z1 - z[i];
 
       T norm = calc_sqrt(diffX * diffX + diffY * diffY + diffZ * diffZ);
-      g[i + j * ldg] = {4 * calc_pi_sinc(wl, norm), 0};
+      g[i + j * ldg] = {calc_sinc(wl, norm), 0};
     }
   }
 }

@@ -253,6 +253,7 @@ class MeasurementSet:
             * freq (:py:class:`~astropy.units.Quantity`): center frequency of the visibility;
             * S (:py:class:`~pypeline.phased_array.data_gen.statistics.VisibilityMatrix`)
         """
+
         if column not in ct.taql(f"select * from {self._msf}").colnames():
             raise ValueError(f"column={column} does not exist in {self._msf}::MAIN.")
 
@@ -274,25 +275,28 @@ class MeasurementSet:
             f"(select unique TIME from {self._msf} limit {time_start}:{time_stop}:{time_step})"
         )
         table = ct.taql(query)
-
+        
         for sub_table in table.iter("TIME", sort=True):
+            t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
+            freq = self.channels["FREQUENCY"]
+            
             beam_id_0 = sub_table.getcol("ANTENNA1")  # (N_entry,)
             beam_id_1 = sub_table.getcol("ANTENNA2")  # (N_entry,)
-            data_flag = sub_table.getcol("FLAG")  # (N_entry, N_channel, 4)
-            data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
+            data_flag = sub_table.getcol("FLAG")      # (N_entry, N_channel, 4)
+            data = sub_table.getcol(column)           # (N_entry, N_channel, 4)
 
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
             data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
-
+            
             # Set broken visibilities to 0
             data[data_flag] = 0
-
+            
             # DataFrame description of visibility data.
             # Each column represents a different channel.
             S_full_idx = pd.MultiIndex.from_arrays((beam_id_0, beam_id_1), names=("B_0", "B_1"))
             S_full = pd.DataFrame(data=data, columns=channel_id, index=S_full_idx)
-
+            
             # Drop rows of `S_full` corresponding to unwanted beams.
             beam_id = np.unique(self.instrument._layout.index.get_level_values("STATION_ID"))
             N_beam = len(beam_id)
@@ -300,7 +304,7 @@ class MeasurementSet:
             wanted_index = pd.MultiIndex.from_arrays((beam_id[i], beam_id[j]), names=("B_0", "B_1"))
             index_to_drop = S_full_idx.difference(wanted_index)
             S_trunc = S_full.drop(index=index_to_drop)
-
+                
             # Depending on the dataset, some (ANTENNA1, ANTENNA2) pairs that have correlation=0 are
             # omitted in the table.
             # This is problematic as the previous DataFrame construction could be potentially
@@ -309,7 +313,7 @@ class MeasurementSet:
             # desired shape.
             index_diff = wanted_index.difference(S_trunc.index)
             N_diff = len(index_diff)
-
+                
             S_fill_in = pd.DataFrame(
                 data=np.zeros((N_diff, len(channel_id)), dtype=data.dtype),
                 columns=channel_id,
@@ -318,16 +322,13 @@ class MeasurementSet:
             S = pd.concat([S_trunc, S_fill_in], axis=0, ignore_index=False).sort_index(
                 level=["B_0", "B_1"]
             )
-
+            
             # Break S into columns and stream out
-            t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
-            f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
             for ch_id in channel_id:
                 v = _series2array(S[ch_id].rename("S", inplace=True))
                 visibility = vis.VisibilityMatrix(v, beam_idx)
-                yield t, f[ch_id], visibility
-
+                yield t, freq[ch_id], visibility
 
 def _series2array(visibility: pd.Series) -> np.ndarray:
     b_idx_0 = visibility.index.get_level_values("B_0").to_series()
@@ -530,6 +531,189 @@ class MwaMeasurementSet(MeasurementSet):
         Each dataset has been beamformed in a specific way.
         This property outputs the correct beamformer to compute the beamforming weights.
 
+        Returns
+        -------
+        :py:class:`~pypeline.phased_array.beamforming.MatchedBeamformerBlock`
+            Beamweight computer.
+        """
+        if self._beamformer is None:
+            # MWA does not do any beamforming.
+            # Given the single-antenna station model in MS files from MWA, this can be seen as
+            # Matched-Beamforming, with a single beam output per station.
+            XYZ = self.instrument._layout
+            beam_id = np.unique(XYZ.index.get_level_values("STATION_ID"))
+
+            direction = self.field_center
+            beam_config = [(_, _, direction) for _ in beam_id]
+            self._beamformer = beamforming.MatchedBeamformerBlock(beam_config)
+
+        return self._beamformer
+
+
+class OskarMeasurementSet(MeasurementSet):
+    """
+    OSKAR Measurement Set reader.
+    """
+
+    @chk.check("file_name", chk.is_instance(str))
+    def __init__(self, file_name):
+        """
+        Parameters
+        ----------
+        file_name : str
+            Name of the MS file.
+        """
+        super().__init__(file_name)
+
+    @property
+    def instrument(self):
+        """
+        Returns
+        -------
+        :py:class:`~pypeline.phased_array.instrument.EarthBoundInstrumentGeometryBlock`
+            Instrument position computer.
+        """
+        if self._instrument is None:
+            # Following the MS file specification from https://casa.nrao.edu/casadocs/casa-5.1.0/reference-material/measurement-set,
+            # the ANTENNA sub-table specifies the antenna geometry.
+            # Some remarks on the required fields:
+            # - POSITION: absolute station positions in ITRF coordinates.
+            # - ANTENNA_ID: equivalent to STATION_ID field `InstrumentGeometry.index[0]`
+            #               This field is NOT present in the ANTENNA sub-table, but is given
+            #               implicitly by its row-ordering.
+            #               In other words, the station corresponding to ANTENNA1=k in the MAIN
+            #               table is described by the k-th row of the ANTENNA sub-table.
+            query = f"select POSITION from {self._msf}::ANTENNA"
+            table = ct.taql(query)
+            station_mean = table.getcol("POSITION")
+
+            N_station = len(station_mean)
+            station_id = np.arange(N_station)
+            cfg_idx = pd.MultiIndex.from_product(
+                [station_id, [0]], names=("STATION_ID", "ANTENNA_ID")
+            )
+            cfg = pd.DataFrame(data=station_mean, columns=("X", "Y", "Z"), index=cfg_idx)
+
+            XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
+
+            self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ)
+
+        return self._instrument
+
+    @property
+    def beamformer(self):
+        """
+        Each dataset has been beamformed in a specific way.
+        This property outputs the correct beamformer to compute the beamforming weights.
+
+        Returns
+        -------
+        :py:class:`~pypeline.phased_array.beamforming.MatchedBeamformerBlock`
+            Beamweight computer.
+        """
+        if self._beamformer is None:
+            # MWA does not do any beamforming.
+            # Given the single-antenna station model in MS files from MWA, this can be seen as
+            # Matched-Beamforming, with a single beam output per station.
+            XYZ = self.instrument._layout
+            print("OSKAR XYZ:\n", XYZ)
+            beam_id = np.unique(XYZ.index.get_level_values("STATION_ID"))
+
+            direction = self.field_center
+            beam_config = [(_, _, direction) for _ in beam_id]
+            self._beamformer = beamforming.MatchedBeamformerBlock(beam_config)
+
+        return self._beamformer
+
+
+class SKALowMeasurementSet(MeasurementSet):
+    """
+    SKA Low Measurement Set reader.
+    """
+    @chk.check(
+        dict(file_name=chk.is_instance(str),
+             N_station=chk.allow_None(chk.is_integer),
+             origin=chk.allow_None(chk.is_instance(coord.EarthLocation)))
+    )
+    def __init__(self, file_name, N_station=None, origin=None):
+        """
+        Parameters
+        ----------
+        file_name : str
+            Name of the MS file.
+        N_station : int
+            Number of stations to use. (Default = all)
+
+            Sometimes only a subset of an instrument’s stations are desired.
+            Setting `N_station` limits the number of stations to those that appear first when sorted
+            by STATION_ID.
+        origin : astropy EarthLocation
+            Reference location used to compute local station coordinates (ref. RASCIL issue)
+        """
+        super().__init__(file_name)
+        if N_station is not None:
+            if N_station <= 0:
+                raise ValueError("Parameter[N_station] must be positive.")
+        self._N_station = N_station
+        self._origin = origin
+
+    @property
+    def instrument(self):
+        """
+        Returns
+        -------
+        :py:class:`~pypeline.phased_array.instrument.EarthBoundInstrumentGeometryBlock`
+            Instrument position computer.
+        """
+        
+        if self._instrument is None:
+            # Following the MS file specification from https://casa.nrao.edu/casadocs/casa-5.1.0/reference-material/measurement-set,
+            # the ANTENNA sub-table specifies the antenna geometry.
+            # Some remarks on the required fields:
+            # - POSITION: absolute station positions in ITRF coordinates.
+            # - ANTENNA_ID: equivalent to STATION_ID field `InstrumentGeometry.index[0]`
+            #               This field is NOT present in the ANTENNA sub-table, but is given
+            #               implicitly by its row-ordering.
+            #               In other words, the station corresponding to ANTENNA1=k in the MAIN
+            #               table is described by the k-th row of the ANTENNA sub-table.
+            query = f"select POSITION from {self._msf}::ANTENNA"
+            table = ct.taql(query)
+            station_mean = table.getcol("POSITION")
+
+            N_station = len(station_mean)
+            station_id = np.arange(N_station)
+            cfg_idx = pd.MultiIndex.from_product(
+                [station_id, [0]], names=("STATION_ID", "ANTENNA_ID")
+            )
+            cfg = pd.DataFrame(data=station_mean, columns=("X", "Y", "Z"), index=cfg_idx)
+            #print(cfg_idx)
+            #print(cfg)
+            #import sys
+            #sys.exit(1)
+
+
+            if self._origin:
+                o = np.array([self._origin.x.value, self._origin.y.value, self._origin.z.value])
+                xyz = cfg.values - o
+                for i in range(0, xyz.shape[0]):
+                    xyz[i,:] = rascil_crd__enu_to_ecef(self._origin, xyz[i,:])
+                XYZ = instrument.InstrumentGeometry(xyz=xyz, ant_idx=cfg.index)
+                #XYZ_wrong = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
+                #print("XYZ CORRECT\n", XYZ.data[0:5,:])
+                #print("XYZ WRONG\n", XYZ_wrong.data[0:5,:])
+                #print("XYZ DIFF\n", XYZ_wrong.data[0:5,:] - XYZ.data[0:5,:])
+            else:
+                XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
+            
+            self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ)
+
+        return self._instrument
+    
+    @property
+    def beamformer(self):
+        """
+        Each dataset has been beamformed in a specific way.
+        This property outputs the correct beamformer to compute the beamforming weights.
         Returns
         -------
         :py:class:`~pypeline.phased_array.beamforming.MatchedBeamformerBlock`

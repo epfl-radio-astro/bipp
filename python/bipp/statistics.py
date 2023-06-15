@@ -43,6 +43,9 @@ class VisibilityMatrix(array.LabeledMatrix):
         if not np.allclose(data, data.conj().T):
             raise ValueError("Parameter[data] must be hermitian symmetric.")
 
+        # Always flag autocorrelation visibilities
+        np.fill_diagonal(data, 0)
+        
         super().__init__(data, beam_idx, beam_idx)
 
 
