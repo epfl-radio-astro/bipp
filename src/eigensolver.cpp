@@ -95,8 +95,9 @@ BIPP_EXPORT auto eigh(Context& ctx, std::size_t m, std::size_t nEig, const std::
     throw GPUSupportError();
 #endif
   } else {
-    host::eigh<T>(ctxInternal, m, nEig, a, lda, b, ldb, nEigOut, d, v, ldv);
+    host::eigh<T>(ctxInternal, m, nEig, a, lda, b, ldb, d, v, ldv);
   }
+  *nEigOut = nEig;
 }
 
 extern "C" {
