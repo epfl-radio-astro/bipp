@@ -98,10 +98,10 @@ def visibility(time, ant1, ant2, data, flag, beam_id, channel_id=[0]):
         for i in range(len(S.B_0)):
             vis_matrix[S.B_0[i]][S.B_1[i]]=S[0][i]
         
-        row_id = S.B_0
-        col_id = S.B_1
+        row_id = np.sort(S.B_0)
+        col_id = np.sort(S.B_1)
         
-        yield, vis_matrix, row_id, col_id
+        yield tobs, vis_matrix, row_id, col_id
         
         
 if __name__ == "__main__":
