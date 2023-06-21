@@ -65,12 +65,8 @@ def dataset_row_chunks(ds, cutoff=10000):
 def visibility(time, ant1, ant2, data, flag, beam_id, channel_id=[0]):
 
     utime, idx, cnt = np.unique(time, return_index=True, return_counts=True)
-    
-    t_return = []
-    vs_return = []
-    missing_return = []
 
-    for i in range(1):
+    for i in range(len(utime)):
         tobs = utime[i]*1.15741e-5
         start=idx[i]
         end=start+cnt[i]
@@ -94,20 +90,18 @@ def visibility(time, ant1, ant2, data, flag, beam_id, channel_id=[0]):
         index_to_drop = S_full_idx.difference(wanted_index)
         S_trunc = S_full.drop(index=index_to_drop)
 
-        index_diff = wanted_index.difference(S_trunc.index)
+        S_trunc = S_full.drop(index=index_to_drop)
+        S = S_trunc.reset_index()
+
+        vis_matrix = np.zeros([nst,nst])
+            
+        for i in range(len(S.B_0)):
+            vis_matrix[S.B_0[i]][S.B_1[i]]=S[0][i]
         
-        missing = index_diff.to_numpy()
+        row_id = S.B_0
+        col_id = S.B_1
         
-        # Break S into columns and stream out
-        beam_idx = pd.Index(beam_id, name="BEAM_ID")
-        v = measurement_set._series2array(S_full[0].rename("S", inplace=True))
-        visibility = vis.VisibilityMatrix(v, beam_idx)
-        t_return.append(tobs)
-        vs_return.append(visibility)
-        missing_return.append(missing)
-        
-        
-    return t_return, vs_return, missing_return
+        yield, vis_matrix, row_id, col_id
         
         
 if __name__ == "__main__":
