@@ -66,6 +66,8 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
   // copy lower triangle into buffer
   copy_lower_triangle_at_indices(m, indices, a, lda, aReduced, mReduced);
 
+  const auto firstEigIndexFortran = mReduced - std::min(mReduced, nEig) + 1;
+
   int hMeig = 0;
   if (b) {
     auto bufferB = Buffer<std::complex<T>>(ctx.host_alloc(), m * m);
@@ -74,13 +76,13 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
     copy_lower_triangle_at_indices(m, indices, b, ldb, bReduced, mReduced);
 
     if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, 'V', 'I', 'L', mReduced, aReduced, mReduced,
-                           bReduced, mReduced, 0, 0, mReduced - std::min(mReduced, nEig), mReduced,
+                           bReduced, mReduced, 0, 0, firstEigIndexFortran, mReduced,
                            &hMeig, bufferD.get(), bufferV.get(), mReduced, bufferIfail.get())) {
       throw EigensolverError();
     }
   } else {
     if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 'V', 'I', 'L', mReduced, aReduced, mReduced, 0,
-                           0, mReduced - std::min(mReduced, nEig), mReduced, &hMeig, bufferD.get(),
+                           0, firstEigIndexFortran, mReduced, &hMeig, bufferD.get(),
                            bufferV.get(), mReduced, bufferIfail.get())) {
       throw EigensolverError();
     }
