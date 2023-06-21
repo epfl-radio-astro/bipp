@@ -25,7 +25,7 @@ struct NufftSynthesisInternal {
                          std::size_t nFilter, const BippFilter* filter, std::size_t nPixel,
                          const T* lmnX, const T* lmnY, const T* lmnZ, const bool filter_negative_eigenvalues)
       : ctx_(ctx), nAntenna_(nAntenna), nBeam_(nBeam), nIntervals_(nIntervals), nPixel_(nPixel),
-        filter_negative_eigenvalues_(filter_negative_eigenvalues) {
+        filter_negative_eigenvalues_(filter_negative_eigenvalues), nEpochs_(0) {
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
                        "{} NufftSynthesis.create({}, opt, {}, {} ,{} ,{} {}, {}, {}, {}, {})",
                        (const void*)this, (const void*)ctx_.get(), nAntenna, nBeam, nIntervals,
@@ -105,6 +105,9 @@ struct NufftSynthesisInternal {
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "UVW", nAntenna_ * nAntenna_, 3, uvw, lduvw);
 
     const auto start = std::chrono::high_resolution_clock::now();
+
+    // Increment the counter for the number of processed epochs
+    nEpochs_ += 1;
 
     // Count number of non-zero elements in visibility matrix
     const std::complex<T> c0 = 0.0;
@@ -208,10 +211,17 @@ struct NufftSynthesisInternal {
       throw GPUSupportError();
 #endif
     }
+
+    printf("-D- Scaling image by the total number of processed epochs %ld\n", nEpochs_);
+    auto scale = static_cast<T>(nEpochs_);
+    for (std::size_t i = 0; i < nIntervals_ * nPixel_; i++) {
+        out[i] /= scale;
+    }
+
   }
 
   std::shared_ptr<ContextInternal> ctx_;
-  std::size_t nAntenna_, nBeam_, nIntervals_, nPixel_;
+  std::size_t nAntenna_, nBeam_, nIntervals_, nPixel_, nEpochs_;
   std::optional<host::NufftSynthesis<T>> planHost_;
   const bool filter_negative_eigenvalues_;
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
