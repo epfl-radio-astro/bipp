@@ -13,7 +13,7 @@ namespace host {
 template <typename T>
 auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::complex<T>* a,
           std::size_t lda, const std::complex<T>* b, std::size_t ldb, const char range,
-          std::size_t* nEigOut, T* d, std::complex<T>* v, std::size_t ldv) -> void;
+          T* d, std::complex<T>* v, std::size_t ldv) -> void;
 
 }  // namespace host
 }  // namespace bipp
