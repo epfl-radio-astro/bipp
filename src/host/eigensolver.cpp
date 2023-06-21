@@ -63,8 +63,9 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
   const std::size_t mReduced = indices.size();
 
   //TODO(EO): check switch from 'V' -> 'I'
+  char range_ = range;
   if (range == 'V')
-      range = 'I'
+      range_ = 'I';
 
   // copy lower triangle into buffer
   copy_lower_triangle_at_indices(m, indices, a, lda, aReduced, mReduced);
@@ -78,13 +79,13 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
 
     copy_lower_triangle_at_indices(m, indices, b, ldb, bReduced, mReduced);
 
-    if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, 'V', range, 'L', mReduced, aReduced, mReduced,
+    if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, 'V', range_, 'L', mReduced, aReduced, mReduced,
                            bReduced, mReduced, 0, 0, firstEigIndexFortran, mReduced,
                            &hMeig, bufferD.get(), bufferV.get(), mReduced, bufferIfail.get())) {
       throw EigensolverError();
     }
   } else {
-    if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 'V', range, 'L', mReduced, aReduced, mReduced, 0,
+    if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 'V', range_, 'L', mReduced, aReduced, mReduced, 0,
                            0, firstEigIndexFortran, mReduced, &hMeig, bufferD.get(),
                            bufferV.get(), mReduced, bufferIfail.get())) {
       throw EigensolverError();

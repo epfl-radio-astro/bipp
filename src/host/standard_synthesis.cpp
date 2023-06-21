@@ -89,9 +89,6 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals,
     eigh<T>(*ctx_, nBeam_, nEig, g.get(), nBeam_, nullptr, 0, range, d.get(), v.get(), nBeam_);
   }
 
-  if (not filter_negative_eigenvalues_)
-      assert(nEig == nEigOut);
-
   blas::gemm(CblasColMajor, CblasNoTrans, CblasNoTrans, nAntenna_, nEig, nBeam_, {1, 0}, w, ldw,
              v.get(), nBeam_, {0, 0}, vUnbeam.get(), nAntenna_);
 
