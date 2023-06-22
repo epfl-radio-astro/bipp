@@ -236,7 +236,7 @@ class MeasurementSet:
                 matrix = coo_matrix((matrix_data, (S.B_0, S.B_1)), shape=(matrix_size, matrix_size)).toarray()
 
                 #remove broken_rows
-                broken_row_id = np.where(~v.any(axis=1))[0]
+                broken_row_id = np.where(~matrix.any(axis=1))[0]
                 
                 v = np.delete(matrix, broken_row_id, axis=0)
 
@@ -329,7 +329,7 @@ class MeasurementSet:
                 matrix = _series2array(S[ch_id].rename("S", inplace=True))
                 
                 #remove broken_rows
-                broken_row_id = np.where(~v.any(axis=1))[0]
+                broken_row_id = np.where(~matrix.any(axis=1))[0]
                 
                 v = np.delete(matrix, broken_row_id, axis=0)
                 
