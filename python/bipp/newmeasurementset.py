@@ -226,8 +226,6 @@ class MeasurementSet:
             for ch_id in channel_id:
                 matrix_data = data[:, ch_id]
 
-                matrix_data = np.ravel(matrix_data)
-
                 matrix_size = max(np.max(beam_id_0), np.max(beam_id_1)) + 1
 
                 v = coo_matrix((matrix_data, (beam_id_0, beam_id_1)), shape=(matrix_size, matrix_size)).toarray()
