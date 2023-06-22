@@ -232,8 +232,6 @@ class MeasurementSet:
 
                 t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
                 f = self.channels["FREQUENCY"][ch_id]
-            
-                visibility = vis.VisibilityMatrix(v, matrix_size)
                 
-                yield t, f visibility
+                yield t, f, v
 
