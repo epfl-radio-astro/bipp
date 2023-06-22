@@ -242,6 +242,117 @@ class MeasurementSet:
 
                 yield t, f, S_trunc.index, v
 
+    def visibilities_old(self, channel_id, time_id, column):
+        """
+        Extract visibility matrices.
+
+        Parameters
+        ----------
+        channel_id : array-like(int) or slice
+            Several CHANNEL_IDs from :py:attr:`~pypeline.phased_array.util.measurement_set.MeasurementSet.channels`.
+        time_id : int or slice
+            Several TIME_IDs from :py:attr:`~pypeline.phased_array.util.measurement_set.MeasurementSet.time`.
+        column : str
+            Column name from MAIN table where visibility data resides.
+
+            (This is required since several visibility-holding columns can co-exist.)
+
+        Returns
+        -------
+        iterable
+
+            Generator object returning (time, freq, S) triplets with:
+
+            * time (:py:class:`~astropy.time.Time`): moment the visibility was formed;
+            * freq (:py:class:`~astropy.units.Quantity`): center frequency of the visibility;
+            * S (:py:class:`~pypeline.phased_array.data_gen.statistics.VisibilityMatrix`)
+        """
+        if column not in ct.taql(f"select * from {self._msf}").colnames():
+            raise ValueError(f"column={column} does not exist in {self._msf}::MAIN.")
+
+        channel_id = self.channels["CHANNEL_ID"][channel_id]
+
+        if chk.is_integer(time_id):
+            time_id = slice(time_id, time_id + 1, 1)
+        N_time = len(self.time)
+        time_start, time_stop, time_step = time_id.indices(N_time)
+
+        # Only a subset of the MAIN table's columns are needed to extract visibility information.
+        # As such, it makes sense to construct a TaQL query that only extracts the columns of
+        # interest as shown below:
+        #    select ANTENNA1, ANTENNA2, MJD(TIME) as TIME, {column}, FLAG from {self._msf} where TIME in
+        #    (select unique TIME from {self._msf} limit {time_start}:{time_stop}:{time_step})
+        # Unfortunately this query consumes a lot of memory due to the column selection process.
+        # Therefore, we will instead ask for all columns and only access those of interest.
+        query = (
+            f"select * from {self._msf} where TIME in "
+            f"(select unique TIME from {self._msf} limit {time_start}:{time_stop}:{time_step})"
+        )
+        table = ct.taql(query)
+
+        for sub_table in table.iter("TIME", sort=True):
+            
+            beam_id_0 = sub_table.getcol("ANTENNA1")  # (N_entry,)
+            beam_id_1 = sub_table.getcol("ANTENNA2")  # (N_entry,)
+            data_flag = sub_table.getcol("FLAG")  # (N_entry, N_channel, 4)
+            data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
+
+            # We only want XX and YY correlations
+            data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
+            data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
+            data[data_flag] = 0
+
+            # DataFrame description of visibility data.
+            # Each column represents a different channel.
+            S_full_idx = pd.MultiIndex.from_arrays((beam_id_0, beam_id_1), names=("B_0", "B_1"))
+            S_full = pd.DataFrame(data=data, columns=channel_id, index=S_full_idx)
+
+
+            # Drop rows of `S_full` corresponding to unwanted beams.
+            beam_id = np.unique(self.instrument._layout.index.get_level_values("STATION_ID"))
+            N_beam = len(beam_id)
+            i, j = np.triu_indices(N_beam, k=0)
+            wanted_index = pd.MultiIndex.from_arrays((beam_id[i], beam_id[j]), names=("B_0", "B_1"))
+            index_to_drop = S_full_idx.difference(wanted_index)
+            S = S_full.drop(index=index_to_drop)
+
+            # Break S into columns and stream out
+            t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
+            f = self.channels["FREQUENCY"]
+            beam_idx = pd.Index(beam_id, name="BEAM_ID")
+            for ch_id in channel_id:
+                v = _series2array(S[ch_id].rename("S", inplace=True))
+                #visibility = vis.VisibilityMatrix(v, beam_idx)
+                yield t, f[ch_id], beam_idx, visibility
+
+def _series2array(visibility: pd.Series) -> np.ndarray:
+    b_idx_0 = visibility.index.get_level_values("B_0").to_series()
+    b_idx_1 = visibility.index.get_level_values("B_1").to_series()
+
+    row_map = (
+        pd.concat(objs=(b_idx_0, b_idx_1), ignore_index=True)
+        .drop_duplicates()
+        .to_frame(name="BEAM_ID")
+        .assign(ROW_ID=lambda df: np.arange(len(df)))
+    )
+    col_map = row_map.rename(columns={"ROW_ID": "COL_ID"})
+
+    data = (
+        visibility.reset_index()
+        .merge(row_map, left_on="B_0", right_on="BEAM_ID")
+        .merge(col_map, left_on="B_1", right_on="BEAM_ID")
+        .loc[:, ["ROW_ID", "COL_ID", "S"]]
+    )
+
+    N_beam = len(row_map)
+    S = np.zeros(shape=(N_beam, N_beam), dtype=complex)
+    S[data.ROW_ID.values, data.COL_ID.values] = data.S.values
+    S_diag = np.diag(S)
+    S = S + S.conj().T
+    S[np.diag_indices_from(S)] = S_diag
+    return S
+
+
 
 class LofarMeasurementSet(MeasurementSet):
     """
