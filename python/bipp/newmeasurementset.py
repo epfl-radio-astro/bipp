@@ -22,7 +22,6 @@ class MeasurementSet:
     Focus is given to reading MS files from phased-arrays for the moment (i.e, not dish arrays).
     """
 
-    @chk.check("file_name", chk.is_instance(str))
     def __init__(self, file_name):
         """
         Parameters
@@ -154,13 +153,7 @@ class MeasurementSet:
         """
         raise NotImplementedError
 
-    @chk.check(
-        dict(
-            channel_id=chk.accept_any(chk.has_integers, chk.is_instance(slice)),
-            time_id=chk.accept_any(chk.is_integer, chk.is_instance(slice)),
-            column=chk.is_instance(str),
-        )
-    )
+
     def visibilities(self, channel_id, time_id, column):
         """
         Extract visibility matrices.
@@ -223,8 +216,12 @@ class MeasurementSet:
             # Set broken visibilities to 0
             data[data_flag] = 0
             
+            working_beam = np.unique(beam_id_0)
+            
             for ch_id in channel_id:
                 matrix_data = data[:, ch_id]
+
+                matrix_data = np.ravel(matrix_data)
 
                 matrix_size = max(np.max(beam_id_0), np.max(beam_id_1)) + 1
 
@@ -232,6 +229,8 @@ class MeasurementSet:
 
                 t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
                 f = self.channels["FREQUENCY"][ch_id]
+            
+                visibility = vis.VisibilityMatrix(v, matrix_size)
                 
-                yield t, f, v
+                yield t, f visibility, working_beam
 
