@@ -233,7 +233,12 @@ class MeasurementSet:
 
                 matrix_size = max(np.max(S.B_0), np.max(S.B_1)) + 1
 
-                v = coo_matrix((matrix_data, (S.B_0, S.B_1)), shape=(matrix_size, matrix_size)).toarray()
+                matrix = coo_matrix((matrix_data, (S.B_0, S.B_1)), shape=(matrix_size, matrix_size)).toarray()
+
+                #remove broken_rows
+                broken_row_id = np.where(~v.any(axis=1))[0]
+                
+                v = np.delete(matrix, broken_row_id, axis=0)
 
                 t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
                 f = self.channels["FREQUENCY"][ch_id]
@@ -321,7 +326,13 @@ class MeasurementSet:
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
             for ch_id in channel_id:
-                v = _series2array(S[ch_id].rename("S", inplace=True))
+                matrix = _series2array(S[ch_id].rename("S", inplace=True))
+                
+                #remove broken_rows
+                broken_row_id = np.where(~v.any(axis=1))[0]
+                
+                v = np.delete(matrix, broken_row_id, axis=0)
+                
                 #visibility = vis.VisibilityMatrix(v, beam_idx)
                 yield t, f[ch_id], beam_idx, visibility
 
