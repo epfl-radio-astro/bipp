@@ -235,10 +235,13 @@ class MeasurementSet:
 
                 matrix = coo_matrix((matrix_data, (S.B_0, S.B_1)), shape=(matrix_size, matrix_size)).toarray()
 
-                #remove broken_rows
-                broken_row_id = np.where(~matrix.any(axis=1))[0]
-                
-                v = np.delete(matrix, broken_row_id, axis=0)
+                # Find the row and column indices where the entire row and column are zero
+                zero_rows = np.where(~matrix.any(axis=1))[0]
+                zero_columns = np.where(~matrix.any(axis=0))[0]
+
+                # Remove the zero rows and columns
+                v = np.delete(matrix, zero_rows, axis=0)
+                v = np.delete(matrix, zero_columns, axis=1)
 
                 t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
                 f = self.channels["FREQUENCY"][ch_id]
@@ -328,10 +331,13 @@ class MeasurementSet:
             for ch_id in channel_id:
                 matrix = _series2array(S[ch_id].rename("S", inplace=True))
                 
-                #remove broken_rows
-                broken_row_id = np.where(~matrix.any(axis=1))[0]
-                
-                v = np.delete(matrix, broken_row_id, axis=0)
+                # Find the row and column indices where the entire row and column are zero
+                zero_rows = np.where(~matrix.any(axis=1))[0]
+                zero_columns = np.where(~matrix.any(axis=0))[0]
+
+                # Remove the zero rows and columns
+                v = np.delete(matrix, zero_rows, axis=0)
+                v = np.delete(matrix, zero_columns, axis=1)
                 
                 #visibility = vis.VisibilityMatrix(v, beam_idx)
                 yield t, f[ch_id], beam_idx, visibility
