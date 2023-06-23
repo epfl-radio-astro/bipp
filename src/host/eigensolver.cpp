@@ -7,6 +7,7 @@
 #include <limits>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "bipp/bipp.h"
 #include "bipp/config.h"
@@ -101,16 +102,17 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
 
   // copy in reverse order into output and pad to full size
   for (std::size_t col = 0; col < nEigOut; ++col) {
-    d[col] = bufferPtrD[hMeig - col - 1];
+    d[col] = bufferPtrD[col + hMeig - nEigOut];
   }
 
   if (mReduced == m) {
-    for (std::size_t col = 0; col < nEigOut; ++col) {
-      std::memcpy(v + col * ldv, bufferPtrV + (hMeig - col - 1) * m, m * sizeof(std::complex<T>));
+  for (std::size_t col = 0; col < nEigOut; ++col) {
+    std::memcpy(v + col * ldv, bufferPtrV + (col + hMeig - nEigOut) * m,
+                m * sizeof(std::complex<T>));
     }
   } else {
     for (std::size_t col = 0; col < nEigOut; ++col) {
-      const auto colPtr = bufferPtrV + (hMeig - col - 1) * mReduced;
+      const auto colPtr = bufferPtrV + (col + hMeig - nEigOut) * mReduced;
       for (std::size_t row = 0; row < mReduced; ++row) {
         v[col * ldv + indices[row]] = colPtr[row];
       }

@@ -28,6 +28,7 @@ using StatusType = cublasStatus_t;
 using OperationType = cublasOperation_t;
 using SideModeType = cublasSideMode_t;
 using FillModeType = cublasFillMode_t;
+using DiagType = cublasDiagType_t;
 #endif
 
 #if defined(BIPP_ROCM)
@@ -36,6 +37,7 @@ using StatusType = rocblas_status;
 using OperationType = rocblas_operation;
 using SideModeType = rocblas_side;
 using FillModeType = rocblas_fill;
+using DiagType = rocblas_diag;
 #endif
 
 namespace operation {
@@ -75,6 +77,19 @@ constexpr auto full = CUBLAS_FILL_MODE_FULL;
 constexpr auto upper = rocblas_fill_upper;
 constexpr auto lower = rocblas_fill_lower;
 constexpr auto full = rocblas_fill_full;
+#endif
+}  // namespace fill
+
+
+namespace diag {
+#if defined(BIPP_CUDA)
+constexpr auto unit = CUBLAS_DIAG_UNIT;
+constexpr auto nonunit = CUBLAS_DIAG_NON_UNIT;
+#endif
+
+#if defined(BIPP_ROCM)
+constexpr auto unit = rocblas_diagonal_unit;
+constexpr auto nonunit = rocblas_diagonal_non_unit;
 #endif
 }  // namespace fill
 
@@ -400,6 +415,24 @@ inline auto axpy(HandleType handle, int n, const double* alpha, const double* x,
   check_status(cublasDaxpy(handle, n, alpha, x, incx, y, incy));
 #else
   check_status(rocblas_daxpy(handle, n, alpha, x, incx, y, incy));
+#endif  // BIPP_CUDA
+}
+
+inline auto trmv(HandleType handle, FillModeType uplo, OperationType trans, DiagType diag, int n,
+                 const ComplexFloatType* A, int lda, ComplexFloatType* x, int incx) -> void {
+#if defined(BIPP_CUDA)
+  check_status(cublasCtrmv(handle, uplo, trans, diag, n, A, lda, x, incx));
+#else
+  check_status(rocblas_ctrmv(handle, uplo, trans, diag, n, A, lda, x, incx));
+#endif  // BIPP_CUDA
+}
+
+inline auto trmv(HandleType handle, FillModeType uplo, OperationType trans, DiagType diag, int n,
+                 const ComplexDoubleType* A, int lda, ComplexDoubleType* x, int incx) -> void {
+#if defined(BIPP_CUDA)
+  check_status(cublasZtrmv(handle, uplo, trans, diag, n, A, lda, x, incx));
+#else
+  check_status(rocblas_ztrmv(handle, uplo, trans, diag, n, A, lda, x, incx));
 #endif  // BIPP_CUDA
 }
 
