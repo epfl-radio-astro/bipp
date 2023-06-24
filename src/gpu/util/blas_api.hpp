@@ -37,7 +37,7 @@ using StatusType = rocblas_status;
 using OperationType = rocblas_operation;
 using SideModeType = rocblas_side;
 using FillModeType = rocblas_fill;
-using DiagType = rocblas_diag;
+using DiagType = rocblas_diagonal;
 #endif
 
 namespace operation {
@@ -423,7 +423,9 @@ inline auto trmv(HandleType handle, FillModeType uplo, OperationType trans, Diag
 #if defined(BIPP_CUDA)
   check_status(cublasCtrmv(handle, uplo, trans, diag, n, A, lda, x, incx));
 #else
-  check_status(rocblas_ctrmv(handle, uplo, trans, diag, n, A, lda, x, incx));
+  check_status(rocblas_ctrmv(handle, uplo, trans, diag, n,
+                             reinterpret_cast<const rocblas_float_complex*>(A), lda,
+                             reinterpret_cast<rocblas_float_complex*>(x), incx));
 #endif  // BIPP_CUDA
 }
 
@@ -432,7 +434,9 @@ inline auto trmv(HandleType handle, FillModeType uplo, OperationType trans, Diag
 #if defined(BIPP_CUDA)
   check_status(cublasZtrmv(handle, uplo, trans, diag, n, A, lda, x, incx));
 #else
-  check_status(rocblas_ztrmv(handle, uplo, trans, diag, n, A, lda, x, incx));
+  check_status(rocblas_ztrmv(handle, uplo, trans, diag, n,
+                             reinterpret_cast<const rocblas_double_complex*>(A), lda,
+                             reinterpret_cast<rocblas_double_complex*>(x), incx));
 #endif  // BIPP_CUDA
 }
 
