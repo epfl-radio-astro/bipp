@@ -18,7 +18,7 @@ __global__ static void copy_matrix_from_indices_kernel(std::size_t n, const std:
     for (std::size_t row = threadIdx.x; row < n;
          row += blockDim.x) {
       const auto rowIdx = indices[row];
-      b[col * ldb + row] = a[colIdx * ldb + rowIdx];
+      b[col * ldb + row] = a[colIdx * lda + rowIdx];
     }
   }
 }
@@ -30,7 +30,7 @@ __global__ static void copy_matrix_rows_to_indices_kernel(
   for (std::size_t col = blockIdx.x; col < nCols; col += gridDim.x) {
     for (std::size_t row = threadIdx.x; row < nRows; row += blockDim.x) {
       const auto rowIdx = rowIndices[row];
-      b[col * ldb + rowIdx] = a[col * ldb + row];
+      b[col * ldb + rowIdx] = a[col * lda + row];
     }
   }
 }

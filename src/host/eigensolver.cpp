@@ -63,6 +63,7 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
 
   const std::size_t mReduced = indices.size();
 
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} coloumns", m - mReduced);
 
   // copy lower triangle into buffer
   copy_lower_triangle_at_indices(m, indices, a, lda, aReduced, mReduced);

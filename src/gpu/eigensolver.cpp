@@ -60,12 +60,13 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const api::Comp
     }
   }
 
-  if(false) {
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} coloumns", m - mReduced);
+
+  if(m == mReduced) {
     api::memcpy_2d_async(aBuffer.get(), m * sizeof(ComplexType), a, lda * sizeof(ComplexType),
                          m * sizeof(ComplexType), m, api::flag::MemcpyDeviceToDevice,
                          queue.stream());
   } else {
-    api::memset_async(aBuffer.get(), 0, mReduced * mReduced * sizeof(ComplexType), queue.stream());
     api::memcpy_async(indexBuffer.get(), indexBufferHost.get(), sizeof(std::size_t) * mReduced,
                       api::flag::MemcpyHostToDevice, queue.stream());
     copy_matrix_from_indices(queue.device_prop(), queue.stream(), mReduced, indexBuffer.get(), a,
@@ -75,23 +76,21 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const api::Comp
   int hMeig = 0;
 
   const auto firstEigIndexFortran = mReduced - std::min(mReduced, nEig) + 1;
-  if(b) {
-    auto bBuffer = queue.create_device_buffer<ComplexType>(m * m);  
+  if (b) {
+    auto bBuffer = queue.create_device_buffer<ComplexType>(m * m);
 
-  if(m == mReduced) {
-    api::memcpy_2d_async(bBuffer.get(), m * sizeof(ComplexType), b, ldb * sizeof(ComplexType),
-                         m * sizeof(ComplexType), m, api::flag::MemcpyDeviceToDevice,
-                         queue.stream());
-  } else {
-    api::memset_async(bBuffer.get(), 0, mReduced * mReduced * sizeof(ComplexType), queue.stream());
-    copy_matrix_from_indices(queue.device_prop(), queue.stream(), mReduced, indexBuffer.get(), b,
-                             ldb, bBuffer.get(), mReduced);
-  }
-
+    if (m == mReduced) {
+      api::memcpy_2d_async(bBuffer.get(), m * sizeof(ComplexType), b, ldb * sizeof(ComplexType),
+                           m * sizeof(ComplexType), m, api::flag::MemcpyDeviceToDevice,
+                           queue.stream());
+    } else {
+      copy_matrix_from_indices(queue.device_prop(), queue.stream(), mReduced, indexBuffer.get(), b,
+                               ldb, bBuffer.get(), mReduced);
+    }
 
     eigensolver::solve(ctx, 'V', 'I', 'L', mReduced, aBuffer.get(), mReduced, bBuffer.get(),
                        mReduced, 0, 0, firstEigIndexFortran, mReduced, &hMeig, dBuffer.get());
-  } else{
+  } else {
     eigensolver::solve(ctx, 'V', 'I', 'L', mReduced, aBuffer.get(), mReduced, 0, 0,
                        firstEigIndexFortran, mReduced, &hMeig, dBuffer.get());
   }
@@ -113,8 +112,8 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const api::Comp
                          api::flag::MemcpyDeviceToDevice, queue.stream());
   } else {
     copy_matrix_rows_to_indices(queue.device_prop(), queue.stream(), mReduced, nEigOut,
-                                indexBuffer.get(), aBuffer.get() + (hMeig - nEigOut) * mReduced, mReduced,
-                                v, ldv);
+                                indexBuffer.get(), aBuffer.get() + (hMeig - nEigOut) * mReduced,
+                                mReduced, v, ldv);
   }
 
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", nEig, 1, d, nEig);
