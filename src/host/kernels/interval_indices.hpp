@@ -20,12 +20,15 @@ auto find_interval_indices(std::size_t n, const T* D, T a, T b)
   std::size_t l = n;
   std::size_t r = 0;
 
+  T prev = 0;
   for (std::size_t i = 0; i < n; ++i) {
     const auto value = D[i];
+    if (i > 0 && value > prev) break;
     if (value <= b && value >= a) {
       if (i < l) l = i;
       if (i > r) r = i;
     }
+    prev = D[i];
   }
 
   return {l, l <= r ? r - l + 1 : 0};
