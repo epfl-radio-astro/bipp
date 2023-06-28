@@ -241,7 +241,7 @@ class MeasurementSet:
 
                 # Remove the zero rows and columns
                 v = np.delete(matrix, zero_rows, axis=0)
-                v = np.delete(matrix, zero_columns, axis=1)
+                v = np.delete(v, zero_columns, axis=1)
 
                 t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
                 f = self.channels["FREQUENCY"][ch_id]
