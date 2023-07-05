@@ -29,22 +29,28 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const api::Comp
   auto aBuffer = queue.create_device_buffer<ComplexType>(m * m);
   auto dBuffer = queue.create_device_buffer<T>(m);
 
-  auto colSumBufferHost = queue.create_pinned_buffer<ComplexType>(m);
-  auto colSumPtr = colSumBufferHost.get();
 
-  for(std::size_t i = 0; i < m; ++i) {
-    colSumPtr[i] = {1, 0};
-  }
-
-  api::memcpy_async(aBuffer.get(), colSumBufferHost.get(), sizeof(ComplexType) * m,
-                    api::flag::MemcpyHostToDevice, queue.stream());
-  api::blas::trmv(queue.blas_handle(), api::blas::fill::lower, api::blas::operation::Transpose,
-                  api::blas::diag::nonunit, m, a, lda, aBuffer.get(), 1);
-
-  api::memcpy_async(colSumBufferHost.get(), aBuffer.get(), sizeof(ComplexType) * m,
-                    api::flag::MemcpyDeviceToHost, queue.stream());
+  auto aHostBuffer = queue.create_pinned_buffer<ComplexType>(m * m);
+  gpu::api::memcpy_2d_async(aHostBuffer.get(), m * sizeof(gpu::api::ComplexType<T>), a,
+                            lda * sizeof(gpu::api::ComplexType<T>),
+                            m * sizeof(gpu::api::ComplexType<T>), m,
+                            gpu::api::flag::MemcpyDeviceToHost, queue.stream());
 
   queue.sync();
+
+  auto aHostPtr = aHostBuffer.get();
+
+  // flag working coloumns / rows
+  std::vector<short> nonZeroIndexFlag(m, 0);
+  for (std::size_t col = 0; col < m; ++col) {
+    for (std::size_t row = col; row < m; ++row) {
+      const auto val =  aHostPtr[col * m + row];
+      if (val.x != 0 || val.y != 0) {
+        nonZeroIndexFlag[col] |= 1;
+        nonZeroIndexFlag[row] |= 1;
+      }
+    }
+  }
 
   auto indexBufferHost = queue.create_pinned_buffer<std::size_t>(m);
   auto indexBuffer = queue.create_device_buffer<std::size_t>(m);
@@ -52,15 +58,15 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const api::Comp
   auto indexHostPtr = indexBufferHost.get();
 
   std::size_t mReduced = 0;
-  for(std::size_t i = 0; i < m; ++i) {
-    const auto sum = colSumPtr[i];
-    if (sum.x * sum.x + sum.y * sum.y > 1e-8) {
+
+  for (std::size_t i = 0; i < m; ++i) {
+    if (nonZeroIndexFlag[i]) {
       indexHostPtr[mReduced] = i;
       ++mReduced;
     }
   }
 
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} coloumns", m - mReduced);
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} coloumns / rows", m - mReduced);
 
   if(m == mReduced) {
     api::memcpy_2d_async(aBuffer.get(), m * sizeof(ComplexType), a, lda * sizeof(ComplexType),

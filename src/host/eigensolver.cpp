@@ -49,21 +49,28 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
   auto bufferIfail = Buffer<int>(ctx.host_alloc(), m);
   std::complex<T>* aReduced = bufferA.get();
 
+  std::vector<short> nonZeroIndexFlag(m, 0);
+
+  // flag working coloumns / rows
+  for (std::size_t col = 0; col < m; ++col) {
+    for (std::size_t row = col; row < m; ++row) {
+      const auto val =  a[col * lda + row];
+      if (val.real() != 0 || val.imag() != 0) {
+        nonZeroIndexFlag[col] |= 1;
+        nonZeroIndexFlag[row] |= 1;
+      }
+    }
+  }
+
   std::vector<std::size_t> indices;
   indices.reserve(m);
-
-  // find indices of working coloumns
-  for (std::size_t col = 0; col < m; ++col) {
-    std::complex<T> sum(0, 0);
-    for (std::size_t row = col; row < m; ++row) {
-      sum += a[col * lda + row];
-    }
-    if (sum.real() * sum.real() + sum.imag() * sum.imag() > 1e-8) indices.push_back(col);
+  for (std::size_t i = 0; i < m; ++i) {
+    if (nonZeroIndexFlag[i]) indices.push_back(i);
   }
 
   const std::size_t mReduced = indices.size();
 
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} coloumns", m - mReduced);
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} coloumns / rows", m - mReduced);
 
   // copy lower triangle into buffer
   copy_lower_triangle_at_indices(m, indices, a, lda, aReduced, mReduced);
