@@ -10,6 +10,7 @@ typedef void* BippNufftSynthesis;
 typedef void* BippNufftSynthesisF;
 typedef void* BippStandardSynthesis;
 typedef void* BippStandardSynthesisF;
+typedef void* BippNufftSynthesisOptions;
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,6 +35,100 @@ BIPP_EXPORT BippError bipp_ctx_create(BippProcessingUnit pu, BippContext* ctx);
 BIPP_EXPORT BippError bipp_ctx_destroy(BippContext* ctx);
 
 /**
+ * Create Nufft Synthesis options.
+ *
+ * @param[out] opt Options handle.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ns_options_create(BippNufftSynthesisOptions* opt);
+
+/**
+ * Destroy a Nufft Synthesis handle.
+ *
+ * @param[in] opt Options handle
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ns_options_destroy(BippNufftSynthesisOptions* opt);
+
+/**
+ * Set Nufft tolerance parameter.
+ *
+ * @param[in] opt Options handle.
+ * @param[in] tol Tolerance used for computing the Nufft.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ns_options_set_tolerance(BippNufftSynthesisOptions opt, float tol);
+
+/**
+ * Set number of collected data packages to be processed together. Larger size will increase memory
+ * usage but improve performance.
+ *
+ * @param[in] opt Options handle.
+ * @param[in] size Group size.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ns_options_set_collect_group_size(BippNufftSynthesisOptions opt,
+                                                             size_t size);
+
+/**
+ * Set Nufft Synthesis image partition method to "auto".
+ *
+ * @param[in] opt Options handle.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ns_options_set_local_image_partition_auto(BippNufftSynthesisOptions opt);
+
+/**
+ * Set Nufft Synthesis image partition method to "none".
+ *
+ * @param[in] opt Options handle.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ns_options_set_local_image_partition_none(BippNufftSynthesisOptions opt);
+
+/**
+ * Set Nufft Synthesis image partition method to "grid".
+ *
+ * @param[in] opt Options handle.
+ * @param[in] dimX Grid dimension in x.
+ * @param[in] dimY Grid dimension in y.
+ * @param[in] dimZ Grid dimension in z.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ns_options_set_local_image_partition_grid(BippNufftSynthesisOptions opt,
+                                                                     size_t dimX, size_t dimY,
+                                                                     size_t dimZ);
+
+/**
+ * Set Nufft Synthesis uvw partition method to "auto".
+ *
+ * @param[in] opt Options handle.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_auto(BippNufftSynthesisOptions opt);
+
+/**
+ * Set Nufft Synthesis uvw partition method to "none".
+ *
+ * @param[in] opt Options handle.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_none(BippNufftSynthesisOptions opt);
+
+/**
+ * Set Nufft Synthesis uvw partition method to "grid".
+ *
+ * @param[in] opt Options handle.
+ * @param[in] dimX Grid dimension in x.
+ * @param[in] dimY Grid dimension in y.
+ * @param[in] dimZ Grid dimension in z.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_grid(BippNufftSynthesisOptions opt,
+                                                                   size_t dimX, size_t dimY,
+                                                                   size_t dimZ);
+
+/**
  * Create a nufft synthesis plan.
  *
  * @param[in] ctx Context handle.
@@ -50,8 +145,9 @@ BIPP_EXPORT BippError bipp_ctx_destroy(BippContext* ctx);
  * @param[out] plan The output handle.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, float tol, size_t nAntenna,
-                                                    size_t nBeam, size_t nIntervals, size_t nFilter,
+BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSynthesisOptions opt,
+                                                    size_t nAntenna, size_t nBeam,
+                                                    size_t nIntervals, size_t nFilter,
                                                     const BippFilter* filter, size_t nPixel,
                                                     const float* lmnX, const float* lmnY,
                                                     const float* lmnZ, BippNufftSynthesisF* plan);
@@ -73,11 +169,12 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, float tol, 
  * @param[out] plan The output handle.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, double tol, size_t nAntenna,
-                                                  size_t nBeam, size_t nIntervals, size_t nFilter,
-                                                  const BippFilter* filter, size_t nPixel,
-                                                  const double* lmnX, const double* lmnY,
-                                                  const double* lmnZ, BippNufftSynthesis* plan);
+BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, BippNufftSynthesisOptions opt,
+                                                  size_t nAntenna, size_t nBeam, size_t nIntervals,
+                                                  size_t nFilter, const BippFilter* filter,
+                                                  size_t nPixel, const double* lmnX,
+                                                  const double* lmnY, const double* lmnZ,
+                                                  BippNufftSynthesis* plan);
 
 /**
  * Destroy a nufft synthesis plan.

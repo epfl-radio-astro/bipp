@@ -4,6 +4,7 @@ set(BIPP_SOURCE_FILES
 	standard_synthesis.cpp
 	context.cpp
 	nufft_synthesis.cpp
+	logger.cpp
 	memory/allocator_factory.cpp
 	host/eigensolver.cpp
 	host/gram_matrix.cpp
@@ -11,6 +12,7 @@ set(BIPP_SOURCE_FILES
 	host/nufft_3d3.cpp
 	host/virtual_vis.cpp
 	host/kernels/gemmexp.cpp
+	host/kernels/nuft_sum.cpp
 	host/standard_synthesis.cpp
 	)
 
@@ -22,6 +24,7 @@ if(BIPP_CUDA OR BIPP_ROCM)
 		gpu/nufft_synthesis.cpp
 		gpu/virtual_vis.cpp
 		gpu/standard_synthesis.cpp
+		gpu/domain_partition.cu
 		gpu/util/solver_api.cpp
 		gpu/kernels/reverse.cu
 		gpu/kernels/gram.cu
@@ -30,6 +33,8 @@ if(BIPP_CUDA OR BIPP_ROCM)
 		gpu/kernels/add_vector.cu
 		gpu/kernels/gemmexp.cu
 		gpu/kernels/center_vector.cu
+		gpu/kernels/min_max_element.cu
+		gpu/kernels/nuft_sum.cu
 		)
 endif()
 
@@ -82,6 +87,8 @@ if(BIPP_BUILD_TESTS)
 	# create library with default visibility if tests are build, to allow linking to internal symbols
 	bipp_create_library(bipp_test)
 	set_target_properties(bipp_test PROPERTIES VISIBILITY_INLINES_HIDDEN FALSE CXX_VISIBILITY_PRESET default)
+	target_include_directories(bipp_test INTERFACE ${BIPP_INCLUDE_DIRS})
+	target_link_libraries(bipp_test INTERFACE ${BIPP_EXTERNAL_LIBS})
 	target_compile_options(bipp_test PUBLIC -DBIPP_STATIC_DEFINE)
 endif()
 

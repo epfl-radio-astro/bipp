@@ -49,6 +49,8 @@ auto gram_matrix(ContextInternal& ctx, std::size_t m, std::size_t n, const api::
 
   api::memcpy_2d_async(g, ldg * sizeof(ComplexType), gD.get(), n * sizeof(ComplexType),
                        n * sizeof(ComplexType), n, api::flag::MemcpyDefault, queue.stream());
+
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gram", n, n, g, ldg);
 }
 
 template auto gram_matrix<float>(ContextInternal& ctx, std::size_t m, std::size_t n,
