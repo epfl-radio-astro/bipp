@@ -153,7 +153,7 @@ class MeasurementSet:
         """
         raise NotImplementedError
 
-    def visibilities_old(self, channel_id, time_id, column):
+    def visibility(self, channel_id, time_id, column):
         """
         Extract visibility matrices.
 
@@ -244,7 +244,7 @@ class MeasurementSet:
                 v = np.delete(matrix, zero_rows, axis=0)
                 v = np.delete(matrix, zero_columns, axis=1)
                 
-                #visibility = vis.VisibilityMatrix(v, beam_idx)
+                visibility = vis.VisibilityMatrix(v, beam_idx)
                 yield t, f[ch_id], beam_idx, visibility, non_zero_rows
 
 def _series2array(visibility: pd.Series) -> np.ndarray:
