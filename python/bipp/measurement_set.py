@@ -253,7 +253,6 @@ class MeasurementSet:
             * freq (:py:class:`~astropy.units.Quantity`): center frequency of the visibility;
             * S (:py:class:`~pypeline.phased_array.data_gen.statistics.VisibilityMatrix`)
         """
-
         if column not in ct.taql(f"select * from {self._msf}").colnames():
             raise ValueError(f"column={column} does not exist in {self._msf}::MAIN.")
 

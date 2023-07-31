@@ -41,16 +41,17 @@ start_time= tt.time()
 ################################################################################################################################################################################
 
 #ms_file = "/scratch/izar/krishna/MWA/MS_Files/1133149192-187-188_Sun_10s_cal.ms"
-ms_file = "/work/ska/MWA/1133149192-187-188_Sun_10s_cal.ms"
+#ms_file = "/work/ska/MWA/1133149192-187-188_Sun_10s_cal.ms" # MWA Observation
+ms_file = "/home/krishna/OSKAR/Example/simulation_MWA_Obsparams.ms" # MWA Simulation
 
 wsclean_path = "/scratch/izar/krishna/MWA/WSClean/"
-wsclean_image = "1133149192-187-188_Sun_10s_cal_4_5_channels_weighting_natural-image.fits" # ONLY CHANNEL 5
+#wsclean_image = "1133149192-187-188_Sun_10s_cal_4_5_channels_weighting_natural-image.fits" # ONLY CHANNEL 5 MWA Observation
 #wsclean_image = "1133149192-187-188_Sun_10s_cal1024_Pixels_0_64_channels-image.fits"
-
+wsclean_image = "MWA_simulation_0_1_weighting_natural-image.fits"
 #wsclean_image = "1133149192-187-188_Sun_10s_cal_0_64_channels_weighting_natural-image.fits" # ALL CHANNELS
 wsclean_path += wsclean_image
 
-output_dir = "/scratch/izar/krishna/bipp/"
+output_dir = "/scratch/izar/krishna/bipp/bipp/"
 ################################################################################################################################################################################
 # Control Variables ########################################################################################
 ###########################################################################################################
@@ -70,7 +71,7 @@ FoV = np.deg2rad(6)
 #Number of levels in output image
 N_level = 3
 
-filter_negative_eigenvalues = False
+filter_negative_eigenvalues = True
 
 #clustering: If true will cluster log(eigenvalues) based on KMeans
 clustering = True
@@ -98,7 +99,7 @@ time_end = -1
 time_slice = 1
 
 # channel
-channel_id = np.array([4], dtype = np.int64)
+channel_id = np.array([0], dtype = np.int64)
 #channel_id = np.arange(64, dtype = np.int)
 
 # Create context with selected processing unit.
@@ -108,6 +109,16 @@ ctx = bipp.Context("CPU")
 filter_tuple = ('lsq', 'std') # might need to make this a list
 
 std_img_flag = True # put to true if std is passed as a filter
+
+outName=output_dir + "SolarSim"
+plotList= np.array([1,2, 3, 4])
+# 1 is lsq
+# 2 is levels
+# 3 is WSClean
+# 4 is WSClean v/s lsq comparison
+
+# 1 2 and 3 are on the same figure - we can remove 2 and 3 from this figure also
+# 4 is on a different figure with 1 and 2
 
 #######################################################################################################################################################
 # Observation set up ########################################################################################
@@ -171,9 +182,10 @@ opt.set_collect_group_size(None)
 # Best used with a wide spread of image or uvw coordinates.
 # Possible options are "grid", "none" or "auto"
 #opt.set_local_image_partition(bipp.Partition.grid([1,1,1]))
-opt.set_local_image_partition(bipp.Partition.none())
-opt.set_local_uvw_partition(bipp.Partition.none())
-
+#opt.set_local_image_partition(bipp.Partition.none()) # Commented out
+#opt.set_local_uvw_partition(bipp.Partition.none()) # Commented out
+opt.set_local_image_partition(bipp.Partition.grid([2,2,1]))
+opt.set_local_uvw_partition(bipp.Partition.grid([2,2,1]))
 t1 = tt.time()
 #time_slice = 25 ### why is this 25 - ask simon @@@
 
@@ -191,6 +203,7 @@ print (f"Initial set up takes {tt.time() - start_time} s")
 ########################################################################################
 print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@ PARAMETER ESTIMATION @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n")
 if (clustering):
+    num_time_steps = 0
     I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=1, ctx=ctx,
                                                    filter_negative_eigenvalues=filter_negative_eigenvalues)
     #for t, f, S, uvw_t in ProgressBar(
@@ -205,7 +218,9 @@ if (clustering):
         G = gram(XYZ, W, wl)
         S, _ = measurement_set.filter_data(S, W)
         I_est.collect(S, G)
+        num_time_steps +=1
 
+    print (f"Number of time steps: {num_time_steps}")
     N_eig, intensity_intervals = I_est.infer_parameters()
 else:
     # Set number of eigenvalues to number of eigenimages 
@@ -251,12 +266,18 @@ for t, f, S in ProgressBar(
     imager.collect(N_eig, wl, intensity_intervals, W.data, XYZ.data, uvw, S.data)
 
 lsq_image = imager.get("LSQ").reshape((-1, N_pix, N_pix))
-I_lsq_eq = s2image.Image(lsq_image.reshape(int(N_level) + 1, lsq_image.shape[-2], lsq_image.shape[-1]), xyz_grid)
+if (filter_negative_eigenvalues):
+    I_lsq_eq = s2image.Image(lsq_image.reshape(int(N_level),lsq_image.shape[-2], lsq_image.shape[-1]), xyz_grid)
+else:
+    I_lsq_eq = s2image.Image(lsq_image.reshape(int(N_level) + 1, lsq_image.shape[-2], lsq_image.shape[-1]), xyz_grid)
 print("lsq_image.shape =", lsq_image.shape)
 
 if (std_img_flag):
     std_image = imager.get("STD").reshape((-1, N_pix, N_pix))
-    I_std_eq = s2image.Image(std_image.reshape(int(N_level) + 1, std_image.shape[-2], lsq_image.shape[-1]), xyz_grid)
+    if (filter_negative_eigenvalues):
+        I_std_eq = s2image.Image(std_image.reshape(int(N_level), std_image.shape[-2], lsq_image.shape[-1]), xyz_grid)
+    else:
+        I_std_eq = s2image.Image(std_image.reshape(int(N_level) + 1, std_image.shape[-2], lsq_image.shape[-1]), xyz_grid)
     print("lsq_image.shape =", lsq_image.shape)
 
 
@@ -266,76 +287,137 @@ t2 = tt.time()
 
 #plot output image
 
-fig, ax = plt.subplots(int(len(filter_tuple)), N_level + 4, figsize = (40, 20))
-
-
 lsq_levels = I_lsq_eq.data # Nlevel, Npix, Npix
 std_levels = I_std_eq.data # Nlevel, Npix, Npix
 
 lsq_image = lsq_levels.sum(axis = 0)
 std_image = std_levels.sum(axis = 0)
-
-BBScale = ax[0, 0].imshow(lsq_image, cmap = "RdBu_r")
-ax[0, 0].set_title(r"LSQ IMG")
-divider = make_axes_locatable(ax[0, 0])
-cax = divider.append_axes("right", size = "5%", pad = 0.05)
-cbar = plt.colorbar(BBScale, cax)
-
-#plot WSClean image
 WSClean_image = fits.getdata(wsclean_path)
 WSClean_image = np.flipud(WSClean_image.reshape(WSClean_image.shape[-2:]))
-WSCleanScale = ax[0, -2].imshow(WSClean_image, cmap='RdBu_r')
-ax[0, -2].set_title(f"WSC IMG")
-divider = make_axes_locatable(ax[0, -2])
-cax = divider.append_axes("right", size="5%", pad=0.05)
-cbar = plt.colorbar(WSCleanScale, cax)
 
-if (std_img_flag):
-    BBScale = ax[1, 0].imshow(std_image, cmap = "RdBu_r")
-    ax[1, 0].set_title(r"STD IMG")
-    divider = make_axes_locatable(ax[1, 0])
+if (filter_negative_eigenvalues):
+    eigenlevels = N_level
+else: 
+    eigenlevels = N_level + 1
+
+if (4 in plotList):
+    if (filter_negative_eigenvalues):
+        fig_comp, ax_comp = plt.subplots(int(len(filter_tuple)), 3, figsize = (40,20))
+if (1 in plotList):
+    fig_out, ax_out = plt.subplots(len(filter_tuple), 1, figsize = (40,20) )
+if (2 in plotList):
+    fig_out, ax_out = plt.subplots(len(filter_tuple), 1 + eigenlevels, figsize = (40,20))
+if (3 in plotList):
+    fig_out, ax_out = plt.subplots(len(filter_tuple), 2 + eigenlevels, figsize = (40,20))
+
+if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
+
+    # Output LSQ Image
+
+    BBScale = ax_out[0, 0].imshow(lsq_image, cmap = "RdBu_r")
+    ax_out[0, 0].set_title(r"LSQ IMG")
+    divider = make_axes_locatable(ax_out[0, 0])
     cax = divider.append_axes("right", size = "5%", pad = 0.05)
     cbar = plt.colorbar(BBScale, cax)
 
-    WSCleanScale = ax[1, -2].imshow(WSClean_image, cmap='RdBu_r')
-    ax[1, -2].set_title(f"WSC IMG")
-    divider = make_axes_locatable(ax[1, -2])
+    # Output STD Image
+    if (std_img_flag):
+        BBScale = ax_out[1, 0].imshow(std_image, cmap = "RdBu_r")
+        ax_out[1, 0].set_title(r"STD IMG")
+        divider = make_axes_locatable(ax_out[1, 0])
+        cax = divider.append_axes("right", size = "5%", pad = 0.05)
+        cbar = plt.colorbar(BBScale, cax)
+
+    # output eigen levels
+    if ((2 in plotList) or (3 in plotList)):
+        for i in np.arange(eigenlevels):
+
+            lsqScale = ax_out[0, i + 1].imshow(lsq_levels[i, :, :], cmap = 'RdBu_r', \
+                        vmin = (lsq_levels[i, :, :].max() * std_levels[i, :, :].min()/std_levels[i, :, :].max() if std_img_flag else lsq_levels[i, :, :].min()))
+            ax_out[0, i + 1].set_title(f"Lsq Lvl {i}")
+            divider = make_axes_locatable(ax_out[0, i + 1])
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+            cbar = plt.colorbar(lsqScale, cax)
+
+            if (std_img_flag):
+                stdScale = ax_out[1, i + 1].imshow(std_levels[i, :, :], cmap = 'RdBu_r')
+                ax_out[1, i + 1].set_title(f"Std Lvl {i}")
+                divider = make_axes_locatable(ax_out[1, i + 1])
+                cax = divider.append_axes("right", size="5%", pad=0.05)
+                cbar = plt.colorbar(stdScale, cax)
+
+        # WSC Image
+    if ((3 in plotList)):
+        WSCleanScale = ax_out[0, -1].imshow(WSClean_image, cmap='RdBu_r')
+        ax_out[0, -1].set_title(f"WSC IMG")
+        divider = make_axes_locatable(ax_out[0, -1])
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        cbar = plt.colorbar(WSCleanScale, cax)
+    
+        if (std_img_flag):
+            WSCleanScale = ax_out[1, -1].imshow(WSClean_image, cmap='RdBu_r')
+            ax_out[1, -1].set_title(f"WSC IMG")
+            divider = make_axes_locatable(ax_out[1, -1])
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+            cbar = plt.colorbar(WSCleanScale, cax)
+
+    fig_out.savefig(f"{outName}_{'Lvls' if (2 in plotList) else 'Summed'}")
+
+# plot WSC, CASA and BB Comparisons here
+if ((4 in plotList)):
+
+    fig_comp, ax_comp = plt.subplots(len(filter_tuple), 3, figsize = (40, 30)) # Right now only WSC and BB included, have to include CASA
+
+    # Comparison LSQ IMAGE 
+    BBScale = ax_comp[0, 0].imshow(lsq_image, cmap = "RdBu_r")
+    ax_comp[0, 0].set_title(r"LSQ IMG")
+    divider = make_axes_locatable(ax_comp[0, 0])
+    cax = divider.append_axes("right", size = "5%", pad = 0.05)
+    cbar = plt.colorbar(BBScale, cax)
+
+    # Comparison WSClean image
+    WSCleanScale = ax_comp[0, -2].imshow(WSClean_image, cmap='RdBu_r')
+    ax_comp[0, -2].set_title(f"WSC IMG")
+    divider = make_axes_locatable(ax_comp[0, -2])
     cax = divider.append_axes("right", size="5%", pad=0.05)
     cbar = plt.colorbar(WSCleanScale, cax)
 
-for i in np.arange(N_level + 1):
-    lsqScale = ax[0, i + 1].imshow(lsq_levels[i, :, :], cmap = 'RdBu_r')
-    ax[0, i + 1].set_title(f"Lsq Lvl {i}")
-    divider = make_axes_locatable(ax[0, i + 1])
-    cax = divider.append_axes("right", size="5%", pad=0.05)
-    cbar = plt.colorbar(lsqScale, cax)
-
+    # Comparison STD image
     if (std_img_flag):
-        stdScale = ax[1, i + 1].imshow(std_levels[i, :, :], cmap = 'RdBu_r')
-        ax[1, i + 1].set_title(f"Std Lvl {i}")
-        divider = make_axes_locatable(ax[1, i + 1])
+        BBScale = ax_comp[1, 0].imshow(std_image, cmap = "RdBu_r")
+        ax_comp[1, 0].set_title(r"STD IMG")
+        divider = make_axes_locatable(ax_comp[1, 0])
+        cax = divider.append_axes("right", size = "5%", pad = 0.05)
+        cbar = plt.colorbar(BBScale, cax)
+
+        WSCleanScale = ax_comp[1, -2].imshow(WSClean_image, cmap='RdBu_r')
+        ax_comp[1, -2].set_title(f"WSC IMG")
+        divider = make_axes_locatable(ax_comp[1, -2])
         cax = divider.append_axes("right", size="5%", pad=0.05)
-        cbar = plt.colorbar(stdScale, cax)
+        cbar = plt.colorbar(WSCleanScale, cax)
 
-diff_image = lsq_image - WSClean_image
-diff_norm = TwoSlopeNorm(vmin=diff_image.min(), vcenter=0, vmax=diff_image.max())
+    # Comparison LSQ-WSC Difference image
+    diff_image = lsq_image - WSClean_image
+    diff_norm = TwoSlopeNorm(vmin=diff_image.min(), vcenter=0, vmax=diff_image.max())
 
-diffScale = ax[0, -1].imshow(diff_image, cmap = 'RdBu_r', norm=diff_norm)
-ax[0, -1].set_title("Diff IMG")
-divider = make_axes_locatable(ax[0, -1])
-cax = divider.append_axes("right", size="5%", pad=0.05)
-cbar = plt.colorbar(diffScale, cax)
+    diffScale = ax_comp[0, -1].imshow(diff_image, cmap = 'RdBu_r', norm=diff_norm)
+    ax_comp[0, -1].set_title("Diff IMG")
+    divider = make_axes_locatable(ax_comp[0, -1])
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(diffScale, cax)
 
-ratio_image = lsq_image/WSClean_image
-ratio_image = np.clip(ratio_image, -2.5, 2.5)
-ratio_norm = TwoSlopeNorm(vmin=ratio_image.min(), vcenter=1, vmax=ratio_image.max())
+    # Comparison LSQ/WSC - 1 image
+    ratio_image = lsq_image/WSClean_image - 1
+    clipValue = 2.5
+    ratio_image = np.clip(ratio_image, -clipValue, clipValue)
+    ratio_norm = TwoSlopeNorm(vmin=ratio_image.min(), vcenter=1, vmax=ratio_image.max())
 
-ratioScale = ax[1, -1].imshow(ratio_image, cmap = 'RdBu_r', norm=ratio_norm)
-ax[1, -1].set_title("Ratio IMG")
-divider = make_axes_locatable(ax[1, -1])
-cax = divider.append_axes("right", size="5%", pad=0.05)
-cbar = plt.colorbar(ratioScale, cax)
+    ratioScale = ax_comp[1, -1].imshow(ratio_image, cmap = 'RdBu_r', norm=ratio_norm)
+    ax_comp[1, -1].set_title(f"Ratio IMG (clipped $\pm$ {clipValue})")
+    divider = make_axes_locatable(ax_comp[1, -1])
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(ratioScale, cax)
 
-plt.savefig("spk_mwa_simulation_normalisedish.png")
+    fig_comp.savefig(f"{outName}_comparison")
 
 print(f'Elapsed time: {tt.time() - start_time} seconds.')
