@@ -169,6 +169,8 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
             # Functional PCA
             if not np.allclose(S, 0):
                 _, D, _ = bipp.pybipp.eigh(self._ctx, S.data.shape[0], S.data, G.data)
+                # only consider positive eigenvalues, since we apply the log function for clustering
+                D = D[D > 0.0]
                 idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
                 D = D[idx]
                 D_all[i, : len(D)] = D
