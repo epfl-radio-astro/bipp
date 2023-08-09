@@ -56,7 +56,7 @@ def filter_data(S, W):
         (N_antenna, N_beam2) filtered beamforming matrix.
     """
     # Stage 1: Drop beams in S that do not appear in W
-    beam_idx1 = S.index[0]
+    beam_idx1 = pd.Index(S.index[0], name="BEAM_ID")
     beam_idx2 = W.index[1]
     beams_to_drop = beam_idx1.difference(beam_idx2)
     beams_to_keep = beam_idx1.drop(beams_to_drop)
