@@ -323,33 +323,6 @@ class MeasurementSet:
                 
                 yield utime[k], f[ch], vismatrix
 
-def _series2array(visibility: pd.Series) -> np.ndarray:
-    b_idx_0 = visibility.index.get_level_values("B_0").to_series()
-    b_idx_1 = visibility.index.get_level_values("B_1").to_series()
-
-    row_map = (
-        pd.concat(objs=(b_idx_0, b_idx_1), ignore_index=True)
-        .drop_duplicates()
-        .to_frame(name="BEAM_ID")
-        .assign(ROW_ID=lambda df: np.arange(len(df)))
-    )
-    col_map = row_map.rename(columns={"ROW_ID": "COL_ID"})
-
-    data = (
-        visibility.reset_index()
-        .merge(row_map, left_on="B_0", right_on="BEAM_ID")
-        .merge(col_map, left_on="B_1", right_on="BEAM_ID")
-        .loc[:, ["ROW_ID", "COL_ID", "S"]]
-    )
-
-    N_beam = len(row_map)
-    S = np.zeros(shape=(N_beam, N_beam), dtype=complex)
-    S[data.ROW_ID.values, data.COL_ID.values] = data.S.values
-    S_diag = np.diag(S)
-    S = S + S.conj().T
-    S[np.diag_indices_from(S)] = S_diag
-    return S
-
 
 class LofarMeasurementSet(MeasurementSet):
     """
