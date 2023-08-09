@@ -112,12 +112,11 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals, std:
 
     gram_matrix<T>(*ctx_, nAntenna_, nBeam_, w, ldw, xyz, ldxyz, wl, g.get(), nBeam_);
 
-    std::size_t nEigOut = 0;
     // Note different order of s and g input
     if (s)
-      eigh<T>(*ctx_, nBeam_, nEig, s, lds, g.get(), nBeam_, &nEigOut, d.get(), v.get(), nBeam_);
+      eigh<T>(*ctx_, nBeam_, nEig, s, lds, g.get(), nBeam_, d.get(), v.get(), nBeam_);
     else {
-      eigh<T>(*ctx_, nBeam_, nEig, g.get(), nBeam_, nullptr, 0, &nEigOut, d.get(), v.get(), nBeam_);
+      eigh<T>(*ctx_, nBeam_, nEig, g.get(), nBeam_, nullptr, 0, d.get(), v.get(), nBeam_);
     }
   }
 
