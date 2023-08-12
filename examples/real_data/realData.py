@@ -116,8 +116,15 @@ except:
     N_level=3
 try:
     try:
-        clustering = np.array(sys.argv[7].split(","), dtype=np.float32)
+        clusterEdges = np.array(sys.argv[7].split(","), dtype=np.float32)
         clusteringBool = False
+        binStart = clusterEdges[0]
+        clustering = []
+        for binEdge in clusterEdges[1:]:
+            binEnd = binEdge
+            clustering.append([binStart, binEnd])
+            binStart = binEnd
+        clustering = np.asarray(clustering, dtype=np.float32)
     except:
         clustering = bool(sys.argv[7]) # True or set of numbers which act as bins,separated by commas and NO spaces
         clusteringBool = True
