@@ -180,7 +180,7 @@ print (f"Initial set up takes {tt.time() - start_time} s")
 if (clustering):
     I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=1, ctx=ctx)
     for t, f, S, uvw_t in ProgressBar(
-            ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name, return_UVW = True)
+            ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name)
     ):
         wl = constants.speed_of_light / f.to_value(u.Hz)
         XYZ = ms.instrument(t)
@@ -215,8 +215,8 @@ imager = bipp.NufftSynthesis(
     precision,
     True # filtering negative eigenvalues
 )
-for t, f, S, uvw_t in ProgressBar(
-        ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name, return_UVW = True)
+for t, f, S in ProgressBar(
+        ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name)
 ):
     
     wl = constants.speed_of_light / f.to_value(u.Hz)
@@ -224,7 +224,7 @@ for t, f, S, uvw_t in ProgressBar(
     W = ms.beamformer(XYZ, wl)
     
     S, W = measurement_set.filter_data(S, W)
-    
+    #######
     UVW_baselines_t = uvw_t
     uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
     
@@ -269,7 +269,7 @@ imager = bipp.NufftSynthesis(
     lmn_grid[2],
     precision,
 )
-for t, f, S, uvw_t in ProgressBar(
+for t, f, S in ProgressBar(
         ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name, return_UVW = True)
 ):
     wl = constants.speed_of_light / f.to_value(u.Hz)

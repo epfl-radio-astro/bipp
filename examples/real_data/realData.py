@@ -36,50 +36,130 @@ from matplotlib.colors import TwoSlopeNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 start_time= tt.time()
-################################################################################################################################################################################
-## INPUT VARIABLES ################################################################################################################################################################################
-################################################################################################################################################################################
+#####################################################################################################################################################################
+# Input and Control Variables #####################################################################################################################################################################
+#####################################################################################################################################################################
+try:
+    telescope_name =sys.argv[1]
+    ms_file = sys.argv[2]
+    filter_negative_eigenvalues= True
 
-#ms_file = "/scratch/izar/krishna/MWA/MS_Files/1133149192-187-188_Sun_10s_cal.ms"
-#ms_file = "/work/ska/MWA/1133149192-187-188_Sun_10s_cal.ms" # MWA Observation
-#ms_file = "/home/krishna/OSKAR/Example/simulation_MWA_Obsparams.ms" # MWA Simulation
+    if (telescope_name.lower()=="skalow"):
+        ms=measurement_set.SKALowMeasurementSet(ms_file)
+        N_station = 512
+        N_antenna = 512
+        
 
-ms_file="/work/ska/RadioWeakLensing/MSFiles/WL_0.2h_noiseFalse.ms"
-#ms_file="/work/ska/RadioWeakLensing/MSFiles/WL_1.0h_noiseFalse.ms"
+    elif (telescope_name.lower()=="mwa"):
+        ms = measurement_set.MwaMeasurementSet(ms_file)
+        N_station = 128
+        N_antenna = 128
 
-wsclean_path = "/scratch/izar/krishna/MWA/WSClean/"
-#wsclean_image = "1133149192-187-188_Sun_10s_cal_4_5_channels_weighting_natural-image.fits" # ONLY CHANNEL 5 MWA Observation
-#wsclean_image = "1133149192-187-188_Sun_10s_cal1024_Pixels_0_64_channels-image.fits"
-wsclean_image = "MWA_simulation_0_1_weighting_natural-image.fits"
-#wsclean_image = "1133149192-187-188_Sun_10s_cal_0_64_channels_weighting_natural-image.fits" # ALL CHANNELS
-wsclean_path += wsclean_image
+    elif (telescope_name.lower()=="lofar"):
+        ms = measurement_set.LofarMeasurementSet(ms_file)
+        N_station = 38 # netherlands, 52 international
+        N_antenna = 38 # netherlands, 52 international
+    else: 
+        raise(NotImplementedError("A measurement set class for the telescope you are searching for has not been implemented yet - please feel free to implement the class yourself!"))
 
-output_dir = "/scratch/izar/krishna/bipp/bipp/"
+except: 
+    raise(SyntaxError("This file must be called with the telescope name and path to ms file at a minimum. "+\
+                      "Eg:\npython realData.py [telescope name(string)] [path_to_ms(string)] [output_name(string)] [N_pix(int)] [FoV(float(deg))] [N_levels(int)] [Clustering(bool/list_of_eigenvalue_bin_edges)] [WSCleangrid(bool)] [WSCleanPath(string)]"))
+
+try:
+    outName=sys.argv[3]
+except:
+    outName="test"
+try:
+    N_pix=int(sys.argv[4])
+except:
+    N_pix=512
+try:
+    FoV = np.deg2rad(float (sys.argv[5]))
+except:
+    FoV = np.deg2rad(6) # For lofar + Mwa
+"""
+ # time and channel id stuff to be implemented!!!
+try:
+    try:
+        channel_id=bool(sys.argv[6])
+        if (channel_id==True):
+            # put code to read all channels
+            channel_id = np.array()
+    else:
+        channelIDstr=sys.argv[10].split(",")
+        channels=[]
+        for channelID in channelIDstr:
+            channel_id.append(int(channelID))
+        channel_id = np.array(channel_id)
+
+
+try:
+    N_level = int(sys.argv[8])
+except:
+    N_level=3
+try:
+    try:
+        clustering = bool(sys.argv[9]) # True or set of numbers which act as bins,separated by commas and NO spaces
+        clusteringBool = True
+    except:
+        binEdgesStr = sys.argv[10].split(",")
+        clustering = []
+        for binEdge in binEdgesStr:
+            clustering.append(float(binEdge))
+        clustering= np.array(clustering)
+        clusteringBool = False
+"""
+try:
+    N_level = int(sys.argv[6])
+except:
+    N_level=3
+try:
+    try:
+        clustering = np.array(sys.argv[7].split(","), dtype=np.float32)
+        clusteringBool = False
+    except:
+        clustering = bool(sys.argv[7]) # True or set of numbers which act as bins,separated by commas and NO spaces
+        clusteringBool = True
+        
+except:
+    clustering = True
+    clusteringBool= True
+
+try:
+    WSClean_grid = bool(sys.argv[8])
+    if (WSClean_grid==True):
+        try:
+            wsclean_path = sys.argv[9]
+        except:
+            raise(SyntaxError("If WSClean Grid is set to True then path to wsclean fits file must be provided!"))
+except:
+    WSClean_grid=False
+    ms_fieldcenter=True
+
+print (f"Telescope Name:{telescope_name}")
+print (f"MS file:{ms_file}")
+print (f"Output Name:{outName}")
+print (f"N_Pix:{N_pix} pixels")
+print (f"FoV:{np.rad2deg(FoV)} deg")
+print (f"N_level:{N_level} levels")
+if (clusteringBool):
+    print (f"Clustering Bool:{clusteringBool}")
+    print (f"KMeans Clustering:{clustering}")
+else:
+    print(f"Clustering Bool:{clusteringBool}")
+    print (f"Clustering:{clustering}")
+print (f"WSClean_grid:{WSClean_grid}")
+if (WSClean_grid):
+    print (f"WSClean Path: {wsclean_path}")
+else:
+    print (f"ms_fieldcenter:{ms_fieldcenter}")
+
+
+
 ################################################################################################################################################################################
 # Control Variables ########################################################################################
 ###########################################################################################################
-
-#Image params
-N_pix = 2000
-#N_pix = 1024
-
-#Number of levels in output image
-N_level = 3
-
-filter_negative_eigenvalues = True
-
-#clustering: If true will cluster log(eigenvalues) based on KMeans
-clustering = True
-
-# WSClean Grid: Use Coordinate grid from WSClean image if True
-WSClean_grid = False
-
-#ms_fieldcenter: Use field center from MS file if True; only invoked if WSClean_grid is False
-ms_fieldcenter = True
-
-# Field of View in degrees - only used when WSClean_grid is false
-#FoV = np.deg2rad(6)
-FoV = np.deg2rad(0.025)
 
 # Column Name: Column in MS file to be imaged (DATA is usually uncalibrated, CORRECTED_DATA is calibration and MODEL_DATA contains WSClean model output)
 column_name = "DATA"
@@ -117,7 +197,6 @@ filter_tuple = ('lsq', 'std') # might need to make this a list
 
 std_img_flag = True # put to true if std is passed as a filter
 
-outName=output_dir + f"WL_10m_BB_{int(np.rad2deg(FoV)*60):2d}mFoV_Lvl{N_level}"
 plotList= np.array([1,2,])
 # 1 is lsq
 # 2 is levels
@@ -130,11 +209,6 @@ plotList= np.array([1,2,])
 #######################################################################################################################################################
 # Observation set up ########################################################################################
 #######################################################################################################################################################
-
-
-ms=measurement_set.SKALowMeasurementSet(ms_file)
-N_station = 512 # change this to get this from measurement set
-N_antenna = 512
 
 #ms = measurement_set.MwaMeasurementSet(ms_file)
 #N_antenna = 128 # change this to get this from measurement set
@@ -196,8 +270,8 @@ opt.set_collect_group_size(None)
 #opt.set_local_image_partition(bipp.Partition.grid([1,1,1]))
 #opt.set_local_image_partition(bipp.Partition.none()) # Commented out
 #opt.set_local_uvw_partition(bipp.Partition.none()) # Commented out
-opt.set_local_image_partition(bipp.Partition.grid([8,8,1]))
-opt.set_local_uvw_partition(bipp.Partition.grid([8,8,1]))
+opt.set_local_image_partition(bipp.Partition.grid([5,5,1]))
+opt.set_local_uvw_partition(bipp.Partition.grid([5,5,1]))
 t1 = tt.time()
 #time_slice = 25 ### why is this 25 - ask simon @@@
 
@@ -214,30 +288,33 @@ print (f"Initial set up takes {tt.time() - start_time} s")
 # Parameter Estimation
 ########################################################################################
 print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@ PARAMETER ESTIMATION @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n")
-if (clustering):
-    num_time_steps = 0
-    I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=1, ctx=ctx,
-                                                   filter_negative_eigenvalues=filter_negative_eigenvalues)
-    #for t, f, S, uvw_t in ProgressBar(
-    for t, f, S in ProgressBar(
-            #ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name, return_UVW = True)
-            ms.visibilities(channel_id=channel_id, time_id=slice(time_start, time_end, time_slice), column=column_name)
-    ):
-        wl = constants.speed_of_light / f.to_value(u.Hz)
-        XYZ = ms.instrument(t)
+if (clusteringBool):
+    if (clustering):
+        num_time_steps = 0
+        I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=1, ctx=ctx,
+                                                    filter_negative_eigenvalues=filter_negative_eigenvalues)
+        #for t, f, S, uvw_t in ProgressBar(
+        for t, f, S in ProgressBar(
+                #ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name, return_UVW = True)
+                ms.visibilities(channel_id=channel_id, time_id=slice(time_start, time_end, time_slice), column=column_name)
+        ):
+            wl = constants.speed_of_light / f.to_value(u.Hz)
+            XYZ = ms.instrument(t)
 
-        W = ms.beamformer(XYZ, wl)
-        G = gram(XYZ, W, wl)
-        S, _ = measurement_set.filter_data(S, W)
-        I_est.collect(S, G)
-        num_time_steps +=1
+            W = ms.beamformer(XYZ, wl)
+            G = gram(XYZ, W, wl)
+            S, _ = measurement_set.filter_data(S, W)
+            I_est.collect(S, G)
+            num_time_steps +=1
 
-    print (f"Number of time steps: {num_time_steps}")
-    N_eig, intensity_intervals = I_est.infer_parameters()
+        print (f"Number of time steps: {num_time_steps}")
+        N_eig, intensity_intervals = I_est.infer_parameters()
+    else:
+        # Set number of eigenvalues to number of eigenimages 
+        # and equally divide the data between them 
+        N_eig, intensity_intervals = N_level, np.arange(N_level)
 else:
-    # Set number of eigenvalues to number of eigenimages 
-    # and equally divide the data between them 
-    N_eig, intensity_intervals = N_level, np.arange(N_level)
+    N_eig, intensity_intervals=N_level, clustering
 
 print(f"Clustering: {clustering}")
 print (f"Number of Eigenvalues:{N_eig}, Intensity intervals: {intensity_intervals}")
@@ -308,9 +385,9 @@ if (std_img_flag):
     std_image = std_levels.sum(axis = 0)
 
     print (f"STD Levels shape:{std_levels.shape}")
-
-WSClean_image = fits.getdata(wsclean_path)
-WSClean_image = np.flipud(WSClean_image.reshape(WSClean_image.shape[-2:]))
+if (3 in plotList or 4 in plotList):
+    WSClean_image = fits.getdata(wsclean_path)
+    WSClean_image = np.flipud(WSClean_image.reshape(WSClean_image.shape[-2:]))
 
 if (filter_negative_eigenvalues):
     eigenlevels = N_level
@@ -378,7 +455,8 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
             cax = divider.append_axes("right", size="5%", pad=0.05)
             cbar = plt.colorbar(WSCleanScale, cax)
 
-    fig_out.savefig(f"{outName}_{'Lvls' if (2 in plotList) else 'Summed'}")
+    fig_out.savefig(f"{outName}")
+    print(f"{outName}.png saved.")
 
 # plot WSC, CASA and BB Comparisons here
 if ((4 in plotList)):
@@ -436,5 +514,6 @@ if ((4 in plotList)):
     cbar = plt.colorbar(ratioScale, cax)
 
     fig_comp.savefig(f"{outName}_comparison")
+    print (f"{outName}_comparison.png saved.")
 
 print(f'Elapsed time: {tt.time() - start_time} seconds.')
