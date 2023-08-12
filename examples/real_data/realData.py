@@ -116,8 +116,15 @@ except:
     N_level=3
 try:
     try:
-        clustering = np.array(sys.argv[7].split(","), dtype=np.float32)
+        clusterEdges = np.array(sys.argv[7].split(","), dtype=np.float32)
         clusteringBool = False
+        binStart = clusterEdges[0]
+        clustering = []
+        for binEdge in clusterEdges[1:]:
+            binEnd = binEdge
+            clustering.append([binStart, binEnd])
+            binStart = binEnd
+        clustering = np.asarray(clustering, dtype=np.float32)
     except:
         clustering = bool(sys.argv[7]) # True or set of numbers which act as bins,separated by commas and NO spaces
         clusteringBool = True
@@ -314,9 +321,8 @@ if (clusteringBool):
         # and equally divide the data between them 
         N_eig, intensity_intervals = N_level, np.arange(N_level)
 else:
-    N_eig, intensity_intervals=N_level, clustering
+    N_eig, intensity_intervals=39, clustering # N_eig still to be obtained from parameter estimator????? IMP
 
-print(f"Clustering: {clustering}")
 print (f"Number of Eigenvalues:{N_eig}, Intensity intervals: {intensity_intervals}")
 
 ########################################################################################
@@ -425,6 +431,8 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
     # output eigen levels
     if ((2 in plotList) or (3 in plotList)):
         for i in np.arange(eigenlevels):
+            print (f"Loop {i}: vmin:{lsq_levels[i, :, :].max() * std_levels[i, :, :].min()/std_levels[i, :, :].max() if std_img_flag else lsq_levels[i, :, :].min()}")
+            print (f"lsq_levels {i}.max():{lsq_levels[i, :, :].max()} std_levels {i}.min():{std_levels[i, :, :].min()} std_levels {i}.max():{std_levels[i, :, :].max()}")
 
             lsqScale = ax_out[0, i + 1].imshow(lsq_levels[i, :, :], cmap = "cubehelix", \
                         vmin = (lsq_levels[i, :, :].max() * std_levels[i, :, :].min()/std_levels[i, :, :].max() if std_img_flag else lsq_levels[i, :, :].min()))
