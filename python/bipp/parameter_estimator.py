@@ -29,7 +29,7 @@ import bipp.gram as gr
 import bipp.pybipp
 
 
-def centroid_to_intervals(centroid):
+def centroid_to_intervals(centroid, filter_negative_eigenvalues):
     r"""
     Convert centroid to invervals as required by VirtualVisibilitiesDataProcessingBlock.
 
@@ -42,10 +42,19 @@ def centroid_to_intervals(centroid):
          (N_centroid, 2) Intervals matching the input with lower and upper bound.
     """
     if centroid is None or centroid.size <= 1:
-        return np.array([[0, np.finfo("f").max]])
-    intervals = np.empty((centroid.size, 2))
+        if filter_negative_eigenvalues:
+            return np.array([[0, np.finfo("f").max]])
+        else:
+            return np.array([[np.finfo("f").min, -np.finfo("f").tiny], [np.finfo("f").tiny, np.finfo("f").max]])
+
+    if filter_negative_eigenvalues:
+        intervals = np.empty((centroid.size, 2))
+    else:
+        intervals = np.empty((centroid.size + 1, 2))
+
     sorted_idx = np.argsort(centroid)
     sorted_centroid = centroid[sorted_idx]
+
     for i in range(centroid.size):
         idx = sorted_idx[i]
         if idx == 0:
@@ -57,6 +66,10 @@ def centroid_to_intervals(centroid):
             intervals[i, 1] = np.finfo("f").max
         else:
             intervals[i, 1] = (sorted_centroid[idx] + sorted_centroid[idx + 1]) / 2
+
+    if not filter_negative_eigenvalues:
+        intervals[centroid.size, 0] =  np.finfo("f").min
+        intervals[centroid.size, 1] = -np.finfo("f").tiny
 
     return intervals
 
@@ -105,7 +118,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
             Bipp context. If provided, will use bipp module for computation.
     """
 
-    def __init__(self, N_level, sigma, ctx):
+    def __init__(self, N_level, sigma, ctx, filter_negative_eigenvalues=True):
         super().__init__()
 
         if N_level <= 0:
@@ -115,6 +128,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         if not (0 < sigma <= 1):
             raise ValueError("Parameter[sigma] must lie in (0,1].")
         self._sigma = sigma
+        self._filter_negative_eigenvalues = filter_negative_eigenvalues
 
         # Collected data.
         self._visibilities = []
@@ -168,12 +182,19 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
 
             # Functional PCA
             if not np.allclose(S, 0):
-                _, D, _ = bipp.pybipp.eigh(self._ctx, S.data.shape[0], S.data, G.data)
-                idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
-                D = D[idx]
+                if self._filter_negative_eigenvalues:
+                    _, D, _ = bipp.pybipp.eigh(self._ctx, S.data.shape[0], S.data, 'V', G.data)
+                    idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
+                    D = D[idx]
+                else:
+                    print("-W- Considering all positive and negative eigenvalues!")
+                    _, D, _ = bipp.pybipp.eigh(self._ctx, S.data.shape[0], S.data, 'A', G.data)
+                
                 D_all[i, : len(D)] = D
-
-        D_all = D_all[D_all.nonzero()]
+    
+        # EO: instead of clustering on non-zero eigenvalues, cluster on strictly
+        #    positive eigenvalues to also discard negative eigenvalues if kept in.
+        D_all = D_all[D_all > 0.0]
         kmeans = skcl.KMeans(n_clusters=self._N_level).fit(np.log(D_all).reshape(-1, 1))
 
         # For extremely small telescopes or datasets that are mostly 'broken', we can have (N_eig < N_level).
@@ -183,10 +204,16 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         # This has the disadvantage of increasing the computational load of Bipp, but as the N_eig energy levels
         # are clustered together anyway, the trailing energy levels will be (close to) all-0 and can be discarded
         # on inspection.
-        N_eig = max(int(np.ceil(len(D_all) / N_data)), self._N_level)
+
+        # EO: keep cluster centroids for positive part
         cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1]
 
-        return N_eig, centroid_to_intervals(cluster_centroid)
+        if self._filter_negative_eigenvalues:
+            N_eig = max(int(np.ceil(len(D_all) / N_data)), self._N_level)
+        else:
+            N_eig = N_eig_max
+
+        return N_eig, centroid_to_intervals(cluster_centroid, self._filter_negative_eigenvalues)
 
 
 class SensitivityFieldParameterEstimator(ParameterEstimator):
@@ -200,12 +227,13 @@ class SensitivityFieldParameterEstimator(ParameterEstimator):
             Bipp context. If provided, will use bipp module for computation.
     """
 
-    def __init__(self, sigma, ctx):
+    def __init__(self, sigma, ctx, filter_negative_eigenvalues=True):
         super().__init__()
 
         if not (0 < sigma <= 1):
             raise ValueError("Parameter[sigma] must lie in (0,1].")
         self._sigma = sigma
+        self._filter_negative_eigenvalues = filter_negative_eigenvalues
 
         # Collected data.
         self._grams = []
@@ -233,11 +261,16 @@ class SensitivityFieldParameterEstimator(ParameterEstimator):
         N_beam = N_eig_max = self._grams[0].shape[0]
 
         D_all = np.zeros((N_data, N_eig_max))
+
         for i, G in enumerate(self._grams):
             # Functional PCA
-            _, D, _ = bipp.pybipp.eigh(self._ctx, G.data.shape[0], G.data)
-            idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
-            D = D[idx]
+            if self._filter_negative_eigenvalues:
+                _, D, _ = bipp.pybipp.eigh(self._ctx, G.data.shape[0], G.data, 'V')
+                idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
+                D = D[idx]
+            else:
+                _, D, _ = bipp.pybipp.eigh(self._ctx, G.data.shape[0], G.data, 'A')
+
             D_all[i, : len(D)] = D
 
         D_all = D_all[D_all.nonzero()]

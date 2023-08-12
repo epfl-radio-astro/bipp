@@ -22,7 +22,8 @@ auto virtual_vis(ContextInternal& ctx, std::size_t nFilter, const BippFilter* fi
                  std::size_t nEig, const T* D, std::size_t nAntenna, const std::complex<T>* V,
                  std::size_t ldv, std::size_t nBeam, const std::complex<T>* W, std::size_t ldw,
                  std::complex<T>* virtVis, std::size_t ldVirtVis1, std::size_t ldVirtVis2,
-                 std::size_t ldVirtVis3) -> void {
+                 std::size_t ldVirtVis3, const std::size_t nz_vis) -> void {
+
   Buffer<std::complex<T>> VUnbeamBuffer;
   if (W) {
     VUnbeamBuffer = Buffer<std::complex<T>>(ctx.host_alloc(), nAntenna * nEig);
@@ -31,7 +32,7 @@ auto virtual_vis(ContextInternal& ctx, std::size_t nFilter, const BippFilter* fi
     V = VUnbeamBuffer.get();
     ldv = nAntenna;
   }
-  // V is alwayts of shape (nAntenna, nEig) from here on
+  // V is always of shape (nAntenna, nEig) from here on
 
   auto VMulDBuffer = Buffer<std::complex<T>>(ctx.host_alloc(), nEig * nAntenna);
 
@@ -51,11 +52,12 @@ auto virtual_vis(ContextInternal& ctx, std::size_t nFilter, const BippFilter* fi
         for (std::size_t k = 0; k < size; ++k) {
           auto VMulD = VMulDBuffer.get() + k * nAntenna;
           const auto VSelect = V + (start + k) * ldv;
-          const auto DVal = DFiltered[start + k];
+          const auto DVal = nz_vis > 0 ? DFiltered[start + k] / nz_vis : DFiltered[start + k];
 
           ctx.logger().log(
               BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
               D[start + k], DVal, intervals[j * ldIntervals], intervals[j * ldIntervals + 1]);
+          // Handle sensitivity case where nz_vis is zero
           for (std::size_t l = 0; l < nAntenna; ++l) {
             VMulD[l] = VSelect[l] * DVal;
           }
@@ -84,7 +86,7 @@ template auto virtual_vis<float>(ContextInternal& ctx, std::size_t nFilter,
                                  std::size_t ldv, std::size_t nBeam, const std::complex<float>* W,
                                  std::size_t ldw, std::complex<float>* virtVis,
                                  std::size_t ldVirtVis1, std::size_t ldVirtVis2,
-                                 std::size_t ldVirtVis3) -> void;
+                                 std::size_t ldVirtVis3, const std::size_t nz_vis) -> void;
 
 template auto virtual_vis<double>(ContextInternal& ctx, std::size_t nFilter,
                                   const BippFilter* filter, std::size_t nIntervals,
@@ -93,7 +95,8 @@ template auto virtual_vis<double>(ContextInternal& ctx, std::size_t nFilter,
                                   const std::complex<double>* V, std::size_t ldv, std::size_t nBeam,
                                   const std::complex<double>* W, std::size_t ldw,
                                   std::complex<double>* virtVis, std::size_t ldVirtVis1,
-                                  std::size_t ldVirtVis2, std::size_t ldVirtVis3) -> void;
+                                  std::size_t ldVirtVis2, std::size_t ldVirtVis3,
+                                  const std::size_t nz_vis) -> void;
 
 }  // namespace host
 }  // namespace bipp

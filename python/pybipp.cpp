@@ -106,6 +106,7 @@ auto call_gram_matrix(Context& ctx, const py::array_t<T, py::array::f_style>& xy
 template <typename T>
 auto call_eigh(Context& ctx, std::size_t nEig,
                const py::array_t<std::complex<T>, py::array::f_style>& a,
+               const char range,
                std::optional<py::array_t<std::complex<T>, py::array::f_style>> b) {
   check_2d_array(a);
   const auto m = a.shape(0);
@@ -119,8 +120,8 @@ auto call_eigh(Context& ctx, std::size_t nEig,
 
   eigh<T>(ctx, safe_cast<std::size_t>(m), safe_cast<std::size_t>(nEig), a.data(0),
           safe_cast<std::size_t>(a.strides(1) / a.itemsize()), b ? b.value().data(0) : nullptr,
-          b ? safe_cast<std::size_t>(b.value().strides(1) / b.value().itemsize()) : 0, &nEigOut,
-          d.mutable_data(0), v.mutable_data(0),
+          b ? safe_cast<std::size_t>(b.value().strides(1) / b.value().itemsize()) : 0, range,
+          &nEigOut, d.mutable_data(0), v.mutable_data(0),
           safe_cast<std::size_t>(v.strides(1) / v.itemsize()));
 
   return std::make_tuple(nEigOut, std::move(d), std::move(v));
@@ -130,7 +131,8 @@ struct StandardSynthesisDispatcher {
   StandardSynthesisDispatcher(Context& ctx, std::size_t nAntenna, std::size_t nBeam,
                               std::size_t nIntervals, const std::vector<std::string>& filter,
                               const py::array& pixelX, const py::array& pixelY,
-                              const py::array& pixelZ, const std::string& precision)
+                              const py::array& pixelZ, const std::string& precision,
+                              const bool filter_negative_eigenvalues)
       : nIntervals_(nIntervals), nPixel_(pixelX.shape(0)) {
     std::vector<BippFilter> filterEnums;
     for (const auto& f : filter) {
@@ -145,7 +147,8 @@ struct StandardSynthesisDispatcher {
       check_1d_array(pixelZArray, pixelXArray.shape(0));
       plan_ = StandardSynthesis<float>(
           ctx, nAntenna, nBeam, nIntervals, filterEnums.size(), filterEnums.data(),
-          pixelXArray.shape(0), pixelXArray.data(0), pixelYArray.data(0), pixelZArray.data(0));
+          pixelXArray.shape(0), pixelXArray.data(0), pixelYArray.data(0), pixelZArray.data(0),
+          filter_negative_eigenvalues);
     } else if (precision == "double" || precision == "DOUBLE") {
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> pixelXArray(pixelX);
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> pixelYArray(pixelY);
@@ -155,7 +158,8 @@ struct StandardSynthesisDispatcher {
       check_1d_array(pixelZArray, pixelXArray.shape(0));
       plan_ = StandardSynthesis<double>(
           ctx, nAntenna, nBeam, nIntervals, filterEnums.size(), filterEnums.data(),
-          pixelXArray.shape(0), pixelXArray.data(0), pixelYArray.data(0), pixelZArray.data(0));
+          pixelXArray.shape(0), pixelXArray.data(0), pixelYArray.data(0), pixelZArray.data(0),
+          filter_negative_eigenvalues);
     } else {
       throw InvalidParameterError();
     }
@@ -241,7 +245,7 @@ struct NufftSynthesisDispatcher {
                            std::size_t nBeam, std::size_t nIntervals,
                            const std::vector<std::string>& filter, const py::array& lmnX,
                            const py::array& lmnY, const py::array& lmnZ,
-                           const std::string& precision)
+                           const std::string& precision, const bool filter_negative_eigenvalues)
       : nIntervals_(nIntervals), nPixel_(lmnX.shape(0)) {
     std::vector<BippFilter> filterEnums;
     for (const auto& f : filter) {
@@ -256,7 +260,8 @@ struct NufftSynthesisDispatcher {
       check_1d_array(lmnZArray, lmnXArray.shape(0));
       plan_ = NufftSynthesis<float>(ctx, std::move(opt), nAntenna, nBeam, nIntervals,
                                     filterEnums.size(), filterEnums.data(), lmnXArray.shape(0),
-                                    lmnXArray.data(0), lmnYArray.data(0), lmnZArray.data(0));
+                                    lmnXArray.data(0), lmnYArray.data(0), lmnZArray.data(0),
+                                    filter_negative_eigenvalues);
     } else if (precision == "double" || precision == "DOUBLE") {
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnXArray(lmnX);
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnYArray(lmnY);
@@ -266,7 +271,8 @@ struct NufftSynthesisDispatcher {
       check_1d_array(lmnZArray, lmnXArray.shape(0));
       plan_ = NufftSynthesis<double>(ctx, std::move(opt), nAntenna, nBeam, nIntervals,
                                      filterEnums.size(), filterEnums.data(), lmnXArray.shape(0),
-                                     lmnXArray.data(0), lmnYArray.data(0), lmnZArray.data(0));
+                                     lmnXArray.data(0), lmnYArray.data(0), lmnZArray.data(0),
+                                     filter_negative_eigenvalues);
     } else {
       throw InvalidParameterError();
     }
@@ -398,11 +404,11 @@ PYBIND11_MODULE(pybipp, m) {
   pybind11::class_<NufftSynthesisDispatcher>(m, "NufftSynthesis")
       .def(pybind11::init<Context&, NufftSynthesisOptions, std::size_t, std::size_t, std::size_t,
                           const std::vector<std::string>&, const py::array&, const py::array&,
-                          const py::array&, const std::string&>(),
+                          const py::array&, const std::string&, const bool>(),
            pybind11::arg("ctx"), pybind11::arg("opt"), pybind11::arg("n_antenna"),
            pybind11::arg("n_beam"), pybind11::arg("n_intervals"), pybind11::arg("filter"),
            pybind11::arg("lmn_x"), pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
-           pybind11::arg("precision"))
+           pybind11::arg("precision"), pybind11::arg("filter_negative_eigenvalues"))
       .def("collect", &NufftSynthesisDispatcher::collect, pybind11::arg("n_eig"),
            pybind11::arg("wl"), pybind11::arg("intervals"), pybind11::arg("w"),
            pybind11::arg("xyz"), pybind11::arg("uvw"),
@@ -412,10 +418,11 @@ PYBIND11_MODULE(pybipp, m) {
   pybind11::class_<StandardSynthesisDispatcher>(m, "StandardSynthesis")
       .def(pybind11::init<Context&, std::size_t, std::size_t, std::size_t,
                           const std::vector<std::string>&, const py::array&, const py::array&,
-                          const py::array&, const std::string&>(),
+                          const py::array&, const std::string&, const bool>(),
            pybind11::arg("ctx"), pybind11::arg("n_antenna"), pybind11::arg("n_beam"),
            pybind11::arg("n_intervals"), pybind11::arg("filter"), pybind11::arg("lmn_x"),
-           pybind11::arg("lmn_y"), pybind11::arg("lmn_y"), pybind11::arg("precision"))
+           pybind11::arg("lmn_y"), pybind11::arg("lmn_y"), pybind11::arg("precision"),
+           pybind11::arg("filter_negative_eigenvalues"))
       .def("collect", &StandardSynthesisDispatcher::collect, pybind11::arg("n_eig"),
            pybind11::arg("wl"), pybind11::arg("intervals"), pybind11::arg("w"),
            pybind11::arg("xyz"), pybind11::arg("s") = std::optional<pybind11::array>())
@@ -438,19 +445,23 @@ PYBIND11_MODULE(pybipp, m) {
        "eigh",
        [](Context& ctx, std::size_t nEig,
           const py::array_t<std::complex<float>, py::array::f_style>& a,
-          std::optional<py::array_t<std::complex<float>, py::array::f_style>> b) {
-         return call_eigh(ctx, nEig, a, b);
+          const char range,
+          std::optional<py::array_t<std::complex<float>, py::array::f_style>> b
+          ) {
+           return call_eigh(ctx, nEig, a, range, b);
        },
        pybind11::arg("ctx"), pybind11::arg("n_eig"), pybind11::arg("a"),
+       pybind11::arg("range"),
        pybind11::arg("b") = std::optional<py::array_t<std::complex<float>, py::array::f_style>>())
       .def(
           "eigh",
           [](Context& ctx, std::size_t nEig,
              const py::array_t<std::complex<double>, py::array::f_style>& a,
+             const char range,
              std::optional<py::array_t<std::complex<double>, py::array::f_style>> b) {
-            return call_eigh(ctx, nEig, a, b);
+            return call_eigh(ctx, nEig, a, range, b);
           },
           pybind11::arg("ctx"), pybind11::arg("n_eig"), pybind11::arg("a"),
-          pybind11::arg("b") =
-              std::optional<py::array_t<std::complex<double>, py::array::f_style>>());
+          pybind11::arg("range"),
+          pybind11::arg("b") = std::optional<py::array_t<std::complex<double>, py::array::f_style>>());
 }

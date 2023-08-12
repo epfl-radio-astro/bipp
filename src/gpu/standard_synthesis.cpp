@@ -5,6 +5,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <cassert>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
@@ -28,13 +29,14 @@ StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, st
                                         std::size_t nBeam, std::size_t nIntervals,
                                         std::size_t nFilter, const BippFilter* filterHost,
                                         std::size_t nPixel, const T* pixelX, const T* pixelY,
-                                        const T* pixelZ)
+                                        const T* pixelZ, const bool filter_negative_eigenvalues)
     : ctx_(std::move(ctx)),
       nIntervals_(nIntervals),
       nFilter_(nFilter),
       nPixel_(nPixel),
       nAntenna_(nAntenna),
-      nBeam_(nBeam) {
+      nBeam_(nBeam),
+      filter_negative_eigenvalues_(filter_negative_eigenvalues) {
   auto& queue = ctx_->gpu_queue();
   filterHost_ = queue.create_host_buffer<BippFilter>(nFilter_);
   std::memcpy(filterHost_.get(), filterHost, sizeof(BippFilter) * nFilter_);
@@ -56,7 +58,7 @@ template <typename T>
 auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervalsHost,
                                    std::size_t ldIntervals, const api::ComplexType<T>* s,
                                    std::size_t lds, const api::ComplexType<T>* w, std::size_t ldw,
-                                   T* xyz, std::size_t ldxyz) -> void {
+                                   T* xyz, std::size_t ldxyz, const std::size_t nz_vis) -> void {
   auto& queue = ctx_->gpu_queue();
   auto v = queue.create_device_buffer<api::ComplexType<T>>(nBeam_ * nEig);
   auto d = queue.create_device_buffer<T>(nEig);
@@ -68,18 +70,23 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervalsHos
     center_vector<T>(queue, nAntenna_, xyz + i * ldxyz);
   }
 
-  {
-    auto g = queue.create_device_buffer<api::ComplexType<T>>(nBeam_ * nBeam_);
+  auto g = queue.create_device_buffer<api::ComplexType<T>>(nBeam_ * nBeam_);
 
-    gram_matrix<T>(*ctx_, nAntenna_, nBeam_, w, ldw, xyz, ldxyz, wl, g.get(), nBeam_);
+  gram_matrix<T>(*ctx_, nAntenna_, nBeam_, w, ldw, xyz, ldxyz, wl, g.get(), nBeam_);
 
-    std::size_t nEigOut = 0;
-    // Note different order of s and g input
-    if (s)
-      eigh<T>(*ctx_, nBeam_, nEig, s, lds, g.get(), nBeam_, &nEigOut, d.get(), v.get(), nBeam_);
-    else
-      eigh<T>(*ctx_, nBeam_, nEig, g.get(), nBeam_, nullptr, 0, &nEigOut, d.get(), v.get(), nBeam_);
-  }
+  std::size_t nEigOut = 0;
+  
+  char range = filter_negative_eigenvalues_ ? 'V' : 'A';
+
+  // Note different order of s and g input
+  if (s)
+    eigh<T>(*ctx_, nBeam_, nEig, s, lds, g.get(), nBeam_, range, &nEigOut, d.get(), v.get(), nBeam_);
+  else
+    eigh<T>(*ctx_, nBeam_, nEig, g.get(), nBeam_, nullptr, 0, range, &nEigOut, d.get(), v.get(), nBeam_);
+
+  if (not filter_negative_eigenvalues_)
+      assert (nEig == nEigOut);
+
 
   auto DBufferHost = queue.create_pinned_buffer<T>(nEig);
   auto DFilteredBufferHost = queue.create_host_buffer<T>(nEig);
@@ -117,7 +124,7 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervalsHos
             BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
             *(DBufferHost.get() + idxEig), *(DFilteredBufferHost.get() + idxEig),
             intervalsHost[idxInt * ldIntervals], intervalsHost[idxInt * ldIntervals + 1]);
-        const auto scale = DFilteredBufferHost.get()[idxEig];
+        const auto scale = nz_vis > 0 ?  DFilteredBufferHost.get()[idxEig] / nz_vis : DFilteredBufferHost.get()[idxEig];
         auto unlayeredStatsCurrent = unlayeredStats.get() + nPixel_ * idxEig;
         api::blas::axpy(queue.blas_handle(), nPixel_, &scale, unlayeredStatsCurrent, 1, imgCurrent,
                         1);

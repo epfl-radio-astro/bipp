@@ -128,10 +128,12 @@ public:
    * @param[in] lmnX Array of image x coordinates of size nPixel.
    * @param[in] lmnY Array of image y coordinates of size nPixel.
    * @param[in] lmnZ Array of image z coordinates of size nPixel.
+   * @param[in] filter_negative_eigenvalues Activate or not filtering of negative eigenvalues
    */
   NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::size_t nAntenna, std::size_t nBeam,
                  std::size_t nIntervals, std::size_t nFilter, const BippFilter* filter,
-                 std::size_t nPixel, const T* lmnX, const T* lmnY, const T* lmnZ);
+                 std::size_t nPixel, const T* lmnX, const T* lmnY, const T* lmnZ,
+                 const bool filter_negative_eigenvalues);
 
   /**
    * Collect radio data.

@@ -23,8 +23,9 @@ struct NufftSynthesisInternal {
   NufftSynthesisInternal(const std::shared_ptr<ContextInternal>& ctx, NufftSynthesisOptions opt,
                          std::size_t nAntenna, std::size_t nBeam, std::size_t nIntervals,
                          std::size_t nFilter, const BippFilter* filter, std::size_t nPixel,
-                         const T* lmnX, const T* lmnY, const T* lmnZ)
-      : ctx_(ctx), nAntenna_(nAntenna), nBeam_(nBeam), nIntervals_(nIntervals), nPixel_(nPixel) {
+                         const T* lmnX, const T* lmnY, const T* lmnZ, const bool filter_negative_eigenvalues)
+      : ctx_(ctx), nAntenna_(nAntenna), nBeam_(nBeam), nIntervals_(nIntervals), nPixel_(nPixel),
+        filter_negative_eigenvalues_(filter_negative_eigenvalues), nEpochs_(0) {
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
                        "{} NufftSynthesis.create({}, opt, {}, {} ,{} ,{} {}, {}, {}, {}, {})",
                        (const void*)this, (const void*)ctx_.get(), nAntenna, nBeam, nIntervals,
@@ -37,7 +38,7 @@ struct NufftSynthesisInternal {
 
     if (ctx_->processing_unit() == BIPP_PU_CPU) {
       planHost_.emplace(ctx_, std::move(opt), nAntenna, nBeam, nIntervals, nFilter, filter, nPixel, lmnX, lmnY,
-                        lmnZ);
+                        lmnZ, filter_negative_eigenvalues);
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       auto& queue = ctx_->gpu_queue();
@@ -71,7 +72,7 @@ struct NufftSynthesisInternal {
       }
 
       planGPU_.emplace(ctx_, std::move(opt), nAntenna, nBeam, nIntervals, nFilter, filter, nPixel,
-                       lmnXDevice, lmnYDevice, lmnZDevice);
+                       lmnXDevice, lmnYDevice, lmnZDevice, filter_negative_eigenvalues);
 #else
       throw GPUSupportError();
 #endif
@@ -105,9 +106,18 @@ struct NufftSynthesisInternal {
 
     const auto start = std::chrono::high_resolution_clock::now();
 
+    // Increment the counter for the number of processed epochs
+    nEpochs_ += 1;
+
+    // Count number of non-zero elements in visibility matrix
+    const std::complex<T> c0 = 0.0;
+    std::size_t nz_vis = lds * lds;
+    for (std::size_t i = 0; i < lds*lds; ++i)
+      if (s[i] == c0) nz_vis--;
+
     if (planHost_) {
       planHost_.value().collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz, uvw,
-                                lduvw);
+                                lduvw, nz_vis);
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       auto& queue = ctx_->gpu_queue();
@@ -162,7 +172,7 @@ struct NufftSynthesisInternal {
       }
 
       planGPU_->collect(nEig, wl, intervals, ldIntervals, sDevice, ldsDevice, wDevice, ldwDevice,
-                        xyzDevice, ldxyzDevice, uvwDevice, lduvwDevice);
+                        xyzDevice, ldxyzDevice, uvwDevice, lduvwDevice, nz_vis);
       queue.sync();
 #else
       throw GPUSupportError();
@@ -201,11 +211,19 @@ struct NufftSynthesisInternal {
       throw GPUSupportError();
 #endif
     }
+
+    printf("-D- Scaling image by the total number of processed epochs %ld\n", nEpochs_);
+    auto scale = static_cast<T>(nEpochs_);
+    for (std::size_t i = 0; i < nIntervals_ * nPixel_; i++) {
+        out[i] /= scale;
+    }
+
   }
 
   std::shared_ptr<ContextInternal> ctx_;
-  std::size_t nAntenna_, nBeam_, nIntervals_, nPixel_;
+  std::size_t nAntenna_, nBeam_, nIntervals_, nPixel_, nEpochs_;
   std::optional<host::NufftSynthesis<T>> planHost_;
+  const bool filter_negative_eigenvalues_;
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
   std::optional<gpu::NufftSynthesis<T>> planGPU_;
 #endif
@@ -215,11 +233,12 @@ template <typename T>
 NufftSynthesis<T>::NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::size_t nAntenna,
                                   std::size_t nBeam, std::size_t nIntervals, std::size_t nFilter,
                                   const BippFilter* filter, std::size_t nPixel, const T* lmnX,
-                                  const T* lmnY, const T* lmnZ) {
+                                  const T* lmnY, const T* lmnZ, const bool filter_negative_eigenvalues) {
   try {
     plan_ = decltype(plan_)(
         new NufftSynthesisInternal<T>(InternalContextAccessor::get(ctx), std::move(opt), nAntenna,
-                                      nBeam, nIntervals, nFilter, filter, nPixel, lmnX, lmnY, lmnZ),
+                                      nBeam, nIntervals, nFilter, filter, nPixel, lmnX, lmnY, lmnZ,
+                                      filter_negative_eigenvalues),
         [](auto&& ptr) { delete reinterpret_cast<NufftSynthesisInternal<T>*>(ptr); });
   } catch (const std::exception& e) {
     try {
@@ -420,7 +439,8 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSy
                                                     size_t nBeam, size_t nIntervals, size_t nFilter,
                                                     const BippFilter* filter, size_t nPixel,
                                                     const float* lmnX, const float* lmnY,
-                                                    const float* lmnZ, BippNufftSynthesisF* plan) {
+                                                    const float* lmnZ, BippNufftSynthesisF* plan,
+                                                    const bool filter_negative_eigenvalues) {
   if (!ctx) {
     return BIPP_INVALID_HANDLE_ERROR;
   }
@@ -428,7 +448,7 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSy
     *plan = new NufftSynthesisInternal<float>(
         InternalContextAccessor::get(*reinterpret_cast<Context*>(ctx)),
         *reinterpret_cast<const NufftSynthesisOptions*>(opt), nAntenna, nBeam, nIntervals, nFilter,
-        filter, nPixel, lmnX, lmnY, lmnZ);
+        filter, nPixel, lmnX, lmnY, lmnZ, filter_negative_eigenvalues);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -491,7 +511,8 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, BippNufftSynt
                                                   size_t nBeam, size_t nIntervals, size_t nFilter,
                                                   const BippFilter* filter, size_t nPixel,
                                                   const double* lmnX, const double* lmnY,
-                                                  const double* lmnZ, BippNufftSynthesis* plan) {
+                                                  const double* lmnZ, BippNufftSynthesis* plan,
+                                                  const bool filter_negative_eigenvalues) {
   if (!ctx) {
     return BIPP_INVALID_HANDLE_ERROR;
   }
@@ -499,7 +520,7 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, BippNufftSynt
     *plan = new NufftSynthesisInternal<double>(
         InternalContextAccessor::get(*reinterpret_cast<Context*>(ctx)),
         *reinterpret_cast<const NufftSynthesisOptions*>(opt), nAntenna, nBeam, nIntervals, nFilter,
-        filter, nPixel, lmnX, lmnY, lmnZ);
+        filter, nPixel, lmnX, lmnY, lmnZ, filter_negative_eigenvalues);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {

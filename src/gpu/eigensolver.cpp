@@ -4,7 +4,7 @@
 #include <limits>
 #include <memory>
 #include <utility>
-
+#include <cassert>
 #include "bipp/bipp.h"
 #include "bipp/config.h"
 #include "context_internal.hpp"
@@ -19,22 +19,23 @@ namespace gpu {
 
 template <typename T>
 auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const api::ComplexType<T>* a,
-          std::size_t lda, const api::ComplexType<T>* b, std::size_t ldb, std::size_t* nEigOut,
-          T* d, api::ComplexType<T>* v, std::size_t ldv) -> void {
+          std::size_t lda, const api::ComplexType<T>* b, std::size_t ldb, const char range,
+          std::size_t* nEigOut, T* d, api::ComplexType<T>* v, std::size_t ldv) -> void {
+
   // TODO: add fill mode
   using ComplexType = api::ComplexType<T>;
   using ScalarType = T;
   auto& queue = ctx.gpu_queue();
 
   auto aBuffer = queue.create_device_buffer<ComplexType>(m * m);  // Matrix A
-  auto dBuffer = queue.create_device_buffer<T>(m);                // Matrix A
+  auto dBuffer = queue.create_device_buffer<T>(m);                // Matrix D
 
   api::memcpy_2d_async(aBuffer.get(), m * sizeof(ComplexType), a, lda * sizeof(ComplexType),
                        m * sizeof(ComplexType), m, api::flag::MemcpyDeviceToDevice, queue.stream());
   int hMeig = 0;
 
-  // compute positive eigenvalues
-  eigensolver::solve(ctx, 'V', 'V', 'L', m, aBuffer.get(), m, std::numeric_limits<T>::epsilon(),
+  // compute eigenvalues
+  eigensolver::solve(ctx, 'V', range, 'L', m, aBuffer.get(), m, std::numeric_limits<T>::epsilon(),
                      std::numeric_limits<T>::max(), 1, m, &hMeig, dBuffer.get());
 
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", hMeig, 1, dBuffer.get(), hMeig);
@@ -71,14 +72,17 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const api::Comp
                            queue.stream());
     }
 
-    // compute positive general eigenvalues
-    eigensolver::solve(ctx, 'V', 'V', 'L', m, aBuffer.get(), m, bBuffer.get(), m,
+    // compute general eigenvalues
+    eigensolver::solve(ctx, 'V', range, 'L', m, aBuffer.get(), m, bBuffer.get(), m,
                        std::numeric_limits<T>::epsilon(), std::numeric_limits<T>::max(), 1, m,
                        &hMeig, dBuffer.get());
     ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gen. eigenvalues", hMeig, 1, dBuffer.get(),
                             hMeig);
     ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gen. eigenvectors", m, m, aBuffer.get(), m);
   }
+
+  if (range == 'A')
+      assert(nEig == hMeig);
 
   if (hMeig > 1) {
     // reverse order, such that large eigenvalues are first
@@ -106,13 +110,13 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const api::Comp
 
 template auto eigh<float>(ContextInternal& ctx, std::size_t m, std::size_t nEig,
                           const api::ComplexType<float>* a, std::size_t lda,
-                          const api::ComplexType<float>* b, std::size_t ldb, std::size_t* nEigOut,
-                          float* d, api::ComplexType<float>* v, std::size_t ldv) -> void;
+                          const api::ComplexType<float>* b, std::size_t ldb, const char range,
+                          std::size_t* nEigOut, float* d, api::ComplexType<float>* v, std::size_t ldv) -> void;
 
 template auto eigh<double>(ContextInternal& ctx, std::size_t m, std::size_t nEig,
                            const api::ComplexType<double>* a, std::size_t lda,
-                           const api::ComplexType<double>* b, std::size_t ldb, std::size_t* nEigOut,
-                           double* d, api::ComplexType<double>* v, std::size_t ldv) -> void;
+                           const api::ComplexType<double>* b, std::size_t ldb, const char range,
+                           std::size_t* nEigOut, double* d, api::ComplexType<double>* v, std::size_t ldv) -> void;
 
 }  // namespace gpu
 }  // namespace bipp
