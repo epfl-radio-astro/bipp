@@ -255,29 +255,59 @@ class MeasurementSet:
             * S (:py:class:`~pypeline.phased_array.data_gen.statistics.VisibilityMatrix`)
         """
 
-        t = ct.table(self._msf, readonly=True)
-        time = np.array(t.calc("MJD(TIME)"))
-        ant1 = np.array(t.getcol("ANTENNA1"))
-        ant2 = np.array(t.getcol("ANTENNA2"))
-        dt = np.array(t.getcol(column))
-        flag = np.array(t.getcol("FLAG"))
+        # t = ct.table(self._msf, readonly=True)
+        # time = np.array(t.calc("MJD(TIME)"))
+        # ant1 = np.array(t.getcol("ANTENNA1"))
+        # ant2 = np.array(t.getcol("ANTENNA2"))
+        # dt = np.array(t.getcol(column))
+        # flag = np.array(t.getcol("FLAG"))
 
-        utime, idx, cnt = np.unique(time, return_index=True, return_counts=True)
+        # utime, idx, cnt = np.unique(time, return_index=True, return_counts=True)
 
-        if isinstance(time_id, int):
+        # if isinstance(time_id, int):
+        #     time_id = slice(time_id, time_id + 1, 1)
+        # N_time = len(time)
+        # time_start, time_stop, time_step = time_id.indices(N_time)
+
+        # utime = time[time_start: time_stop: time_step]
+
+        # for k in range(len(utime)):
+        #     start=idx[k]
+        #     end=start+cnt[k]
+        #     beam_id_0 = ant1[start:end]
+        #     beam_id_1 = ant2[start:end]
+        #     data_flag = flag[start:end]
+        #     data = dt[start:end]
+        if column not in ct.taql(f"select * from {self._msf}").colnames():
+            raise ValueError(f"column={column} does not exist in {self._msf}::MAIN.")
+
+        channel_id = self.channels["CHANNEL_ID"][channel_id]
+        if chk.is_integer(time_id):
             time_id = slice(time_id, time_id + 1, 1)
-        N_time = len(time)
+        N_time = len(self.time)
         time_start, time_stop, time_step = time_id.indices(N_time)
 
-        utime = time[time_start: time_stop: time_step]
-
-        for k in range(len(utime)):
-            start=idx[k]
-            end=start+cnt[k]
-            beam_id_0 = ant1[start:end]
-            beam_id_1 = ant2[start:end]
-            data_flag = flag[start:end]
-            data = dt[start:end]
+        # Only a subset of the MAIN table's columns are needed to extract visibility information.
+        # As such, it makes sense to construct a TaQL query that only extracts the columns of
+        # interest as shown below:
+        #    select ANTENNA1, ANTENNA2, MJD(TIME) as TIME, {column}, FLAG from {self._msf} where TIME in
+        #    (select unique TIME from {self._msf} limit {time_start}:{time_stop}:{time_step})
+        # Unfortunately this query consumes a lot of memory due to the column selection process.
+        # Therefore, we will instead ask for all columns and only access those of interest.
+        query = (
+            f"select * from {self._msf} where TIME in "
+            f"(select unique TIME from {self._msf} limit {time_start}:{time_stop}:{time_step})"
+        )
+        table = ct.taql(query)
+        
+        for sub_table in table.iter("TIME", sort=True):
+            t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
+            freq = self.channels["FREQUENCY"]
+            
+            beam_id_0 = sub_table.getcol("ANTENNA1")  # (N_entry,)
+            beam_id_1 = sub_table.getcol("ANTENNA2")  # (N_entry,)
+            data_flag = sub_table.getcol("FLAG")      # (N_entry, N_channel, 4)
+            data = sub_table.getcol(column)           # (N_entry, N_channel, 4)
 
 
             # We only want XX and YY correlations
@@ -321,7 +351,7 @@ class MeasurementSet:
                 
                 vismatrix = vis.VisibilityMatrix(v, non_zero_index)
                 
-                yield utime[k], f[ch], vismatrix
+                yield t, f[ch], vismatrix
 
 
 class LofarMeasurementSet(MeasurementSet):
