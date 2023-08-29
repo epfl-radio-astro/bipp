@@ -42,7 +42,8 @@ StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, st
       nFilter_(nFilter),
       nPixel_(nPixel),
       nAntenna_(nAntenna),
-      nBeam_(nBeam) {
+      nBeam_(nBeam),
+      count_(0) {
   filter_ = Buffer<BippFilter>(ctx_->host_alloc(), nFilter_);
   std::memcpy(filter_.get(), filter, sizeof(BippFilter) * nFilter_);
   pixelX_ = Buffer<T>(ctx_->host_alloc(), nPixel_);
@@ -124,6 +125,8 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals,
       }
     }
   }
+
+  ++count_;
 }
 
 template <typename T>
@@ -139,8 +142,13 @@ auto StandardSynthesis<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
   if (index == nFilter_) throw InvalidParameterError();
 
   for (std::size_t i = 0; i < nIntervals_; ++i) {
-    std::memcpy(out + i * ld, img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_,
-                sizeof(T) * nPixel_);
+    const T* __restrict__ localImg = img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_;
+    T* __restrict__ outputImg = out + i * ld;
+    const T scale = count_ ?  static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
+
+    for (std::size_t j = 0; j < nPixel_; ++j) {
+      outputImg[j] = scale * localImg[j];
+    }
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", nPixel_, 1, out + i * ld,
                               nPixel_);
   }
