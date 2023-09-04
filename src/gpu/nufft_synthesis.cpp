@@ -12,6 +12,7 @@
 #include "gpu/kernels/add_vector.hpp"
 #include "gpu/kernels/min_max_element.hpp"
 #include "gpu/kernels/nuft_sum.hpp"
+#include "gpu/kernels/scale_vector.hpp"
 #include "gpu/nufft_3d3.hpp"
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
@@ -34,7 +35,8 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
       nAntenna_(nAntenna),
       nBeam_(nBeam),
       imgPartition_(DomainPartition::none(ctx_, nPixel)),
-      collectCount_(0) {
+      collectCount_(0),
+      totalCollectCount_(0) {
   auto& queue = ctx_->gpu_queue();
   filterHost_ = queue.create_host_buffer<BippFilter>(nFilter_);
   std::memcpy(filterHost_.get(), filterHost, sizeof(BippFilter) * nFilter_);
@@ -127,6 +129,7 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals, std:
               nMaxInputCount_ * nAntenna_ * nAntenna_, nAntenna_);
 
   ++collectCount_;
+  ++totalCollectCount_;
   ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "collect count: {} / {}", collectCount_, nMaxInputCount_);
   if (collectCount_ >= nMaxInputCount_) {
     computeNufft();
@@ -287,12 +290,16 @@ auto NufftSynthesis<T>::get(BippFilter f, T* outHostOrDevice, std::size_t ld) ->
   }
   if (index == nFilter_) throw InvalidParameterError();
 
+  const T scale =
+      totalCollectCount_ ? static_cast<T>(1.0 / static_cast<double>(totalCollectCount_)) : 0;
   if (is_device_ptr(outHostOrDevice)) {
     for (std::size_t i = 0; i < nIntervals_; ++i) {
       ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image permuted", nPixel_, 1,
                                 img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_, nPixel_);
       imgPartition_.reverse(img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_,
                             outHostOrDevice + i * ld);
+      scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale,
+                      outHostOrDevice + i * ld);
       ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", nPixel_, 1,
                                 outHostOrDevice + i * ld, nPixel_);
     }
@@ -303,6 +310,8 @@ auto NufftSynthesis<T>::get(BippFilter f, T* outHostOrDevice, std::size_t ld) ->
                                 img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_, nPixel_);
       imgPartition_.reverse(img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_,
                             workBuffer.get());
+
+      scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale, workBuffer.get());
       gpu::api::memcpy_async(outHostOrDevice + i * ld, workBuffer.get(), workBuffer.size_in_bytes(),
                              gpu::api::flag::MemcpyDefault, queue.stream());
       ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", nPixel_, 1,

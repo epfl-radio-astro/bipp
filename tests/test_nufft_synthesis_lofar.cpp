@@ -107,6 +107,7 @@ protected:
     bipp::NufftSynthesis<T> imager(ctx_, bipp::NufftSynthesisOptions(), nAntenna, nBeam, nIntervals,
                                    1, &filter, nPixel, lmnX.data(), lmnY.data(), lmnZ.data());
 
+    std::size_t nEpochs = 0;
     for (const auto& itData : data["data"]) {
       auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
       auto uvw = read_json_scalar_2d<ValueType>(itData["uvw"]);
@@ -115,6 +116,7 @@ protected:
 
       imager.collect(nEig, wl, intervals.data(), 2, s.data(), nBeam, w.data(), nAntenna, xyz.data(),
                      nAntenna, uvw.data(), nAntenna * nAntenna);
+      ++nEpochs;
     }
 
     std::vector<T> img(imgRef.size());
@@ -123,7 +125,8 @@ protected:
     for (std::size_t i = 0; i < img.size(); ++i) {
       // Single precision is very inaccurate due to different summation orders
       // Use twice the absolute error for single precision
-      ASSERT_NEAR(img[i], imgRef[i], 50 * (4.0 / sizeof(T)));
+      // Note: image reference is not scaling by number of epochs
+      ASSERT_NEAR(img[i] * nEpochs, imgRef[i], 50 * (4.0 / sizeof(T)));
     }
   }
 
@@ -148,6 +151,7 @@ protected:
     bipp::NufftSynthesis<T> imager(ctx_, bipp::NufftSynthesisOptions(), nAntenna, nBeam, nIntervals,
                                    1, &filter, nPixel, lmnX.data(), lmnY.data(), lmnZ.data());
 
+    std::size_t nEpochs = 0;
     for (const auto& itData : data["data"]) {
       auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
       auto uvw = read_json_scalar_2d<ValueType>(itData["uvw"]);
@@ -155,6 +159,7 @@ protected:
 
       imager.collect(nEig, wl, intervals.data(), 2, nullptr, 0, w.data(), nAntenna, xyz.data(),
                      nAntenna, uvw.data(), nAntenna * nAntenna);
+      ++nEpochs;
     }
 
     std::vector<T> img(imgRef.size());
@@ -163,7 +168,8 @@ protected:
     for (std::size_t i = 0; i < img.size(); ++i) {
       // Single precision is very inaccurate due to different summation orders
       // Use twice the absolute error for single precision
-      ASSERT_NEAR(img[i], imgRef[i], 0.05 * (4.0 / sizeof(T)));
+      // Note: image reference is not scaling by number of epochs
+      ASSERT_NEAR(img[i] * nEpochs, imgRef[i], 0.05 * (4.0 / sizeof(T)));
     }
   }
 
