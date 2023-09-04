@@ -547,3 +547,110 @@ class MwaMeasurementSet(MeasurementSet):
             self._beamformer = beamforming.MatchedBeamformerBlock(beam_config)
 
         return self._beamformer
+
+
+class SKALowMeasurementSet(MeasurementSet):
+    """
+    SKA Low Measurement Set reader.
+    """
+    @chk.check(
+        dict(file_name=chk.is_instance(str),
+             N_station=chk.allow_None(chk.is_integer),
+             origin=chk.allow_None(chk.is_instance(coord.EarthLocation)))
+    )
+    def __init__(self, file_name, N_station=None, origin=None):
+        """
+        Parameters
+        ----------
+        file_name : str
+            Name of the MS file.
+        N_station : int
+            Number of stations to use. (Default = all)
+
+            Sometimes only a subset of an instrument’s stations are desired.
+            Setting `N_station` limits the number of stations to those that appear first when sorted
+            by STATION_ID.
+        origin : astropy EarthLocation
+            Reference location used to compute local station coordinates (ref. RASCIL issue)
+        """
+        super().__init__(file_name)
+        if N_station is not None:
+            if N_station <= 0:
+                raise ValueError("Parameter[N_station] must be positive.")
+        self._N_station = N_station
+        self._origin = origin
+
+    @property
+    def instrument(self):
+        """
+        Returns
+        -------
+        :py:class:`~pypeline.phased_array.instrument.EarthBoundInstrumentGeometryBlock`
+            Instrument position computer.
+        """
+        
+        if self._instrument is None:
+            # Following the MS file specification from https://casa.nrao.edu/casadocs/casa-5.1.0/reference-material/measurement-set,
+            # the ANTENNA sub-table specifies the antenna geometry.
+            # Some remarks on the required fields:
+            # - POSITION: absolute station positions in ITRF coordinates.
+            # - ANTENNA_ID: equivalent to STATION_ID field `InstrumentGeometry.index[0]`
+            #               This field is NOT present in the ANTENNA sub-table, but is given
+            #               implicitly by its row-ordering.
+            #               In other words, the station corresponding to ANTENNA1=k in the MAIN
+            #               table is described by the k-th row of the ANTENNA sub-table.
+            query = f"select POSITION from {self._msf}::ANTENNA"
+            table = ct.taql(query)
+            station_mean = table.getcol("POSITION")
+
+            N_station = len(station_mean)
+            station_id = np.arange(N_station)
+            cfg_idx = pd.MultiIndex.from_product(
+                [station_id, [0]], names=("STATION_ID", "ANTENNA_ID")
+            )
+            cfg = pd.DataFrame(data=station_mean, columns=("X", "Y", "Z"), index=cfg_idx)
+            #print(cfg_idx)
+            #print(cfg)
+            #import sys
+            #sys.exit(1)
+
+
+            if self._origin:
+                o = np.array([self._origin.x.value, self._origin.y.value, self._origin.z.value])
+                xyz = cfg.values - o
+                for i in range(0, xyz.shape[0]):
+                    xyz[i,:] = rascil_crd__enu_to_ecef(self._origin, xyz[i,:])
+                XYZ = instrument.InstrumentGeometry(xyz=xyz, ant_idx=cfg.index)
+                #XYZ_wrong = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
+                #print("XYZ CORRECT\n", XYZ.data[0:5,:])
+                #print("XYZ WRONG\n", XYZ_wrong.data[0:5,:])
+                #print("XYZ DIFF\n", XYZ_wrong.data[0:5,:] - XYZ.data[0:5,:])
+            else:
+                XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
+            
+            self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ)
+
+        return self._instrument
+    
+    @property
+    def beamformer(self):
+        """
+        Each dataset has been beamformed in a specific way.
+        This property outputs the correct beamformer to compute the beamforming weights.
+        Returns
+        -------
+        :py:class:`~pypeline.phased_array.beamforming.MatchedBeamformerBlock`
+            Beamweight computer.
+        """
+        if self._beamformer is None:
+            # MWA does not do any beamforming.
+            # Given the single-antenna station model in MS files from MWA, this can be seen as
+            # Matched-Beamforming, with a single beam output per station.
+            XYZ = self.instrument._layout
+            beam_id = np.unique(XYZ.index.get_level_values("STATION_ID"))
+
+            direction = self.field_center
+            beam_config = [(_, _, direction) for _ in beam_id]
+            self._beamformer = beamforming.MatchedBeamformerBlock(beam_config)
+
+        return self._beamformer
