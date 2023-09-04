@@ -10,7 +10,7 @@
 namespace bipp {
 namespace host {
 
-// Compute the location of the interval [a, b] within the descending array D.
+// Compute the location of the interval [a, b] within the ascending or descending array D.
 // Returns the first index and size. Assuming n is small -> linear search should
 // suffice
 template <typename T>

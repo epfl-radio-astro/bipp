@@ -26,7 +26,6 @@ if(BIPP_CUDA OR BIPP_ROCM)
 		gpu/standard_synthesis.cpp
 		gpu/domain_partition.cu
 		gpu/util/solver_api.cpp
-		gpu/kernels/reverse.cu
 		gpu/kernels/gram.cu
 		gpu/kernels/scale_matrix.cu
 		gpu/kernels/apply_filter.cu
@@ -35,6 +34,7 @@ if(BIPP_CUDA OR BIPP_ROCM)
 		gpu/kernels/center_vector.cu
 		gpu/kernels/min_max_element.cu
 		gpu/kernels/nuft_sum.cu
+		gpu/kernels/copy_at_indices.cu
 		)
 endif()
 
