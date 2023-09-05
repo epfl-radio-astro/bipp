@@ -20,7 +20,8 @@ public:
 
   auto collect(std::size_t nEig, T wl, const T* intervals, std::size_t ldIntervals,
                const api::ComplexType<T>* s, std::size_t lds, const api::ComplexType<T>* w,
-               std::size_t ldw, const T* xyz, std::size_t ldxyz, const T* uvw, std::size_t lduvw)
+               std::size_t ldw, const T* xyz, std::size_t ldxyz, const T* uvw, std::size_t lduvw,
+               const std::size_t nz_vis)
       -> void;
 
   auto get(BippFilter f, T* outHostOrDevice, std::size_t ld) -> void;

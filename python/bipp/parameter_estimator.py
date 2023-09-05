@@ -190,7 +190,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
 
         return N_eig, centroid_to_intervals(cluster_centroid)
 
-
+    
 class SensitivityFieldParameterEstimator(ParameterEstimator):
     """
     Parameter estimator for computing sensitivity fields.

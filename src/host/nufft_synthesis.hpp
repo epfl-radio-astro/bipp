@@ -24,7 +24,8 @@ public:
 
   auto collect(std::size_t nEig, T wl, const T* intervals, std::size_t ldIntervals,
                const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
-               const T* xyz, std::size_t ldxyz, const T* uvw, std::size_t lduvw) -> void;
+               const T* xyz, std::size_t ldxyz, const T* uvw, std::size_t lduvw,
+               const std::size_t nz_vis) -> void;
 
   auto get(BippFilter f, T* out, std::size_t ld) -> void;
 
