@@ -103,13 +103,15 @@ struct StandardSynthesisInternal {
     const auto start = std::chrono::high_resolution_clock::now();
     
     // Count number of non-zero elements in visibility matrix
-    printf("CORRECT ME #########################\n");
     const std::complex<T> c0 = 0.0;
-    std::size_t nz_vis = lds * lds;
-    for (std::size_t i = 0; i < lds*lds; ++i)
-      if (s[i] == c0) nz_vis--;
-    printf("nz_vis = %ld\n", nz_vis);
-
+    std::size_t nz_vis = nBeam_ * nBeam_;
+    for (std::size_t col = 0; col < nBeam_; ++col) {
+      for (std::size_t row = col; row < nBeam_; ++row) {
+        if (s[col * nBeam_ + row] == c0) {
+          col == row ? nz_vis -= 1 : nz_vis -= 2;
+        }
+      }
+    }
     
     if (planHost_) {
       planHost_.value().collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz,
