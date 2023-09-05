@@ -101,9 +101,19 @@ struct StandardSynthesisInternal {
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "XYZ", nAntenna_, 3, xyz, ldxyz);
 
     const auto start = std::chrono::high_resolution_clock::now();
+    
+    // Count number of non-zero elements in visibility matrix
+    printf("CORRECT ME #########################\n");
+    const std::complex<T> c0 = 0.0;
+    std::size_t nz_vis = lds * lds;
+    for (std::size_t i = 0; i < lds*lds; ++i)
+      if (s[i] == c0) nz_vis--;
+    printf("nz_vis = %ld\n", nz_vis);
 
+    
     if (planHost_) {
-      planHost_.value().collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz);
+      planHost_.value().collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz,
+                                nz_vis);
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       auto& queue = ctx_->gpu_queue();
@@ -146,7 +156,7 @@ struct StandardSynthesisInternal {
                                 queue.stream());
 
       planGPU_->collect(nEig, wl, intervals, ldIntervals, sDevice, ldsDevice, wDevice, ldwDevice,
-                        xyzDevice, ldxyzDevice);
+                        xyzDevice, ldxyzDevice, nz_vis);
       queue.sync();
 #else
       throw GPUSupportError();

@@ -59,7 +59,7 @@ template <typename T>
 auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervalsHost,
                                    std::size_t ldIntervals, const api::ComplexType<T>* s,
                                    std::size_t lds, const api::ComplexType<T>* w, std::size_t ldw,
-                                   T* xyz, std::size_t ldxyz) -> void {
+                                   T* xyz, std::size_t ldxyz, const std::size_t nz_vis) -> void {
   auto& queue = ctx_->gpu_queue();
   auto v = queue.create_device_buffer<api::ComplexType<T>>(nBeam_ * nEig);
   auto d = queue.create_device_buffer<T>(nEig);
@@ -120,7 +120,7 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervalsHos
             BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
             *(DBufferHost.get() + idxEig), *(DFilteredBufferHost.get() + idxEig),
             intervalsHost[idxInt * ldIntervals], intervalsHost[idxInt * ldIntervals + 1]);
-        const auto scale = DFilteredBufferHost.get()[idxEig];
+        const auto scale = nz_vis > 0 ?  DFilteredBufferHost.get()[idxEig] / nz_vis : DFilteredBufferHost.get()[idxEig];
         auto unlayeredStatsCurrent = unlayeredStats.get() + nPixel_ * idxEig;
         api::blas::axpy(queue.blas_handle(), nPixel_, &scale, unlayeredStatsCurrent, 1, imgCurrent,
                         1);

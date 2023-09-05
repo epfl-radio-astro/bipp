@@ -19,13 +19,14 @@ auto virtual_vis(ContextInternal& ctx, std::size_t nFilter, const BippFilter* fi
                  std::size_t nEig, const T* D, std::size_t nAntenna, const api::ComplexType<T>* V,
                  std::size_t ldv, std::size_t nBeam, const api::ComplexType<T>* W, std::size_t ldw,
                  api::ComplexType<T>* virtVis, std::size_t ldVirtVis1, std::size_t ldVirtVis2,
-                 std::size_t ldVirtVis3) -> void {
+                 std::size_t ldVirtVis3, const std::size_t nz_vis) -> void {
   using ComplexType = api::ComplexType<T>;
   auto& queue = ctx.gpu_queue();
 
   const auto zero = ComplexType{0, 0};
   const auto one = ComplexType{1, 0};
-
+  const auto scale = ComplexType{T(1.0)/T(nz_vis), 0};
+  
   Buffer<api::ComplexType<T>> VUnbeamBuffer;
   if (W) {
     VUnbeamBuffer = queue.create_device_buffer<api::ComplexType<T>>(nAntenna * nEig);
@@ -73,7 +74,7 @@ auto virtual_vis(ContextInternal& ctx, std::size_t nFilter, const BippFilter* fi
         // Matrix multiplication of the previously scaled V and the original V
         // with the selected eigenvalues
         api::blas::gemm(queue.blas_handle(), api::blas::operation::None,
-                        api::blas::operation::ConjugateTranspose, nAntenna, nAntenna, size, &one,
+                        api::blas::operation::ConjugateTranspose, nAntenna, nAntenna, size, &scale,
                         VMulDBuffer.get(), nAntenna, V + start * ldv, ldv, &zero, virtVisCurrent,
                         ldVirtVis3);
 
@@ -90,14 +91,16 @@ template auto virtual_vis<float>(
     const float* intervals, std::size_t ldIntervals, std::size_t nEig, const float* D,
     std::size_t nAntenna, const api::ComplexType<float>* V, std::size_t ldv, std::size_t nBeam,
     const api::ComplexType<float>* W, std::size_t ldw, api::ComplexType<float>* virtVis,
-    std::size_t ldVirtVis1, std::size_t ldVirtVis2, std::size_t ldVirtVis3) -> void;
+    std::size_t ldVirtVis1, std::size_t ldVirtVis2, std::size_t ldVirtVis3,
+    const std::size_t nz_vis) -> void;
 
 template auto virtual_vis<double>(
     ContextInternal& ctx, std::size_t nFilter, const BippFilter* filter, std::size_t nIntervals,
     const double* intervals, std::size_t ldIntervals, std::size_t nEig, const double* D,
     std::size_t nAntenna, const api::ComplexType<double>* V, std::size_t ldv, std::size_t nBeam,
     const api::ComplexType<double>* W, std::size_t ldw, api::ComplexType<double>* virtVis,
-    std::size_t ldVirtVis1, std::size_t ldVirtVis2, std::size_t ldVirtVis3) -> void;
+    std::size_t ldVirtVis1, std::size_t ldVirtVis2, std::size_t ldVirtVis3,
+    const std::size_t nz_vis) -> void;
 
 }  // namespace gpu
 }  // namespace bipp

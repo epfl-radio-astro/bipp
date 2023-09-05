@@ -61,7 +61,7 @@ template <typename T>
 auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals,
                                    std::size_t ldIntervals, const std::complex<T>* s,
                                    std::size_t lds, const std::complex<T>* w, std::size_t ldw,
-                                   const T* xyz, std::size_t ldxyz) -> void {
+                                   const T* xyz, std::size_t ldxyz, const std::size_t nz_vis) -> void {
   auto v = Buffer<std::complex<T>>(ctx_->host_alloc(), nBeam_ * nEig);
   auto vUnbeam = Buffer<std::complex<T>>(ctx_->host_alloc(), nAntenna_ * nEig);
   auto unlayeredStats = Buffer<T>(ctx_->host_alloc(), nPixel_ * nEig);
@@ -108,7 +108,7 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals,
 
       auto imgCurrent = img_.get() + (idxFilter * nIntervals_ + idxInt) * nPixel_;
       for (std::size_t idxEig = start; idxEig < start + size; ++idxEig) {
-        const auto scale = dFiltered.get()[idxEig];
+        const auto scale = nz_vis > 0 ? dFiltered.get()[idxEig] / nz_vis : dFiltered.get()[idxEig];
         auto unlayeredStatsCurrent = unlayeredStats.get() + nPixel_ * idxEig;
 
         constexpr auto maxInt = static_cast<std::size_t>(std::numeric_limits<int>::max());

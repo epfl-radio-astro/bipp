@@ -16,7 +16,7 @@ auto virtual_vis(ContextInternal& ctx, std::size_t nFilter, const BippFilter* fi
                  std::size_t nEig, const T* D, std::size_t nAntenna, const std::complex<T>* V,
                  std::size_t ldv, std::size_t nBeam, const std::complex<T>* W, std::size_t ldw,
                  std::complex<T>* virtVis, std::size_t ldVirtVis1, std::size_t ldVirtVis2,
-                 std::size_t ldVirtVis3) -> void;
+                 std::size_t ldVirtVis3, const std::size_t nz_vis) -> void;
 
 }  // namespace host
 }  // namespace bipp
