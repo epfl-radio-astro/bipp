@@ -34,6 +34,10 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.colors import TwoSlopeNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+# for final figure text sizes
+plt.rcParams.update({'font.size': 26})
+
+
 
 start_time= tt.time()
 #####################################################################################################################################################################
@@ -134,15 +138,30 @@ except:
     clusteringBool= True
 
 try:
-    WSClean_grid = bool(sys.argv[8])
-    if (WSClean_grid==True):
-        try:
-            wsclean_path = sys.argv[9]
-        except:
-            raise(SyntaxError("If WSClean Grid is set to True then path to wsclean fits file must be provided!"))
+    partitions=int(sys.argv[8])
+except:
+    partitions = 1
+try:
+    WSClean_grid = bool(sys.argv[9])
+    if (WSClean_grid == True):
+        ms_fieldcenter = False
+    else: 
+        ms_fieldcenter = True
 except:
     WSClean_grid=False
     ms_fieldcenter=True
+
+
+try:
+    wsclean_path = sys.argv[10]
+except:
+    if (WSClean_grid==True):
+        raise(SyntaxError("If WSClean Grid is set to True then path to wsclean fits file must be provided!"))
+    else:
+        print ("WSClean fits file not provided.")
+        wsclean_path= ""
+
+
 
 print (f"Telescope Name:{telescope_name}")
 print (f"MS file:{ms_file}")
@@ -157,10 +176,9 @@ else:
     print(f"Clustering Bool:{clusteringBool}")
     print (f"Clustering:{clustering}")
 print (f"WSClean_grid:{WSClean_grid}")
-if (WSClean_grid):
-    print (f"WSClean Path: {wsclean_path}")
-else:
-    print (f"ms_fieldcenter:{ms_fieldcenter}")
+print (f"ms_fieldcenter:{ms_fieldcenter}")
+print (f"WSClean Path: {wsclean_path}")
+print (f"Partitions: {partitions}")
 
 
 
@@ -194,7 +212,8 @@ time_slice = 1
 
 # channel
 channel_id = np.array([0], dtype = np.int64)
-#channel_id = np.arange(64, dtype = np.int)
+#channel_id = np.array([4,5], dtype = np.int64) # vary the number of partitions - 1 channel works sometimes with 1, sometimes doesn't, 64 channels will need more partitions. 
+#channel_id = np.arange(64, dtype = np.int32)
 
 # Create context with selected processing unit.
 # Options are "AUTO", "CPU" and "GPU".
@@ -204,7 +223,7 @@ filter_tuple = ('lsq', 'std') # might need to make this a list
 
 std_img_flag = True # put to true if std is passed as a filter
 
-plotList= np.array([1,2,])
+plotList= np.array([1,2])
 # 1 is lsq
 # 2 is levels
 # 3 is WSClean
@@ -232,7 +251,7 @@ except:
     frequency = ms.channels["FREQUENCY"][channel_id]
     print ("Single channel mode.")
 
-wl = constants.speed_of_light / frequency.to_value(u.Hz) [0]
+wl = constants.speed_of_light / frequency.to_value(u.Hz)
 print (f"wl:{wl}; f: {frequency}")
 
 if (WSClean_grid): 
@@ -277,8 +296,8 @@ opt.set_collect_group_size(None)
 #opt.set_local_image_partition(bipp.Partition.grid([1,1,1]))
 #opt.set_local_image_partition(bipp.Partition.none()) # Commented out
 #opt.set_local_uvw_partition(bipp.Partition.none()) # Commented out
-opt.set_local_image_partition(bipp.Partition.grid([5,5,1]))
-opt.set_local_uvw_partition(bipp.Partition.grid([5,5,1]))
+opt.set_local_image_partition(bipp.Partition.grid([partitions,partitions,1]))
+opt.set_local_uvw_partition(bipp.Partition.grid([partitions,partitions,1]))
 t1 = tt.time()
 #time_slice = 25 ### why is this 25 - ask simon @@@
 
@@ -321,7 +340,7 @@ if (clusteringBool):
         # and equally divide the data between them 
         N_eig, intensity_intervals = N_level, np.arange(N_level)
 else:
-    N_eig, intensity_intervals=39, clustering # N_eig still to be obtained from parameter estimator????? IMP
+    N_eig, intensity_intervals=39, clustering # N_eig still to be obtained from parameter estimator????? IMP # 26 for 083 084 39 for????
 
 print (f"Number of Eigenvalues:{N_eig}, Intensity intervals: {intensity_intervals}")
 
@@ -357,6 +376,8 @@ for t, f, S in ProgressBar(
     #uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
     UVW_baselines_t = ms.instrument.baselines(t, uvw=True, field_center=ms.field_center)
     uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
+
+    print (S.data)
 
     imager.collect(N_eig, wl, intensity_intervals, W.data, XYZ.data, uvw, S.data)
 
@@ -405,6 +426,7 @@ if (4 in plotList):
         fig_comp, ax_comp = plt.subplots(int(len(filter_tuple)), 3, figsize = (40,20))
 if (1 in plotList):
     fig_out, ax_out = plt.subplots(len(filter_tuple), 1, figsize = (40,20) )
+    ax_outList = ax_out.ravel()
 if (2 in plotList):
     fig_out, ax_out = plt.subplots(len(filter_tuple), 1 + eigenlevels, figsize = (40,20))
 if (3 in plotList):
@@ -463,7 +485,11 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
             cax = divider.append_axes("right", size="5%", pad=0.05)
             cbar = plt.colorbar(WSCleanScale, cax)
 
-    fig_out.savefig(f"{outName}")
+    if (2 not in plotList):
+        fig_out.savefig(f"{outName}")
+    else:
+        fig_out.savefig(f"{outName}_lvls")
+        
     print(f"{outName}.png saved.")
 
 # plot WSC, CASA and BB Comparisons here
