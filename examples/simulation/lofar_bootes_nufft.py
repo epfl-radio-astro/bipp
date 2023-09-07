@@ -110,8 +110,7 @@ imager = bipp.NufftSynthesis(
     lmn_grid[0],
     lmn_grid[1],
     lmn_grid[2],
-    precision,
-    True # eigenvalue filtering boolean
+    precision    #,True # eigenvalue filtering boolean
 )
 
 for t in ProgressBar(time[::time_slice]):

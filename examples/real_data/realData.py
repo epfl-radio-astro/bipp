@@ -317,8 +317,7 @@ print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@ PARAMETER ESTIMATION @@@@@@@@@@@@@@@@@@@@@@@
 if (clusteringBool):
     if (clustering):
         num_time_steps = 0
-        I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=1, ctx=ctx,
-                                                    filter_negative_eigenvalues=filter_negative_eigenvalues)
+        I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=1, ctx=ctx)
         #for t, f, S, uvw_t in ProgressBar(
         for t, f, S in ProgressBar(
                 #ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name, return_UVW = True)
@@ -358,8 +357,7 @@ imager = bipp.NufftSynthesis(
     lmn_grid[0],
     lmn_grid[1],
     lmn_grid[2],
-    precision,
-    filter_negative_eigenvalues
+    precision
 )
 
 for t, f, S in ProgressBar(
