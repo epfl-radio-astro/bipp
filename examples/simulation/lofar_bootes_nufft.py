@@ -26,6 +26,7 @@ import bipp.frame as frame
 import bipp.statistics as statistics
 import time as tt
 import matplotlib.pyplot as plt
+import sys
 
 
 # Create context with selected processing unit.
@@ -72,7 +73,7 @@ precision = "single"
 
 
 # Imaging
-N_pix = 350
+N_pix = 1024
 
 t1 = tt.time()
 N_level = 3
@@ -110,6 +111,7 @@ imager = bipp.NufftSynthesis(
     lmn_grid[1],
     lmn_grid[2],
     precision,
+    True # eigenvalue filtering boolean
 )
 
 for t in ProgressBar(time[::time_slice]):
@@ -123,6 +125,7 @@ for t in ProgressBar(time[::time_slice]):
 lsq_image = imager.get("LSQ").reshape((-1, N_pix, N_pix))
 sqrt_image = imager.get("SQRT").reshape((-1, N_pix, N_pix))
 
+"""
 ### Sensitivity Field =========================================================
 # Parameter Estimation
 S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95, ctx=ctx)
@@ -147,7 +150,8 @@ imager = bipp.NufftSynthesis(
     lmn_grid[0],
     lmn_grid[1],
     lmn_grid[2],
-    precision,
+    precision, 
+    True # Negative eigenvalues Boolean
 )
 
 for t in ProgressBar(time[::time_slice]):
@@ -162,6 +166,11 @@ sensitivity_image = imager.get("INV_SQ").reshape((-1, N_pix, N_pix))
 # Plot Results ================================================================
 I_lsq_eq = s2image.Image(lsq_image / sensitivity_image, xyz_grid)
 I_sqrt_eq = s2image.Image(sqrt_image / sensitivity_image, xyz_grid)
+"""
+
+I_lsq_eq = s2image.Image(lsq_image, xyz_grid)
+I_sqrt_eq = s2image.Image(sqrt_image, xyz_grid)
+
 t2 = tt.time()
 print(f"Elapsed time: {t2 - t1} seconds.")
 
@@ -179,6 +188,8 @@ ax.set_title(
     f"Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n"
     f"Run time {np.floor(t2 - t1)} seconds."
 )
+plt.savefig("BB_lsq.png")
+
 
 plt.figure()
 ax = plt.gca()
@@ -195,21 +206,26 @@ ax.set_title(
     f"Run time {np.floor(t2 - t1)} seconds."
 )
 
-plt.figure()
+plt.savefig("BB_sqrt.png")
+
+fig, ax = plt.subplots(1, N_level + 1)
 titles = ["Strong sources", "Mild sources", "Faint Sources"]
 for i in range(lsq_image.shape[0]):
-    plt.subplot(1, N_level, i + 1)
-    ax = plt.gca()
-    plt.title(titles[i])
+    ax[i + 1].set_title(titles[i])
     I_lsq_eq.draw(
         index=i,
         catalog=sky_model.xyz.T,
-        ax=ax,
+        ax=ax[i + 1],
         data_kwargs=dict(cmap="cubehelix"),
         catalog_kwargs=dict(s=30, linewidths=0.5, alpha=0.5),
         show_gridlines=False,
     )
+ax[0].set_title("LSQ IMAGE")
+I_lsq_eq.draw(ax = ax[0], data_kwargs=dict(cmap="cubehelix"), catalog_kwargs=dict(s=30, linewidths=0.5, alpha=0.5), show_gridlines=False, catalog=sky_model.xyz.T)
+
+print (I_lsq_eq.data.sum(axis = 0))
+
 
 plt.suptitle(f"Bipp Eigenmaps")
 #  plt.show()
-plt.savefig("final_bb.png")
+plt.savefig("BB_eigenlevels.png")
