@@ -60,9 +60,10 @@ try:
         N_antenna = 128
 
     elif (telescope_name.lower()=="lofar"):
-        ms = measurement_set.LofarMeasurementSet(ms_file)
-        N_station = 38 # netherlands, 52 international
-        N_antenna = 38 # netherlands, 52 international
+        N_station = 37 # netherlands, 52 international
+        N_antenna = 37 # netherlands, 52 international
+        ms = measurement_set.LofarMeasurementSet(ms_file, N_station = N_station, station_only=True)
+
     else: 
         raise(NotImplementedError("A measurement set class for the telescope you are searching for has not been implemented yet - please feel free to implement the class yourself!"))
 
@@ -77,11 +78,11 @@ except:
 try:
     N_pix=int(sys.argv[4])
 except:
-    N_pix=512
+    N_pix=2000 #2000 for LOFAR #512/1024/2048 for MWA
 try:
     FoV = np.deg2rad(float (sys.argv[5]))
 except:
-    FoV = np.deg2rad(6) # For lofar + Mwa
+    FoV = np.deg2rad(6) #4.26 deg for Lofar, 13.1 for Mwa
 """
  # time and channel id stuff to be implemented!!!
 try:
@@ -117,7 +118,7 @@ try:
 try:
     N_level = int(sys.argv[6])
 except:
-    N_level=3
+    N_level=4 # 4 for lofar 4 gauss
 try:
     try:
         clusterEdges = np.array(sys.argv[7].split(","), dtype=np.float32)
