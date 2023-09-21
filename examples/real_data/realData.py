@@ -35,7 +35,7 @@ import matplotlib.cm as cm
 from matplotlib.colors import TwoSlopeNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 # for final figure text sizes
-plt.rcParams.update({'font.size': 26})
+plt.rcParams.update({'font.size': 60})
 
 
 
@@ -127,7 +127,7 @@ try:
         clustering = []
         for binEdge in clusterEdges[1:]:
             binEnd = binEdge
-            clustering.append([binStart, binEnd])
+            clustering.append([binEnd, binStart])
             binStart = binEnd
         clustering = np.asarray(clustering, dtype=np.float32)
     except:
@@ -160,7 +160,7 @@ except:
         raise(SyntaxError("If WSClean Grid is set to True then path to wsclean fits file must be provided!"))
     else:
         print ("WSClean fits file not provided.")
-        wsclean_path= ""
+        wsclean_path= "/home/krishna/OSKAR/Example/simulation_oskarImaged_MWA_Obsparams_I.fits"
 
 
 
@@ -208,7 +208,7 @@ user_fieldcenter = coord.SkyCoord(ra=218 * u.deg, dec=34.5 * u.deg, frame="icrs"
 
 #Time
 time_start = 0
-time_end = -1
+time_end = 1
 time_slice = 1
 
 # channel
@@ -376,8 +376,6 @@ for t, f, S in ProgressBar(
     UVW_baselines_t = ms.instrument.baselines(t, uvw=True, field_center=ms.field_center)
     uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
 
-    print (S.data)
-
     imager.collect(N_eig, wl, intensity_intervals, W.data, XYZ.data, uvw, S.data)
 
 lsq_image = imager.get("LSQ").reshape((-1, N_pix, N_pix))
@@ -411,6 +409,70 @@ if (std_img_flag):
     std_image = std_levels.sum(axis = 0)
 
     print (f"STD Levels shape:{std_levels.shape}")
+
+"""
+# Code to output figure needed for BB paper 
+
+path = "/scratch/izar/krishna/MWA/20151203_240MHz_psimas.sav"
+import scipy.io as io
+simulation = io.readsav(path)#, python_dict = True)
+
+trueImg = np.fliplr(simulation['quantmap'][0][0][:, :])
+
+fig, ax = plt.subplots(2,3, figsize=(60, 40))
+
+simScale = ax[0, 0].imshow(trueImg, cmap="cubehelix")
+ax[0, 0].set_title("Simulation")
+ax[0, 0].axis('off')
+divider = make_axes_locatable(ax[0, 0])
+cax = divider.append_axes("right", size = "5%", pad = 0.05)
+cbar = plt.colorbar(simScale, cax)
+
+WSClean_image = fits.getdata(wsclean_path)
+WSClean_image = np.fliplr(WSClean_image.reshape(WSClean_image.shape[-2:]))
+
+wscScale = ax[0, 1].imshow(WSClean_image, cmap="cubehelix")
+ax[0, 1].set_title("Dirty Image")
+ax[0, 1].axis('off')
+divider = make_axes_locatable(ax[0, 1])
+cax = divider.append_axes("right", size = "5%", pad = 0.05)
+cbar = plt.colorbar(wscScale, cax)
+
+lsqScale = ax[0, 2].imshow(lsq_image, cmap="cubehelix")
+ax[0, 2].set_title("Bluebild Least-Squares Image")
+ax[0, 2].axis('off')
+divider = make_axes_locatable(ax[0, 2])
+cax = divider.append_axes("right", size = "5%", pad = 0.05)
+cbar = plt.colorbar(lsqScale, cax)
+
+lsqScale = ax[1, 0].imshow(lsq_levels[0, :, :],cmap="cubehelix")
+ax[1, 0].set_title("Bluebild LSQ Level 0")
+ax[1, 0].axis('off')
+divider = make_axes_locatable(ax[1, 0])
+cax = divider.append_axes("right", size = "5%", pad = 0.05)
+cbar = plt.colorbar(lsqScale, cax)
+
+lsqScale = ax[1, 1].imshow(lsq_levels[1, :, :], cmap="cubehelix")
+ax[1, 1].set_title("Bluebild LSQ Level 1")
+ax[1, 1].axis('off')
+divider = make_axes_locatable(ax[1, 1])
+cax = divider.append_axes("right", size = "5%", pad = 0.05)
+cbar = plt.colorbar(lsqScale, cax)
+
+
+lsqSCale = ax[1, 2].imshow(lsq_levels[2, :, :], cmap="cubehelix")
+ax[1, 2].set_title("Bluebild LSQ Level 2")
+ax[1, 2].axis('off')
+divider = make_axes_locatable(ax[1, 2])
+cax = divider.append_axes("right", size = "5%", pad = 0.05)
+cbar = plt.colorbar(lsqScale, cax)
+
+fig.tight_layout()
+
+fig.savefig(f"{outName}")
+"""
+
+
 if (3 in plotList or 4 in plotList):
     WSClean_image = fits.getdata(wsclean_path)
     WSClean_image = np.flipud(WSClean_image.reshape(WSClean_image.shape[-2:]))
@@ -437,6 +499,7 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
 
     BBScale = ax_out[0, 0].imshow(lsq_image, cmap = "cubehelix")
     ax_out[0, 0].set_title(r"LSQ IMG")
+    ax_out[0, 0].axis('off')
     divider = make_axes_locatable(ax_out[0, 0])
     cax = divider.append_axes("right", size = "5%", pad = 0.05)
     cbar = plt.colorbar(BBScale, cax)
@@ -445,6 +508,7 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
     if (std_img_flag):
         BBScale = ax_out[1, 0].imshow(std_image, cmap = "cubehelix")
         ax_out[1, 0].set_title(r"STD IMG")
+        ax_out[1, 0].axis('off')
         divider = make_axes_locatable(ax_out[1, 0])
         cax = divider.append_axes("right", size = "5%", pad = 0.05)
         cbar = plt.colorbar(BBScale, cax)
@@ -458,6 +522,7 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
             lsqScale = ax_out[0, i + 1].imshow(lsq_levels[i, :, :], cmap = "cubehelix", \
                         vmin = (lsq_levels[i, :, :].max() * std_levels[i, :, :].min()/std_levels[i, :, :].max() if std_img_flag else lsq_levels[i, :, :].min()))
             ax_out[0, i + 1].set_title(f"Lsq Lvl {i}")
+            ax_out[0, i + 1].axis('off')
             divider = make_axes_locatable(ax_out[0, i + 1])
             cax = divider.append_axes("right", size="5%", pad=0.05)
             cbar = plt.colorbar(lsqScale, cax)
@@ -465,6 +530,7 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
             if (std_img_flag):
                 stdScale = ax_out[1, i + 1].imshow(std_levels[i, :, :], cmap = "cubehelix")
                 ax_out[1, i + 1].set_title(f"Std Lvl {i}")
+                ax_out[1, i + 1].axis('off')
                 divider = make_axes_locatable(ax_out[1, i + 1])
                 cax = divider.append_axes("right", size="5%", pad=0.05)
                 cbar = plt.colorbar(stdScale, cax)
@@ -473,6 +539,7 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
     if ((3 in plotList)):
         WSCleanScale = ax_out[0, -1].imshow(WSClean_image, cmap = "cubehelix")
         ax_out[0, -1].set_title(f"WSC IMG")
+        ax_out[0, -1].axis('off')
         divider = make_axes_locatable(ax_out[0, -1])
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cbar = plt.colorbar(WSCleanScale, cax)
@@ -480,6 +547,7 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
         if (std_img_flag):
             WSCleanScale = ax_out[1, -1].imshow(WSClean_image, cmap = "cubehelix")
             ax_out[1, -1].set_title(f"WSC IMG")
+            ax_out[1, -1].axis('off')
             divider = make_axes_locatable(ax_out[1, -1])
             cax = divider.append_axes("right", size="5%", pad=0.05)
             cbar = plt.colorbar(WSCleanScale, cax)
@@ -548,5 +616,6 @@ if ((4 in plotList)):
 
     fig_comp.savefig(f"{outName}_comparison")
     print (f"{outName}_comparison.png saved.")
+#"""
 
 print(f'Elapsed time: {tt.time() - start_time} seconds.')
