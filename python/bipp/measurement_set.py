@@ -281,6 +281,11 @@ class MeasurementSet:
             data_flag = sub_table.getcol("FLAG")  # (N_entry, N_channel, 4)
             data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
 
+            try:
+                weight_spectrum = sub_table.getcol("WEIGHT_SPECTRUM")
+            except:
+                weight_spectrum = None
+
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
             data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
@@ -313,18 +318,35 @@ class MeasurementSet:
             S_fill_in = pd.DataFrame(
                 data=np.zeros((N_diff, len(channel_id)), dtype=data.dtype),
                 columns=channel_id,
-                index=index_diff,
-            )
+                index=index_diff)
             S = pd.concat([S_trunc, S_fill_in], axis=0, ignore_index=False).sort_index(
-                level=["B_0", "B_1"]
-            )
+                level=["B_0", "B_1"])
+            
 
             # Break S into columns and stream out
             t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
+
+            if weight_spectrum is not None:
+                # Mimic WSClean
+                weight = np.min(weight_spectrum[:, :, [0, 3]], axis=2)[:, channel_id]
+                weight[data_flag] = 0
+                W_full = pd.DataFrame(data=weight, columns=channel_id, index=S_full_idx)
+                W_trunc = W_full.drop(index=index_to_drop)
+                W_fill_in = pd.DataFrame(
+                    data=np.zeros((N_diff, len(channel_id)), dtype=weight.dtype),
+                    columns=channel_id,
+                    index=index_diff)
+                W = pd.concat([W_trunc, W_fill_in], axis=0, ignore_index=False).sort_index(
+                    level=["B_0", "B_1"])
+
             for ch_id in channel_id:
                 v = _series2array(S[ch_id].rename("S", inplace=True))
+                if weight_spectrum is not None:
+                    w = _series2array_w(W[ch_id].rename("W", inplace=True))
+                    nz_vis = np.count_nonzero(v)
+                    v *= w / np.sum(w) * nz_vis
                 visibility = vis.VisibilityMatrix(v, beam_idx)
                 yield t, f[ch_id], visibility
 
@@ -355,6 +377,33 @@ def _series2array(visibility: pd.Series) -> np.ndarray:
     S = S + S.conj().T
     S[np.diag_indices_from(S)] = S_diag
     return S
+
+def _series2array_w(weight: pd.Series) -> np.ndarray:
+    b_idx_0 = weight.index.get_level_values("B_0").to_series()
+    b_idx_1 = weight.index.get_level_values("B_1").to_series()
+
+    row_map = (
+        pd.concat(objs=(b_idx_0, b_idx_1), ignore_index=True)
+        .drop_duplicates()
+        .to_frame(name="BEAM_ID")
+        .assign(ROW_ID=lambda df: np.arange(len(df)))
+    )
+    col_map = row_map.rename(columns={"ROW_ID": "COL_ID"})
+
+    data = (
+        weight.reset_index()
+        .merge(row_map, left_on="B_0", right_on="BEAM_ID")
+        .merge(col_map, left_on="B_1", right_on="BEAM_ID")
+        .loc[:, ["ROW_ID", "COL_ID", "W"]]
+    )
+
+    N_beam = len(row_map)
+    W = np.zeros(shape=(N_beam, N_beam), dtype=float)
+    W[data.ROW_ID.values, data.COL_ID.values] = data.W.values
+    W_diag = np.diag(W)
+    W = W + W.T
+    W[np.diag_indices_from(W)] = W_diag
+    return W
 
 
 class LofarMeasurementSet(MeasurementSet):
