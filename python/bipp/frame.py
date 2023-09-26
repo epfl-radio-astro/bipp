@@ -53,8 +53,10 @@ def make_grids(grid_size, FoV, field_center):
             (3, grid_size, grid_size) image grid
     """
     lim = np.sin(FoV / 2)
-    grid_slice = np.linspace(-lim, lim, grid_size)
-    l_grid, m_grid = np.meshgrid(grid_slice, grid_slice)
+    offset = lim / (grid_size / 2) * 0.5
+    grid_slice1 = np.linspace(-lim - offset, lim - offset, grid_size)
+    grid_slice2 = np.linspace(-lim + offset, lim + offset, grid_size)
+    l_grid, m_grid = np.meshgrid(grid_slice2, grid_slice1)
     n_grid = np.sqrt(1 - l_grid**2 - m_grid**2)  # No -1 if r on the sphere !
     lmn_grid = np.stack((l_grid, m_grid, n_grid), axis=0)
     uvw_frame = uvw_basis(field_center)
