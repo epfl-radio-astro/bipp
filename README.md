@@ -32,6 +32,7 @@ The Python module has the following dependencies:
 - scipy
 - pandas
 - healpy
+- casacore
 
 
 ## Installation
