@@ -40,6 +40,13 @@ public:
   BippError error_code() const noexcept override { return BippError::BIPP_INVALID_POINTER_ERROR; }
 };
 
+class BIPP_EXPORT InvalidStrideError : public GenericError {
+public:
+  const char* what() const noexcept override { return "BIPP: Invalid stride error"; }
+
+  BippError error_code() const noexcept override { return BippError::BIPP_INVALID_POINTER_ERROR; }
+};
+
 class BIPP_EXPORT InvalidAllocatorFunctionError : public GenericError {
 public:
   const char* what() const noexcept override { return "BIPP: Invalid allocator function error"; }

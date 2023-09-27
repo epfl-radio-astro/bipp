@@ -9,6 +9,7 @@
 #include "context_internal.hpp"
 #include "host/standard_synthesis.hpp"
 #include "memory/buffer.hpp"
+#include "memory/view.hpp"
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/standard_synthesis.hpp"
 #include "gpu/util/device_pointer.hpp"
