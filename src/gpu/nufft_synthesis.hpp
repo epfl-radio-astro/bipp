@@ -37,7 +37,7 @@ private:
   Buffer<T> lmnX_, lmnY_, lmnZ_;
   DomainPartition imgPartition_;
 
-  std::size_t nMaxInputCount_, collectCount_;
+  std::size_t nMaxInputCount_, collectCount_, totalCollectCount_;
   Buffer<api::ComplexType<T>> virtualVis_;
   Buffer<T> uvwX_, uvwY_, uvwZ_;
   Buffer<T> img_;
