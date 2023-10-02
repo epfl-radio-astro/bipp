@@ -15,7 +15,9 @@
 #include "gpu/kernels/center_vector.hpp"
 #include "gpu/kernels/gemmexp.hpp"
 #include "gpu/kernels/scale_matrix.hpp"
+#include "gpu/kernels/scale_vector.hpp"
 #include "gpu/util/blas_api.hpp"
+#include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
 #include "host/kernels/apply_filter.hpp"
 #include "host/kernels/interval_indices.hpp"
@@ -34,7 +36,8 @@ StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, st
       nFilter_(nFilter),
       nPixel_(nPixel),
       nAntenna_(nAntenna),
-      nBeam_(nBeam) {
+      nBeam_(nBeam),
+      count_(0) {
   auto& queue = ctx_->gpu_queue();
   filterHost_ = queue.create_host_buffer<BippFilter>(nFilter_);
   std::memcpy(filterHost_.get(), filterHost, sizeof(BippFilter) * nFilter_);
@@ -124,6 +127,7 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervalsHos
       }
     }
   }
+  ++count_;
 }
 
 template <typename T>
@@ -139,9 +143,25 @@ auto StandardSynthesis<T>::get(BippFilter f, T* outHostOrDevice, std::size_t ld)
   }
   if (index == nFilter_) throw InvalidParameterError();
 
-  api::memcpy_2d_async(outHostOrDevice, ld * sizeof(T), img_.get() + index * nIntervals_ * nPixel_,
-                       nPixel_ * sizeof(T), nPixel_ * sizeof(T), nIntervals_,
-                       api::flag::MemcpyDefault, queue.stream());
+  const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
+  if (gpu::is_device_ptr(outHostOrDevice)) {
+    for (std::size_t i = 0; i < nIntervals_; ++i) {
+      scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_,
+                      img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_, scale,
+                      outHostOrDevice + i * ld);
+    }
+  } else {
+    auto tmpBuffer = queue.create_device_buffer<T>(nPixel_);
+
+    for (std::size_t i = 0; i < nIntervals_; ++i) {
+      scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_,
+                      img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_, scale,
+                      tmpBuffer.get());
+      api::memcpy_async(outHostOrDevice + i * ld, tmpBuffer.get(), nPixel_ * sizeof(T),
+                        api::flag::MemcpyDeviceToHost, queue.stream());
+    }
+  }
+
   for (std::size_t i = 0; i < nIntervals_; ++i) {
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", nPixel_, 1,
                               outHostOrDevice + i * ld, nPixel_);

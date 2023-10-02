@@ -31,6 +31,7 @@ private:
 
   std::shared_ptr<ContextInternal> ctx_;
   const std::size_t nIntervals_, nFilter_, nPixel_, nAntenna_, nBeam_;
+  std::size_t count_;
   Buffer<BippFilter> filter_;
   Buffer<T> pixelX_, pixelY_, pixelZ_;
   Buffer<T> img_;
