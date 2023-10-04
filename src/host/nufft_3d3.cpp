@@ -18,6 +18,7 @@ Nufft3d3<double>::Nufft3d3(int iflag, double tol, std::size_t numTrans, std::siz
                            const double* s, const double* t, const double* u) {
   finufft_opts opts;
   finufft_default_opts(&opts);
+  opts.upsampfac = 2.0; // must be set to prevent automatic selection based on tol
   finufft_plan p;
   if (finufft_makeplan(3, 3, nullptr, iflag, numTrans, tol, &p, &opts)) throw FiNUFFTError();
 
@@ -43,6 +44,7 @@ Nufft3d3<float>::Nufft3d3(int iflag, float tol, std::size_t numTrans, std::size_
                           const float* t, const float* u) {
   finufft_opts opts;
   finufftf_default_opts(&opts);
+  opts.upsampfac = 2.0; // must be set to prevent automatic selection based on tol
   finufftf_plan p;
   if (finufftf_makeplan(3, 3, nullptr, iflag, numTrans, tol, &p, &opts)) throw FiNUFFTError();
 

@@ -48,7 +48,8 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
       lmnY_(ctx_->host_alloc(), nPixel_),
       lmnZ_(ctx_->host_alloc(), nPixel_),
       imgPartition_(DomainPartition::none(ctx_, nPixel_)),
-      collectCount_(0) {
+      collectCount_(0),
+      totalCollectCount_(0) {
   std::memcpy(filter_.get(), filter, sizeof(BippFilter) * nFilter_);
 
   // Only partition image if explicitly set. Auto defaults to no partition.
@@ -128,6 +129,7 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals, std:
               nMaxInputCount_ * nAntenna_ * nAntenna_, nAntenna_);
 
   ++collectCount_;
+  ++totalCollectCount_;
   ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "collect count: {} / {}", collectCount_, nMaxInputCount_);
   if (collectCount_ >= nMaxInputCount_) {
     computeNufft();
@@ -267,10 +269,21 @@ auto NufftSynthesis<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
   }
   if (index == nFilter_) throw InvalidParameterError();
 
+  const T scale =
+      totalCollectCount_ ? static_cast<T>(1.0 / static_cast<double>(totalCollectCount_)) : 0;
+
   for (std::size_t i = 0; i < nIntervals_; ++i) {
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image permuted", nPixel_, 1,
                               img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_, nPixel_);
-    imgPartition_.reverse(img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_, out + i * ld);
+    const T* __restrict__ imgPtr = img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_;
+    T* __restrict__ outPtr = out + i * ld;
+
+    imgPartition_.reverse(imgPtr, outPtr);
+
+    for(std::size_t j = 0; j < nPixel_; ++j) {
+      outPtr[j] *= scale;
+    }
+
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", nPixel_, 1, out + i * ld, nPixel_);
   }
 }
