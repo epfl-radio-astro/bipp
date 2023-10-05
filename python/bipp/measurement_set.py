@@ -301,11 +301,12 @@ class MeasurementSet:
             mask = np.logical_and(np.isin(beam_id_0, row_id_wanted), np.isin(beam_id_1, col_id_wanted))
 
 
-            for ch in channel_id:
+            for i in range(len(channel_id)):
+                ch = channel_id[i]
                 # Apply the mask to retain only the desired pairs
                 filtered_col_id_full = beam_id_1[mask]
                 filtered_row_id_full = beam_id_0[mask]
-                filtered_data = data[:,ch][mask]
+                filtered_data = data[:,i][mask]
 
                 matrix_size = max(np.max(filtered_row_id_full), np.max(filtered_col_id_full)) + 1
 
