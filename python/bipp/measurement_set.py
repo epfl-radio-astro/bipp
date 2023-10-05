@@ -604,10 +604,9 @@ class SKALowMeasurementSet(MeasurementSet):
     """
     @chk.check(
         dict(file_name=chk.is_instance(str),
-             N_station=chk.allow_None(chk.is_integer),
-             origin=chk.allow_None(chk.is_instance(coord.EarthLocation)))
+             N_station=chk.allow_None(chk.is_integer))
     )
-    def __init__(self, file_name, N_station=None, origin=None):
+    def __init__(self, file_name, N_station=None):
         """
         Parameters
         ----------
@@ -619,15 +618,12 @@ class SKALowMeasurementSet(MeasurementSet):
             Sometimes only a subset of an instrument’s stations are desired.
             Setting `N_station` limits the number of stations to those that appear first when sorted
             by STATION_ID.
-        origin : astropy EarthLocation
-            Reference location used to compute local station coordinates (ref. RASCIL issue)
         """
         super().__init__(file_name)
         if N_station is not None:
             if N_station <= 0:
                 raise ValueError("Parameter[N_station] must be positive.")
         self._N_station = N_station
-        self._origin = origin
 
     @property
     def instrument(self):
@@ -658,24 +654,8 @@ class SKALowMeasurementSet(MeasurementSet):
                 [station_id, [0]], names=("STATION_ID", "ANTENNA_ID")
             )
             cfg = pd.DataFrame(data=station_mean, columns=("X", "Y", "Z"), index=cfg_idx)
-            #print(cfg_idx)
-            #print(cfg)
-            #import sys
-            #sys.exit(1)
 
-
-            if self._origin:
-                o = np.array([self._origin.x.value, self._origin.y.value, self._origin.z.value])
-                xyz = cfg.values - o
-                for i in range(0, xyz.shape[0]):
-                    xyz[i,:] = rascil_crd__enu_to_ecef(self._origin, xyz[i,:])
-                XYZ = instrument.InstrumentGeometry(xyz=xyz, ant_idx=cfg.index)
-                #XYZ_wrong = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
-                #print("XYZ CORRECT\n", XYZ.data[0:5,:])
-                #print("XYZ WRONG\n", XYZ_wrong.data[0:5,:])
-                #print("XYZ DIFF\n", XYZ_wrong.data[0:5,:] - XYZ.data[0:5,:])
-            else:
-                XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
+            XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
             
             self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ)
 
