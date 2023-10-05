@@ -56,7 +56,7 @@ def filter_data(S, W):
         (N_antenna, N_beam2) filtered beamforming matrix.
     """
     # Stage 1: Drop beams in S that do not appear in W
-    beam_idx1 = pd.Index(S.index[0], name="BEAM_ID")
+    beam_idx1 = S.index[0]
     beam_idx2 = W.index[1]
     beams_to_drop = beam_idx1.difference(beam_idx2)
     beams_to_keep = beam_idx1.drop(beams_to_drop)
@@ -254,30 +254,6 @@ class MeasurementSet:
             * freq (:py:class:`~astropy.units.Quantity`): center frequency of the visibility;
             * S (:py:class:`~pypeline.phased_array.data_gen.statistics.VisibilityMatrix`)
         """
-
-        # t = ct.table(self._msf, readonly=True)
-        # time = np.array(t.calc("MJD(TIME)"))
-        # ant1 = np.array(t.getcol("ANTENNA1"))
-        # ant2 = np.array(t.getcol("ANTENNA2"))
-        # dt = np.array(t.getcol(column))
-        # flag = np.array(t.getcol("FLAG"))
-
-        # utime, idx, cnt = np.unique(time, return_index=True, return_counts=True)
-
-        # if isinstance(time_id, int):
-        #     time_id = slice(time_id, time_id + 1, 1)
-        # N_time = len(time)
-        # time_start, time_stop, time_step = time_id.indices(N_time)
-
-        # utime = time[time_start: time_stop: time_step]
-
-        # for k in range(len(utime)):
-        #     start=idx[k]
-        #     end=start+cnt[k]
-        #     beam_id_0 = ant1[start:end]
-        #     beam_id_1 = ant2[start:end]
-        #     data_flag = flag[start:end]
-        #     data = dt[start:end]
         if column not in ct.taql(f"select * from {self._msf}").colnames():
             raise ValueError(f"column={column} does not exist in {self._msf}::MAIN.")
 
@@ -337,19 +313,12 @@ class MeasurementSet:
 
                 matrix[filtered_row_id_full, filtered_col_id_full] = filtered_data
                 matrix[filtered_col_id_full, filtered_row_id_full] = np.conjugate(filtered_data)
-
-                # Find the row and column indices where the entire row and column are zero
-                zero_rows = np.where(~matrix.any(axis=1))[0]
-                zero_columns = np.where(~matrix.any(axis=0))[0]
-                non_zero_index = np.where(matrix.any(axis=1))[0]
-
-                # Remove the zero rows and columns
-                v = np.delete(matrix, zero_rows, axis=0)
-                v = np.delete(v, zero_columns, axis=1)
                 
                 f = self.channels["FREQUENCY"]
                 
-                vismatrix = vis.VisibilityMatrix(v, non_zero_index)
+                beam_idx = pd.Index(beam_id, name="BEAM_ID")
+                
+                vismatrix = vis.VisibilityMatrix(matrix, beam_idx)
                 
                 yield t, f[ch], vismatrix
 
