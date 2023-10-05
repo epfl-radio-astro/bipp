@@ -132,7 +132,7 @@ BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_grid(BippNufftSynt
  * Create a nufft synthesis plan.
  *
  * @param[in] ctx Context handle.
- * @param[in] tol Target precision tolorance.
+ * @param[in] opt Options.
  * @param[in] nAntenna Number of antenna.
  * @param[in] nBeam Number of beam.
  * @param[in] nIntervals Number of intervals.
@@ -156,7 +156,7 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSy
  * Create a nufft synthesis plan.
  *
  * @param[in] ctx Context handle.
- * @param[in] tol Target precision tolorance.
+ * @param[in] opt Options.
  * @param[in] nAntenna Number of antenna.
  * @param[in] nBeam Number of beam.
  * @param[in] nIntervals Number of intervals.
