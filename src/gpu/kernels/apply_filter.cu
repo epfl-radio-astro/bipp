@@ -14,9 +14,10 @@ static __device__ auto calc_sqrt(float x) -> float { return sqrtf(x); }
 static __device__ auto calc_sqrt(double x) -> double { return sqrt(x); }
 
 template <typename T>
-__global__ void apply_filter_std_kernel(std::size_t n, T* __restrict__ out) {
+__global__ void apply_filter_std_kernel(std::size_t n, const T* __restrict__ in,
+                                        T* __restrict__ out) {
   for (std::size_t i = threadIdx.x + blockIdx.x * blockDim.x; i < n; i += gridDim.x * blockDim.x) {
-    out[i] = 1;
+    out[i] = (in[i] < 0) ? -1 : 1;
   }
 }
 
@@ -24,7 +25,8 @@ template <typename T>
 __global__ void apply_filter_sqrt_kernel(std::size_t n, const T* __restrict__ in,
                                          T* __restrict__ out) {
   for (std::size_t i = threadIdx.x + blockIdx.x * blockDim.x; i < n; i += gridDim.x * blockDim.x) {
-    out[i] = calc_sqrt(in[i]);
+    const auto value = in[i];
+    out[i] = (value < 0) ? -calc_sqrt(-value) : calc_sqrt(value);
   }
 }
 
@@ -46,7 +48,7 @@ __global__ void apply_filter_inv_sq_kernel(std::size_t n, const T* __restrict__ 
   for (std::size_t i = threadIdx.x + blockIdx.x * blockDim.x; i < n; i += gridDim.x * blockDim.x) {
     const auto value = in[i];
     if (value)
-      out[i] = static_cast<T>(1) / (value * value);
+      out[i] = (value < 0) ? static_cast<T>(-1) / (value * value) : static_cast<T>(1) / (value * value);
     else
       out[i] = 0;
   }
@@ -61,7 +63,7 @@ auto apply_filter(Queue& q, BippFilter filter, std::size_t n, const T* in, T* ou
 
   switch (filter) {
     case BIPP_FILTER_STD: {
-      api::launch_kernel(apply_filter_std_kernel<T>, grid, block, 0, q.stream(), n, out);
+      api::launch_kernel(apply_filter_std_kernel<T>, grid, block, 0, q.stream(), n, in, out);
       break;
     }
     case BIPP_FILTER_SQRT: {

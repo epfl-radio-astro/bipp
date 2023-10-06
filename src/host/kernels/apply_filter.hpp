@@ -15,13 +15,13 @@ auto apply_filter(BippFilter f, std::size_t nEig, const T* D, T* DFiltered) -> v
   switch (f) {
     case BIPP_FILTER_STD: {
       for (std::size_t i = 0; i < nEig; ++i) {
-        DFiltered[i] = 1;
+        DFiltered[i] = (D[i] < 0) ? -1 : 1;
       }
       break;
     }
     case BIPP_FILTER_SQRT: {
       for (std::size_t i = 0; i < nEig; ++i) {
-        DFiltered[i] = std::sqrt(D[i]);
+        DFiltered[i] = (D[i] < 0) ? -std::sqrt(-D[i]) : std::sqrt(D[i]);
       }
       break;
     }
@@ -39,7 +39,7 @@ auto apply_filter(BippFilter f, std::size_t nEig, const T* D, T* DFiltered) -> v
       for (std::size_t i = 0; i < nEig; ++i) {
         const auto value = D[i];
         if (value)
-          DFiltered[i] = T(1) / (value * value);
+          DFiltered[i] = (value < 0) ? T(-1) / (value * value) : T(1) / (value * value);
         else
           DFiltered[i] = 0;
       }
