@@ -652,10 +652,6 @@ class SKALowMeasurementSet(MeasurementSet):
                 [station_id, [0]], names=("STATION_ID", "ANTENNA_ID")
             )
             cfg = pd.DataFrame(data=station_mean, columns=("X", "Y", "Z"), index=cfg_idx)
-            #print(cfg_idx)
-            #print(cfg)
-            #import sys
-            #sys.exit(1)
 
 
             if self._origin:
