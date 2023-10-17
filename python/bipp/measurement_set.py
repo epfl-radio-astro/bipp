@@ -664,10 +664,6 @@ class SKALowMeasurementSet(MeasurementSet):
                 for i in range(0, xyz.shape[0]):
                     xyz[i,:] = rascil_crd__enu_to_ecef(self._origin, xyz[i,:])
                 XYZ = instrument.InstrumentGeometry(xyz=xyz, ant_idx=cfg.index)
-                #XYZ_wrong = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
-                #print("XYZ CORRECT\n", XYZ.data[0:5,:])
-                #print("XYZ WRONG\n", XYZ_wrong.data[0:5,:])
-                #print("XYZ DIFF\n", XYZ_wrong.data[0:5,:] - XYZ.data[0:5,:])
             else:
                 XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
             
