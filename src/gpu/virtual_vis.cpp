@@ -25,7 +25,7 @@ auto virtual_vis(ContextInternal& ctx, std::size_t nFilter, const BippFilter* fi
 
   const auto zero = ComplexType{0, 0};
   const auto one = ComplexType{1, 0};
-  const auto scale = ComplexType{T(1.0)/T(nz_vis), 0};
+  const auto scale = nz_vis ? ComplexType{T(1.0)/T(nz_vis), 0} : ComplexType{T(1.0), 0};
   
   Buffer<api::ComplexType<T>> VUnbeamBuffer;
   if (W) {
@@ -37,7 +37,7 @@ auto virtual_vis(ContextInternal& ctx, std::size_t nFilter, const BippFilter* fi
     V = VUnbeamBuffer.get();
     ldv = nAntenna;
   }
-  // V is alwayts of shape (nAntenna, nEig) from here on
+  // V is always of shape (nAntenna, nEig) from here on
 
   auto VMulDBuffer = queue.create_device_buffer<api::ComplexType<T>>(nEig * nAntenna);
 

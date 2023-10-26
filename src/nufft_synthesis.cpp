@@ -105,13 +105,16 @@ struct NufftSynthesisInternal {
 
     const auto start = std::chrono::high_resolution_clock::now();
 
-    // Count number of non-zero elements in visibility matrix
-    const std::complex<T> c0 = 0.0;
-    std::size_t nz_vis = nBeam_ * nBeam_;
-    for (std::size_t col = 0; col < nBeam_; ++col) {
-      for (std::size_t row = col; row < nBeam_; ++row) {
-        if (s[col * nBeam_ + row] == c0) {
-          col == row ? nz_vis -= 1 : nz_vis -= 2;
+    // Count number of non-zero elements in visibility matrix if passed
+    std::size_t nz_vis = {0};
+    if (s) {
+      const std::complex<T> c0 = 0.0;
+      nz_vis = nBeam_ * nBeam_;
+      for (std::size_t col = 0; col < nBeam_; ++col) {
+        for (std::size_t row = col; row < nBeam_; ++row) {
+          if (s[col * nBeam_ + row] == c0) {
+            col == row ? nz_vis -= 1 : nz_vis -= 2;
+          }
         }
       }
     }
