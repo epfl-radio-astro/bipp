@@ -104,7 +104,10 @@ protected:
     const auto lmnZ = read_json_scalar_1d<T>(output_data["lmn_z"]);
     const std::size_t nPixel = imgRef.size() / nIntervals;
 
-    bipp::NufftSynthesis<T> imager(ctx_, bipp::NufftSynthesisOptions(), nAntenna, nBeam, nIntervals,
+    auto opts = bipp::NufftSynthesisOptions();
+    opts.set_tolerance(tol);
+    
+    bipp::NufftSynthesis<T> imager(ctx_, opts, nAntenna, nBeam, nIntervals,
                                    1, &filter, nPixel, lmnX.data(), lmnY.data(), lmnZ.data());
 
     std::size_t nEpochs = 0;
@@ -113,7 +116,6 @@ protected:
       auto uvw = read_json_scalar_2d<ValueType>(itData["uvw"]);
       auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
       auto s = read_json_complex_2d<ValueType>(itData["s_real"], itData["s_imag"]);
-
       imager.collect(nEig, wl, intervals.data(), 2, s.data(), nBeam, w.data(), nAntenna, xyz.data(),
                      nAntenna, uvw.data(), nAntenna * nAntenna);
       ++nEpochs;
@@ -125,8 +127,7 @@ protected:
     for (std::size_t i = 0; i < img.size(); ++i) {
       // Single precision is very inaccurate due to different summation orders
       // Use twice the absolute error for single precision
-      // Note: image reference is not scaling by number of epochs
-      ASSERT_NEAR(img[i] * nEpochs, imgRef[i], 50 * (4.0 / sizeof(T)));
+      ASSERT_NEAR(img[i], imgRef[i], 0.05 * (4.0 / sizeof(T)));
     }
   }
 
@@ -147,8 +148,11 @@ protected:
     const auto lmnY = read_json_scalar_1d<T>(output_data["lmn_y"]);
     const auto lmnZ = read_json_scalar_1d<T>(output_data["lmn_z"]);
     const std::size_t nPixel = imgRef.size() / nIntervals;
-
-    bipp::NufftSynthesis<T> imager(ctx_, bipp::NufftSynthesisOptions(), nAntenna, nBeam, nIntervals,
+    
+    auto opts = bipp::NufftSynthesisOptions();
+    opts.set_tolerance(tol);
+ 
+    bipp::NufftSynthesis<T> imager(ctx_, opts, nAntenna, nBeam, nIntervals,
                                    1, &filter, nPixel, lmnX.data(), lmnY.data(), lmnZ.data());
 
     std::size_t nEpochs = 0;
@@ -168,8 +172,7 @@ protected:
     for (std::size_t i = 0; i < img.size(); ++i) {
       // Single precision is very inaccurate due to different summation orders
       // Use twice the absolute error for single precision
-      // Note: image reference is not scaling by number of epochs
-      ASSERT_NEAR(img[i] * nEpochs, imgRef[i], 0.05 * (4.0 / sizeof(T)));
+      ASSERT_NEAR(img[i], imgRef[i], 0.05 * (4.0 / sizeof(T)));
     }
   }
 
@@ -185,15 +188,12 @@ TEST_P(NufftSynthesisLofarDouble, Intensity_LSQ) { this->test_intensity(BIPP_FIL
 TEST_P(NufftSynthesisLofarSingle, Intensity_STD) { this->test_intensity(BIPP_FILTER_STD, "std"); }
 TEST_P(NufftSynthesisLofarDouble, Intensity_STD) { this->test_intensity(BIPP_FILTER_STD, "std"); }
 
-TEST_P(NufftSynthesisLofarSingle, Intensity_INV) { this->test_intensity(BIPP_FILTER_STD, "inv"); }
-TEST_P(NufftSynthesisLofarDouble, Intensity_INV) { this->test_intensity(BIPP_FILTER_STD, "inv"); }
+TEST_P(NufftSynthesisLofarSingle, Intensity_INV) { this->test_intensity(BIPP_FILTER_INV, "inv"); }
+TEST_P(NufftSynthesisLofarDouble, Intensity_INV) { this->test_intensity(BIPP_FILTER_INV, "inv"); }
 
-TEST_P(NufftSynthesisLofarSingle, Intensity_SQRT) {
-  this->test_intensity(BIPP_FILTER_SQRT, "sqrt");
-}
-TEST_P(NufftSynthesisLofarDouble, Intensity_SQRT) {
-  this->test_intensity(BIPP_FILTER_SQRT, "sqrt");
-}
+TEST_P(NufftSynthesisLofarSingle, Intensity_SQRT) { this->test_intensity(BIPP_FILTER_SQRT, "sqrt"); }
+TEST_P(NufftSynthesisLofarDouble, Intensity_SQRT) { this->test_intensity(BIPP_FILTER_SQRT, "sqrt"); }
+
 
 TEST_P(NufftSynthesisLofarSingle, Sensitivity_INV_SQ) {
   this->test_sensitivity(BIPP_FILTER_INV_SQ, "inv_sq");
@@ -227,3 +227,4 @@ INSTANTIATE_TEST_SUITE_P(Lofar, NufftSynthesisLofarSingle,
 INSTANTIATE_TEST_SUITE_P(Lofar, NufftSynthesisLofarDouble,
                          ::testing::Combine(::testing::Values(TEST_PROCESSING_UNITS)),
                          param_type_names);
+
