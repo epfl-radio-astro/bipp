@@ -1,8 +1,10 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <numeric>
+#include <functional>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
@@ -10,73 +12,63 @@
 
 namespace bipp {
 
-  template <std::size_t DIM,std::size_t N>
-  struct memory_index_helper_struct{
-    inline static auto eval(const std::array<std::size_t, DIM>& indices, const std::array<std::size_t, DIM>& shape,
-                            const std::array<std::size_t, DIM>& strides) -> std::size_t {
-      return indices[N] * strides[N] +
-             memory_index_helper_struct<DIM, N - 1>::eval(indices, shape, strides);
-    }
-  };
+namespace impl {
+template <std::size_t DIM, std::size_t N>
+struct array_index_helper {
+  inline static constexpr auto eval(const std::array<std::size_t, DIM>& indices,
+                                    const std::array<std::size_t, DIM>& strides) -> std::size_t {
+    return indices[N] * strides[N] + array_index_helper<DIM, N - 1>::eval(indices, strides);
+  }
+};
 
-  template <std::size_t DIM>
-  struct memory_index_helper_struct<DIM,0>{
-    inline static auto eval(const std::array<std::size_t, DIM>& indices, const std::array<std::size_t, DIM>& ,
-                            const std::array<std::size_t, DIM>& ) -> std::size_t {
-      return indices[0];
-    }
-  };
+template <std::size_t DIM>
+struct array_index_helper<DIM, 0> {
+  inline static constexpr auto eval(const std::array<std::size_t, DIM>& indices,
+                                    const std::array<std::size_t, DIM>&) -> std::size_t {
+    static_assert(DIM >= 1);
+    return indices[0];
+  }
+};
 
-template <typename T, std::size_t DIM>
-class ConstView {
+template <std::size_t DIM>
+struct array_index_helper<DIM, 1> {
+  inline static constexpr auto eval(const std::array<std::size_t, DIM>& indices,
+                                    const std::array<std::size_t, DIM>& strides) -> std::size_t {
+    static_assert(DIM >= 2);
+    return indices[0] + indices[1] * strides[1];
+  }
+};
+
+template <std::size_t DIM>
+struct array_index_helper<DIM, 2> {
+  inline static constexpr auto eval(const std::array<std::size_t, DIM>& indices,
+                                    const std::array<std::size_t, DIM>& strides) -> std::size_t {
+    static_assert(DIM >= 3);
+    return indices[0] + indices[1] * strides[1] + indices[2] * strides[2];
+  }
+};
+
+}  // namespace impl
+
+template <std::size_t DIM>
+inline constexpr auto array_index(const std::array<std::size_t, DIM>& indices,
+                                  const std::array<std::size_t, DIM>& strides) -> std::size_t {
+  return impl::array_index_helper<DIM, DIM - 1>::eval(indices, strides);
+}
+
+template <typename VIEW_TYPE, MemoryType MEM_TYPE, typename T, std::size_t DIM>
+class ViewBase {
 public:
   using index_type = std::array<std::size_t, DIM>;
 
-  ConstView() {
-    shape_.fill(0);
-    strides_.fill(0);
-  }
+  virtual ~ViewBase() = default;
 
-  ConstView(std::shared_ptr<Allocator> alloc, const index_type& shape)
-      : shape_(shape),
-        totalSize_(std::accumulate(shape_.begin(), shape_.end(), std::size_t(0))) {
-    if (totalSize_) {
-      auto ptr = alloc->allocate(totalSize_ * sizeof(T));
-      data_ = std::shared_ptr<void>(ptr, [alloc = std::move(alloc)](void* p) {
-        if (p) alloc->deallocate(p);
-      });
-    }
+  auto operator=(const ViewBase&) -> ViewBase& = default;
 
-    strides_[0] = 1;
-    for(std::size_t i = 1; i < DIM; ++i) {
-      strides_[i] = shape_[i-1] * strides_[i - 1];
-    }
-  }
-
-  ConstView(const T* ptr, const index_type& shape, const index_type& strides)
-      : shape_(shape),
-        strides_(strides),
-        totalSize_(std::accumulate(shape_.begin(), shape_.end(), std::size_t(0))) {
-
-
-    if(strides_[0] != 1) throw InvalidStrideError();
-    for(std::size_t i = 1; i < DIM; ++i) {
-      if (strides_[i] < shape_[i - 1] * strides_[i - 1]) throw InvalidStrideError();
-    }
-  }
-
-  ConstView(const ConstView&) = default;
-
-  ConstView(ConstView&& b) = default;
-
-  virtual ~ConstView() = default;
-
-  auto operator=(const ConstView&) -> ConstView& = default;
-
-  auto operator=(ConstView&& b) -> ConstView& = default;
+  auto operator=(ViewBase&& b) -> ViewBase& = default;
 
   inline auto operator()(const index_type& index) const -> const T& {
-    return constPtr_[memory_index(index)];
+    return constPtr_[array_index(index, strides_)];
   }
 
   inline auto get() const -> const T* { return constPtr_; }
@@ -89,56 +81,196 @@ public:
 
   inline auto has_ownership() const noexcept -> bool { return bool(data_); }
 
-protected:
-  inline auto memory_index(const index_type& indices) const -> std::size_t {
-    // return memory_index_helper<DIM-1>(indices);
-    return memory_index_helper_struct<DIM, DIM-1>::eval(indices, shape_, strides_);
+  inline auto memory_type() const -> const MemoryType { return MEM_TYPE; }
+
+  auto sub_view(const index_type& offset, const index_type& shape) -> VIEW_TYPE {
+    if (!compare_elements(offset, shape_, std::less{}) ||
+        !compare_elements(shape, shape_, std::less_equal{}))
+      throw InternalError("Sub view offset or shape out of range.");
+    return VIEW_TYPE{ViewBase(shape, strides_, data_, constPtr_ + array_index(offset, strides_))};
   }
 
-  template <std::size_t N>
-  inline auto memory_index_helper(const index_type& indices) const -> std::size_t {
-    if constexpr (N == 0) {
-      return indices[0];
-    } else {
-      return indices[N] * strides_[N] + memory_index_helper<N - 1>(indices);
+protected:
+  ViewBase() {
+    shape_.fill(0);
+    strides_.fill(0);
+  }
+
+  ViewBase(const index_type& shape, const index_type& strides, std::shared_ptr<void> data,
+           const T* constPtr)
+      : shape_(shape),
+        strides_(strides),
+        totalSize_(std::accumulate(shape_.begin(), shape_.end(), std::size_t(0))),
+        data_(std::move(data)),
+        constPtr_(constPtr) {}
+
+  ViewBase(std::shared_ptr<Allocator> alloc, const index_type& shape)
+      : shape_(shape), totalSize_(std::accumulate(shape_.begin(), shape_.end(), std::size_t(0))) {
+    if (totalSize_) {
+      auto ptr = alloc->allocate(totalSize_ * sizeof(T));
+      data_ = std::shared_ptr<void>(ptr, [alloc = std::move(alloc)](void* p) {
+        if (p) alloc->deallocate(p);
+      });
+    }
+
+    strides_[0] = 1;
+    for (std::size_t i = 1; i < DIM; ++i) {
+      strides_[i] = shape_[i - 1] * strides_[i - 1];
     }
   }
 
+  ViewBase(const T* ptr, const index_type& shape, const index_type& strides)
+      : shape_(shape),
+        strides_(strides),
+        totalSize_(std::accumulate(shape_.begin(), shape_.end(), std::size_t(0))) {
+    if (strides_[0] != 1) throw InvalidStrideError();
+    for (std::size_t i = 1; i < DIM; ++i) {
+      if (strides_[i] < shape_[i - 1] * strides_[i - 1]) throw InvalidStrideError();
+    }
+  }
 
+  ViewBase(const ViewBase&) = default;
+
+  ViewBase(ViewBase&& b) = default;
+
+  template <typename UnaryTransformOp>
+  inline auto compare_elements(const index_type& left, const index_type& right,
+                               UnaryTransformOp&& op) -> bool {
+    return std::transform_reduce(left.begin(), left.end(), right.begin(), true, std::logical_and{},
+                                 std::forward<UnaryTransformOp>(op));
+  }
+
+  template<typename SLICE_TYPE>
+  auto slice_view_impl(std::size_t outer_index) -> SLICE_TYPE {
+    if (outer_index >= shape_[DIM - 1]) throw InternalError("View slice index out of range.");
+
+    typename SLICE_TYPE::index_type sliceShape, sliceStrides;
+    std::copy(this->shape_.begin(), this->shape_.end() - 1, sliceShape.begin());
+    std::copy(this->strides_.begin(), this->strides_.end() - 1, sliceStrides.begin());
+    return SLICE_TYPE{ViewBase<SLICE_TYPE, MemoryType::Host, T, DIM - 1>{
+        sliceShape, sliceStrides, this->data_,
+        this->constPtr_ + outer_index * this->strides_[DIM - 1]}};
+  }
 
   index_type shape_;
   index_type strides_;
   std::size_t totalSize_;
   std::shared_ptr<void> data_;
-  const T* constPtr_ = nullptr;;
+  const T* constPtr_ = nullptr;
+  ;
 };
-
 
 template <typename T, std::size_t DIM>
-class View : public ConstView<T, DIM> {
+class HostView : public ViewBase<HostView<T, DIM>, MemoryType::Host, T, DIM> {
 public:
-  using index_type = typename ConstView<T, DIM>::index_type;
+  using base_type = ViewBase<HostView<T, DIM>, MemoryType::Host, T, DIM>;
+  using index_type = typename base_type::index_type;
+  using slice_type = HostView<T, DIM - 1>;
 
-  inline auto operator()(const index_type& index) const -> const T& {
-    return this->constPtr_[this->memory_index(index)];
+  HostView() : base_type(){};
+
+  HostView(std::shared_ptr<Allocator> alloc, const index_type& shape)
+      : base_type(std::move(alloc), shape){};
+
+  HostView(T* ptr, const index_type& shape, const index_type& strides)
+      : base_type(ptr, shape, strides){};
+
+  HostView(base_type&& b) : base_type(std::move(b)){};
+
+  inline auto get() const -> T* { return this->constPtr_; }
+
+  inline auto operator[](const index_type& index) const -> const T& {
+    return this->constPtr_[array_index(index, this->strides_)];
   }
 
-  inline auto operator()(const index_type& index) -> T& {
-    return const_cast<T*>(this->constPtr_)[this->memory_index(index)];
+  inline auto operator[](const index_type& index) -> T& {
+    return const_cast<T*>(this->constPtr_)[array_index(index, this->strides_)];
+  }
+
+  auto slice_view(std::size_t outer_index) -> slice_type {
+    return this->template slice_view_impl<slice_type>(outer_index);
   }
 };
 
+template <typename T, std::size_t DIM>
+class ConstHostView : public ViewBase<ConstHostView<T, DIM>, MemoryType::Host, T, DIM> {
+public:
+  using base_type = ViewBase<ConstHostView<T, DIM>, MemoryType::Host, T, DIM>;
+  using index_type = typename base_type::index_type;
+  using slice_type = ConstHostView<T, DIM - 1>;
 
-void test() {
-  const View<double, 3> v;
+  ConstHostView() : base_type(){};
 
-  ConstView<double, 3> cv(v);
+  ConstHostView(std::shared_ptr<Allocator> alloc, const index_type& shape)
+      : base_type(std::move(alloc), shape){};
 
-  auto a = v({0, 0, 0});
-  auto b = cv({0, 0, 0});
+  ConstHostView(const T* ptr, const index_type& shape, const index_type& strides)
+      : base_type(ptr, shape, strides){};
 
+  inline auto operator[](const index_type& index) const -> const T& {
+    return this->constPtr_[array_index(index, this->strides_)];
+  }
+
+  auto slice_view(std::size_t outer_index) -> slice_type {
+    return this->template slice_view_impl<slice_type>(outer_index);
+  }
+
+private:
+  friend base_type;
+
+  ConstHostView(base_type&& b) : base_type(std::move(b)){};
 };
 
+template <typename T, std::size_t DIM>
+class ConstDeviceView : public ViewBase<ConstDeviceView<T, DIM>, MemoryType::Device, T, DIM> {
+public:
+  using base_type = ViewBase<ConstDeviceView<T, DIM>, MemoryType::Device, T, DIM>;
+  using index_type = typename base_type::index_type;
+  using slice_type = ConstDeviceView<T, DIM - 1>;
 
+  ConstDeviceView() : base_type(){};
+
+  ConstDeviceView(std::shared_ptr<Allocator> alloc, const index_type& shape)
+      : base_type(std::move(alloc), shape){};
+
+  ConstDeviceView(const T* ptr, const index_type& shape, const index_type& strides)
+      : base_type(ptr, shape, strides){};
+
+  auto slice_view(std::size_t outer_index) -> slice_type {
+    return this->template slice_view_impl<slice_type>(outer_index);
+  }
+
+private:
+  friend base_type;
+
+  ConstDeviceView(base_type&& b) : base_type(std::move(b)){};
+};
+
+template <typename T, std::size_t DIM>
+class DeviceView : public ViewBase<DeviceView<T, DIM>, MemoryType::Device, T, DIM> {
+public:
+  using base_type = ViewBase<DeviceView<T, DIM>, MemoryType::Device, T, DIM>;
+  using index_type = typename base_type::index_type;
+  using slice_type = DeviceView<T, DIM - 1>;
+
+  DeviceView() : base_type(){};
+
+  DeviceView(std::shared_ptr<Allocator> alloc, const index_type& shape)
+      : base_type(std::move(alloc), shape){};
+
+  DeviceView(T* ptr, const index_type& shape, const index_type& strides)
+      : base_type(ptr, shape, strides){};
+
+  inline auto get() const -> T* { return this->constPtr_; }
+
+  auto slice_view(std::size_t outer_index) -> slice_type {
+    return this->template slice_view_impl<slice_type>(outer_index);
+  }
+
+private:
+  friend base_type;
+
+  DeviceView(base_type&& b) : base_type(std::move(b)){};
+};
 
 }  // namespace bipp

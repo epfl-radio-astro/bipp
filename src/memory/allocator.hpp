@@ -8,7 +8,7 @@
 
 namespace bipp {
 
-enum class MemoryType { Host, Device, Pinned };
+enum class MemoryType { Host, Device };
 
 class Allocator {
 public:

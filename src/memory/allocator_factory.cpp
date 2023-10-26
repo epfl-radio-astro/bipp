@@ -41,10 +41,10 @@ auto AllocatorFactory::host() -> std::unique_ptr<Allocator> {
 
 auto AllocatorFactory::pinned() -> std::unique_ptr<Allocator> {
 #ifdef BIPP_UMPIRE
-  return std::unique_ptr<Allocator>{MemoryType::Pinned, new UmpireAllocator("PINNED")};
+  return std::unique_ptr<Allocator>{MemoryType::Host, new UmpireAllocator("PINNED")};
 #else
   return std::unique_ptr<Allocator>{new PoolAllocator(
-      MemoryType::Pinned,
+      MemoryType::Host,
       [](std::size_t size) -> void* {
         void* ptr = nullptr;
         if (size) gpu::api::malloc_host(&ptr, size);
