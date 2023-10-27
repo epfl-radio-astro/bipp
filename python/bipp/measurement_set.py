@@ -343,9 +343,11 @@ class MeasurementSet:
 
             for ch_id in channel_id:
                 v = _series2array(S[ch_id].rename("S", inplace=True))
+                nz_vis = np.count_nonzero(v)
+                if nz_vis == 0:
+                    continue
                 if weight_spectrum is not None:
                     w = _series2array_w(W[ch_id].rename("W", inplace=True))
-                    nz_vis = np.count_nonzero(v)
                     v *= w / np.sum(w) * nz_vis
                 visibility = vis.VisibilityMatrix(v, beam_idx)
                 yield t, f[ch_id], visibility
