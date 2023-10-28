@@ -6,7 +6,8 @@
 #include "bipp/bipp.h"
 #include "bipp/config.h"
 #include "context_internal.hpp"
-#include "memory/buffer.hpp"
+#include "memory/view.hpp"
+#include "memory/array.hpp"
 
 namespace bipp {
 namespace host {
@@ -15,26 +16,34 @@ template <typename T>
 class StandardSynthesis {
 public:
   StandardSynthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nAntenna, std::size_t nBeam,
-                    std::size_t nIntervals, std::size_t nFilter, const BippFilter* filter,
-                    std::size_t nPixel, const T* pixelX, const T* pixelY, const T* pixelZ);
+                    std::size_t nIntervals, ConstHostView<BippFilter, 1> filter,
+                    ConstHostView<T, 1> pixelX, ConstHostView<T, 1> pixelY,
+                    ConstHostView<T, 1> pixelZ);
 
-  auto collect(std::size_t nEig, T wl, const T* intervals, std::size_t ldIntervals,
-               const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
-               const T* xyz, std::size_t ldxyz) -> void;
+  auto collect(std::size_t nEig, T wl, ConstHostView<T, 2> intervals,
+               ConstHostView<std::complex<T>, 2> s, ConstHostView<std::complex<T>, 2> w,
+               ConstHostView<T, 2> xyz) -> void;
 
-  auto get(BippFilter f, T* out, std::size_t ld) -> void;
+  auto get(BippFilter f, HostView<T, 2> out) -> void;
 
   auto context() -> ContextInternal& { return *ctx_; }
+
+  inline auto num_filter() const -> std::size_t { return nFilter_; }
+  inline auto num_pixel() const -> std::size_t { return nPixel_; }
+  inline auto num_intervals() const -> std::size_t { return nIntervals_; }
+  inline auto num_antenna() const -> std::size_t { return nAntenna_; }
+  inline auto num_beam() const -> std::size_t { return nBeam_; }
+
 
 private:
   auto computeNufft() -> void;
 
   std::shared_ptr<ContextInternal> ctx_;
-  const std::size_t nIntervals_, nFilter_, nPixel_, nAntenna_, nBeam_;
+  const std::size_t nFilter_, nPixel_, nIntervals_, nAntenna_, nBeam_;
   std::size_t count_;
-  Buffer<BippFilter> filter_;
-  Buffer<T> pixelX_, pixelY_, pixelZ_;
-  Buffer<T> img_;
+  HostArray<BippFilter, 1> filter_;
+  HostArray<T, 2> pixel_;
+  HostArray<T, 3> img_;
 };
 
 }  // namespace host

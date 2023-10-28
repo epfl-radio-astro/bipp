@@ -1,10 +1,13 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <numeric>
+#include <type_traits>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
@@ -59,6 +62,9 @@ inline constexpr auto array_index(const std::array<std::size_t, DIM>& indices,
 template <MemoryType MEM_TYPE, typename T, std::size_t DIM>
 class ViewBase {
 public:
+  static_assert(std::is_trivially_destructible_v<T>);
+  static_assert(std::is_trivially_copyable_v<T>);
+
   using index_type = std::array<std::size_t, DIM>;
 
   virtual ~ViewBase() = default;
@@ -137,43 +143,6 @@ protected:
   const T* constPtr_ = nullptr;
 };
 
-template <typename T, std::size_t DIM>
-class HostView : public ViewBase<MemoryType::Host, T, DIM> {
-public:
-  using value_type = T;
-  using base_type = ViewBase<MemoryType::Host, T, DIM>;
-  using index_type = typename base_type::index_type;
-  using slice_type = HostView<T, DIM - 1>;
-
-  HostView() : base_type(){};
-
-  HostView(T* ptr, const index_type& shape, const index_type& strides)
-      : base_type(ptr, shape, strides){};
-
-  inline auto data() -> T* { return const_cast<T*>(this->constPtr_); }
-
-  inline auto operator[](const index_type& index) const -> const T& {
-    return this->constPtr_[array_index(index, this->strides_)];
-  }
-
-  inline auto operator[](const index_type& index) -> T& {
-    return const_cast<T*>(this->constPtr_)[array_index(index, this->strides_)];
-  }
-
-  auto slice_view(std::size_t outer_index) const -> slice_type {
-    return this->template slice_view_impl<slice_type>(outer_index);
-  }
-
-  auto sub_view(const index_type& offset, const index_type& shape) const -> HostView<T, DIM> {
-    return this->template sub_view_impl<HostView<T, DIM>>(offset, shape);
-  }
-
-private:
-  friend base_type;
-  friend ViewBase<MemoryType::Host, T, DIM + 1>;
-
-  HostView(base_type&& b) : base_type(std::move(b)){};
-};
 
 template <typename T, std::size_t DIM>
 class ConstHostView : public ViewBase<MemoryType::Host, T, DIM> {
@@ -185,10 +154,6 @@ public:
 
   ConstHostView() : base_type(){};
 
-  ConstHostView(const HostView<T, DIM>& v) : base_type(static_cast<const base_type&>(v)){};
-
-  ConstHostView(HostView<T, DIM>&& v) : base_type(static_cast<base_type&&>(std::move(v))){};
-
   ConstHostView(std::shared_ptr<Allocator> alloc, const index_type& shape)
       : base_type(std::move(alloc), shape){};
 
@@ -196,6 +161,7 @@ public:
       : base_type(ptr, shape, strides){};
 
   inline auto operator[](const index_type& index) const -> const T& {
+    assert(this->template compare_elements(index, this->shape_, std::less{}));
     return this->constPtr_[array_index(index, this->strides_)];
   }
 
@@ -207,26 +173,105 @@ public:
     return this->template sub_view_impl<ConstHostView<T, DIM>>(offset, shape);
   }
 
-private:
+protected:
   friend base_type;
   friend ViewBase<MemoryType::Host, T, DIM + 1>;
 
   ConstHostView(base_type&& b) : base_type(std::move(b)){};
 };
 
-#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 template <typename T, std::size_t DIM>
-class DeviceView : public ViewBase<MemoryType::Device, T, DIM> {
+class HostView : public ConstHostView<T, DIM> {
 public:
   using value_type = T;
-  using base_type = ViewBase<DeviceView<T, DIM>, MemoryType::Device, T, DIM>;
+  using base_type = ConstHostView<T, DIM>;
+  using index_type = typename base_type::index_type;
+  using slice_type = HostView<T, DIM - 1>;
+
+  HostView() : base_type(){};
+
+  HostView(T* ptr, const index_type& shape, const index_type& strides)
+      : base_type(ptr, shape, strides){};
+
+  inline auto data() -> T* { return const_cast<T*>(this->constPtr_); }
+
+  inline auto operator[](const index_type& index) const -> const T& {
+    assert(this->template compare_elements(index, this->shape_, std::less{}));
+    return this->constPtr_[array_index(index, this->strides_)];
+  }
+
+  inline auto operator[](const index_type& index) -> T& {
+    assert(this->template compare_elements(index, this->shape_, std::less{}));
+    return const_cast<T*>(this->constPtr_)[array_index(index, this->strides_)];
+  }
+
+  auto slice_view(std::size_t outer_index) const -> slice_type {
+    return this->template slice_view_impl<slice_type>(outer_index);
+  }
+
+  auto sub_view(const index_type& offset, const index_type& shape) const -> HostView<T, DIM> {
+    return this->template sub_view_impl<HostView<T, DIM>>(offset, shape);
+  }
+
+  auto zero() -> void {
+    if (this->totalSize_) {
+      if constexpr (DIM <= 1) {
+        std::memset(this->data(), 0, this->shape_[0] * sizeof(T));
+      } else {
+        for (std::size_t i = 0; i < this->shape_[DIM - 1]; ++i) this->slice_view(i).zero();
+      }
+    }
+  }
+
+protected:
+  friend ViewBase<MemoryType::Host, T, DIM>;
+  friend ViewBase<MemoryType::Host, T, DIM + 1>;
+
+  HostView(base_type&& b) : base_type(std::move(b)){};
+};
+
+#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+
+template <typename T, std::size_t DIM>
+class ConstDeviceView : public ViewBase<MemoryType::Device, T, DIM> {
+public:
+  using value_type = T;
+  using base_type = ViewBase<MemoryType::Device, T, DIM>;
+  using index_type = typename base_type::index_type;
+  using slice_type = ConstDeviceView<T, DIM - 1>;
+
+  ConstDeviceView() : base_type(){};
+
+  ConstDeviceView(std::shared_ptr<Allocator> alloc, const index_type& shape)
+      : base_type(std::move(alloc), shape){};
+
+  ConstDeviceView(const T* ptr, const index_type& shape, const index_type& strides)
+      : base_type(ptr, shape, strides){};
+
+  auto slice_view(std::size_t outer_index) const -> slice_type {
+    return this->template slice_view_impl<slice_type>(outer_index);
+  }
+
+  auto sub_view(const index_type& offset, const index_type& shape) const -> ConstDeviceView<T, DIM> {
+    return this->template sub_view_impl<ConstDeviceView<T, DIM>>(offset, shape);
+  }
+
+protected:
+  friend base_type;
+  friend ViewBase<MemoryType::Device, T, DIM + 1>;
+
+  ConstDeviceView(base_type&& b) : base_type(std::move(b)){};
+};
+
+template <typename T, std::size_t DIM>
+class DeviceView : public ConstDeviceView<T, DIM> {
+public:
+  using value_type = T;
+  using base_type = ConstDeviceView<T, DIM>;
   using index_type = typename base_type::index_type;
   using slice_type = DeviceView<T, DIM - 1>;
 
   DeviceView() : base_type(){};
-
-  DeviceView(std::shared_ptr<Allocator> alloc, const index_type& shape)
-      : base_type(std::move(alloc), shape){};
 
   DeviceView(T* ptr, const index_type& shape, const index_type& strides)
       : base_type(ptr, shape, strides){};
@@ -241,48 +286,14 @@ public:
     return this->template sub_view_impl<DeviceView<T, DIM>>(offset, shape);
   }
 
-private:
-  friend base_type;
+protected:
+  friend ViewBase<MemoryType::Device, T, DIM>;
   friend ViewBase<MemoryType::Device, T, DIM + 1>;
 
   DeviceView(base_type&& b) : base_type(std::move(b)){};
 };
 
-template <typename T, std::size_t DIM>
-class ConstDeviceView : public ViewBase<MemoryType::Device, T, DIM> {
-public:
-  using value_type = T;
-  using base_type = ViewBase<ConstDeviceView<T, DIM>, MemoryType::Device, T, DIM>;
-  using index_type = typename base_type::index_type;
-  using slice_type = ConstDeviceView<T, DIM - 1>;
 
-  ConstDeviceView() : base_type(){};
-
-  ConstDeviceView(const DeviceView<T, DIM>& v) : base_type(static_cast<const base_type&>(v)){};
-
-  ConstDeviceView(DeviceView<T, DIM>&& v) : base_type(static_cast<base_type&&>(std::move(v))){};
-
-  ConstDeviceView(std::shared_ptr<Allocator> alloc, const index_type& shape)
-      : base_type(std::move(alloc), shape){};
-
-  ConstDeviceView(const T* ptr, const index_type& shape, const index_type& strides)
-      : base_type(ptr, shape, strides){};
-
-  auto slice_view(std::size_t outer_index) const -> slice_type {
-    return this->template slice_view_impl<slice_type>(outer_index);
-  }
-
-  auto sub_view(const index_type& offset, const index_type& shape) const
-      -> ConstDeviceView<T, DIM> {
-    return this->template sub_view_impl<ConstDeviceView<T, DIM>>(offset, shape);
-  }
-
-private:
-  friend base_type;
-  friend ViewBase<MemoryType::Device, T, DIM + 1>;
-
-  ConstDeviceView(base_type&& b) : base_type(std::move(b)){};
-};
 #endif
 
 }  // namespace bipp

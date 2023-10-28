@@ -15,46 +15,43 @@
 #include "host/blas_api.hpp"
 #include "host/lapack_api.hpp"
 #include "memory/allocator.hpp"
-#include "memory/buffer.hpp"
+#include "memory/array.hpp"
+#include "memory/copy.hpp"
 
 namespace bipp {
 namespace host {
 
 template <typename T>
-static auto copy_lower_triangle_at_indices(std::size_t m, const std::vector<std::size_t>& indices,
-                                           const T* a, std::size_t lda, T* b, std::size_t ldb) {
+static auto copy_lower_triangle_at_indices(const std::vector<std::size_t>& indices,
+                                           const ConstHostView<T, 2>& a, HostView<T, 2> b) {
   const std::size_t mReduced = indices.size();
-  if (mReduced == m) {
-    for (std::size_t col = 0; col < mReduced; ++col) {
-      std::memcpy(b + col * ldb + col, a + col * lda + col, (mReduced - col) * sizeof(T));
-    }
+  if (mReduced == a.shape()[0]) {
+    copy(a, b);
   } else {
     for (std::size_t col = 0; col < mReduced; ++col) {
       const auto colIdx = indices[col];
+      auto bCol = b.slice_view(col);
+      auto aCol = a.slice_view(colIdx);
       for (std::size_t row = col; row < mReduced; ++row) {
         const auto rowIdx = indices[row];
-        b[col * mReduced + row] = a[colIdx * lda + rowIdx];
+        bCol[{row}] = aCol[{rowIdx}];
       }
     }
   }
 }
 
 template <typename T>
-auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::complex<T>* a,
-          std::size_t lda, const std::complex<T>* b, std::size_t ldb, T* d, std::complex<T>* v,
-          std::size_t ldv) -> void {
-  auto bufferA = Buffer<std::complex<T>>(ctx.host_alloc(), m * m);
-  auto bufferV = Buffer<std::complex<T>>(ctx.host_alloc(), m * m);
-  auto bufferD = Buffer<T>(ctx.host_alloc(), m);
-  auto bufferIfail = Buffer<int>(ctx.host_alloc(), m);
-  std::complex<T>* aReduced = bufferA.get();
+auto eigh(ContextInternal& ctx, std::size_t nEig, const ConstHostView<std::complex<T>, 2>& a,
+          const ConstHostView<std::complex<T>, 2>& b, HostView<T, 1> d,
+          HostView<std::complex<T>, 2> v) -> void {
+  const auto m = a.shape()[0];
 
   std::vector<short> nonZeroIndexFlag(m, 0);
 
   // flag working coloumns / rows
-  for (std::size_t col = 0; col < m; ++col) {
-    for (std::size_t row = col; row < m; ++row) {
-      const auto val =  a[col * lda + row];
+  for (std::size_t col = 0; col < a.shape()[1]; ++col) {
+    for (std::size_t row = col; row < a.shape()[0]; ++row) {
+      const auto val = a[{row, col}];
       if (val.real() != 0 || val.imag() != 0) {
         nonZeroIndexFlag[col] |= 1;
         nonZeroIndexFlag[row] |= 1;
@@ -72,73 +69,67 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
 
   ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} coloumns / rows", m - mReduced);
 
+  HostArray<std::complex<T>, 2> aReduced(ctx.host_alloc(), {mReduced, mReduced});
+  HostArray<std::complex<T>, 2> vBuffer(ctx.host_alloc(), {mReduced, mReduced});
+  HostArray<T, 1> dBuffer(ctx.host_alloc(), {mReduced});
+  HostArray<int, 1> bufferIfail(ctx.host_alloc(), {mReduced});
+
   // copy lower triangle into buffer
-  copy_lower_triangle_at_indices(m, indices, a, lda, aReduced, mReduced);
+  copy_lower_triangle_at_indices(indices, a, aReduced);
 
   const auto firstEigIndexFortran = mReduced - std::min(mReduced, nEig) + 1;
 
   int hMeig = 0;
-  if (b) {
-    auto bufferB = Buffer<std::complex<T>>(ctx.host_alloc(), m * m);
-    std::complex<T>* bReduced = bufferB.get();
+  if (b.size()) {
+    HostArray<std::complex<T>, 2> bReduced(ctx.host_alloc(), {mReduced, mReduced});
+    copy_lower_triangle_at_indices(indices, b, bReduced);
 
-    copy_lower_triangle_at_indices(m, indices, b, ldb, bReduced, mReduced);
-
-    if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, 'V', 'I', 'L', mReduced, aReduced, mReduced,
-                           bReduced, mReduced, 0, 0, firstEigIndexFortran, mReduced,
-                           &hMeig, bufferD.get(), bufferV.get(), mReduced, bufferIfail.get())) {
+    if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, 'V', 'I', 'L', mReduced, aReduced.data(),
+                           aReduced.strides()[1], bReduced.data(), bReduced.strides()[1], 0, 0,
+                           firstEigIndexFortran, mReduced, &hMeig, dBuffer.data(), vBuffer.data(),
+                           vBuffer.strides()[1], bufferIfail.data())) {
       throw EigensolverError();
     }
   } else {
-    if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 'V', 'I', 'L', mReduced, aReduced, mReduced, 0,
-                           0, firstEigIndexFortran, mReduced, &hMeig, bufferD.get(),
-                           bufferV.get(), mReduced, bufferIfail.get())) {
+    if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 'V', 'I', 'L', mReduced, aReduced.data(),
+                           aReduced.strides()[1], 0, 0, firstEigIndexFortran, mReduced, &hMeig,
+                           dBuffer.data(), vBuffer.data(), vBuffer.strides()[1],
+                           bufferIfail.data())) {
       throw EigensolverError();
     }
   }
 
   const auto nEigOut = std::min<std::size_t>(hMeig, nEig);
 
-  auto bufferPtrD = bufferD.get();
-  auto bufferPtrV = bufferV.get();
+  d.zero();
+  v.zero();
 
-  std::memset(d, 0, nEig * sizeof(T));
-  for (std::size_t col = 0; col < nEig; ++col) {
-    std::memset(v + col * ldv, 0, m * sizeof(std::complex<T>));
-  }
-
-
-  // copy in reverse order into output and pad to full size
-  for (std::size_t col = 0; col < nEigOut; ++col) {
-    d[col] = bufferPtrD[col + hMeig - nEigOut];
-  }
+  copy(dBuffer.sub_view({hMeig - nEigOut}, {nEigOut}), d.sub_view({0}, {nEigOut}));
 
   if (mReduced == m) {
-  for (std::size_t col = 0; col < nEigOut; ++col) {
-    std::memcpy(v + col * ldv, bufferPtrV + (col + hMeig - nEigOut) * m,
-                m * sizeof(std::complex<T>));
-    }
+    copy(vBuffer.sub_view({0, hMeig - nEigOut}, {m, nEigOut}), v.sub_view({0, 0}, {m, nEigOut}));
   } else {
     for (std::size_t col = 0; col < nEigOut; ++col) {
-      const auto colPtr = bufferPtrV + (col + hMeig - nEigOut) * mReduced;
+      auto sourceCol = vBuffer.slice_view(col + hMeig - nEigOut);
       for (std::size_t row = 0; row < mReduced; ++row) {
-        v[col * ldv + indices[row]] = colPtr[row];
+        v[{col, indices[row]}] = sourceCol[{row}];
       }
     }
   }
 
-  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", nEig, 1, d, nEig);
-  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", m, nEig, v, m);
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", d);
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", v);
 }
 
-template auto eigh<float>(ContextInternal& ctx, std::size_t m, std::size_t nEig,
-                          const std::complex<float>* a, std::size_t lda,
-                          const std::complex<float>* b, std::size_t ldb, float* d,
-                          std::complex<float>* v, std::size_t ldv) -> void;
+template auto eigh<float>(ContextInternal& ctx, std::size_t nEig,
+                          const ConstHostView<std::complex<float>, 2>& a,
+                          const ConstHostView<std::complex<float>, 2>& b, HostView<float, 1> d,
+                          HostView<std::complex<float>, 2> v) -> void;
 
-template auto eigh<double>(ContextInternal& ctx, std::size_t m, std::size_t nEig,
-                           const std::complex<double>* a, std::size_t lda,
-                           const std::complex<double>* b, std::size_t ldb, double* d,
-                           std::complex<double>* v, std::size_t ldv) -> void;
+template auto eigh<double>(ContextInternal& ctx, std::size_t nEig,
+                           const ConstHostView<std::complex<double>, 2>& a,
+                           const ConstHostView<std::complex<double>, 2>& b, HostView<double, 1> d,
+                           HostView<std::complex<double>, 2> v) -> void;
+
 }  // namespace host
 }  // namespace bipp

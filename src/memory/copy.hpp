@@ -24,9 +24,4 @@ inline auto copy(const ConstHostView<T, DIM>& source, HostView<T, DIM> dest) {
   }
 }
 
-template <typename T, std::size_t DIM>
-inline auto copy(const HostView<T, DIM>& source, HostView<T, DIM> dest) {
-  copy<T, DIM>(ConstHostView<T, DIM>(source), std::move(dest));
-}
-
 }  // namespace bipp

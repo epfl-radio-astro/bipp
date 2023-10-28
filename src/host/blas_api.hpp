@@ -1,9 +1,12 @@
 #pragma once
 
 #include <complex>
+#include <cassert>
 
 #include "bipp/bipp.h"
 #include "bipp/config.h"
+#include "memory/view.hpp"
+
 extern "C" {
 
 typedef enum CBLAS_LAYOUT { CblasRowMajor = 101, CblasColMajor = 102 } CBLAS_LAYOUT;
@@ -177,6 +180,22 @@ inline auto gemm(CBLAS_LAYOUT order, CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE tra
 #endif
 }
 
+template <typename T>
+auto gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB, T alpha, ConstHostView<T, 2> a,
+          ConstHostView<T, 2> b, T beta, HostView<T, 2> c) {
+  const auto m = transA == CblasNoTrans ? a.shape()[0] : a.shape()[1];
+  const auto n = transB == CblasNoTrans ? b.shape()[1] : b.shape()[0];
+  const auto k = transA == CblasNoTrans ? a.shape()[1] : a.shape()[0];
+
+  assert(c.shape()[0] == m);
+  assert(c.shape()[1] == n);
+  assert(!(b.shape()[0] != k && transB == CblasNoTrans));
+  assert(!(b.shape()[1] != k && transB != CblasNoTrans));
+
+  gemm(CblasColMajor, transA, transB, m, n, k, alpha, a.data(), a.strides()[1], b.data(),
+       b.strides()[1], beta, c.data(), c.strides()[1]);
+}
+
 inline auto symm(const CBLAS_LAYOUT layout, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo,
                  const int M, const int N, const float alpha, const float* A, const int lda,
                  const float* B, const int ldb, const float beta, float* C, const int ldc) -> void {
@@ -261,6 +280,15 @@ inline auto axpy(const int n, const std::complex<double> a, const std::complex<d
   zaxpy_(&n, &a, x, &incx, y, &incy);
 #endif
 }
+
+template <typename T>
+auto axpy(std::complex<double> a, ConstHostView<std::complex<double>,1> x,
+                  HostView<std::complex<double>,1> y) {
+  assert(x.size() == y.size());
+
+  axpy(x.size(), a, x.data(), x.strides()[0], y.data(), y.strides()[0]);
+}
+
 
 }  // namespace blas
 }  // namespace host

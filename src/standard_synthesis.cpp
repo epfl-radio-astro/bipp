@@ -36,8 +36,10 @@ struct StandardSynthesisInternal {
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "lmnZ", nPixel_, 1, pixelZ, nPixel_);
 
     if (ctx_->processing_unit() == BIPP_PU_CPU) {
-      planHost_.emplace(ctx_, nAntenna, nBeam, nIntervals, nFilter, filter, nPixel, pixelX, pixelY,
-                        pixelZ);
+      planHost_.emplace(
+          ctx_, nAntenna, nBeam, nIntervals, ConstHostView<BippFilter, 1>(filter, {nFilter}, {1}),
+          ConstHostView<T, 1>(pixelX, {nPixel}, {1}), ConstHostView<T, 1>(pixelY, {nPixel}, {1}),
+          ConstHostView<T, 1>(pixelZ, {nPixel}, {1}));
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       auto& queue = ctx_->gpu_queue();
@@ -93,7 +95,7 @@ struct StandardSynthesisInternal {
                const T* xyz, std::size_t ldxyz) {
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "------------");
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
-                       "{} NufftSynthesis.collect({}, {}, {}, {}, {} ,{} ,{} {}, {}, {})",
+                       "{} StandardSynthesis.collect({}, {}, {}, {}, {} ,{} ,{} {}, {}, {})",
                        (const void*)this, nEig, wl, (const void*)intervals, ldIntervals,
                        (const void*)s, lds, (const void*)w, ldw, (const void*)xyz, ldxyz);
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "intervals", 2, nIntervals_, intervals, ldIntervals);
@@ -104,7 +106,12 @@ struct StandardSynthesisInternal {
     const auto start = std::chrono::high_resolution_clock::now();
 
     if (planHost_) {
-      planHost_.value().collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz);
+      auto& p = planHost_.value();
+      p.collect(nEig, wl, ConstHostView<T, 2>(intervals, {2, p.num_intervals()}, {1, ldIntervals}),
+                s ? ConstHostView<std::complex<T>, 2>(s, {p.num_beam(), p.num_beam()}, {1, lds})
+                  : ConstHostView<std::complex<T>, 2>{},
+                ConstHostView<std::complex<T>, 2>(w, {p.num_antenna(), p.num_beam()}, {1, ldw}),
+                ConstHostView<T, 2>(xyz, {p.num_antenna(), 3}, {1, ldxyz}));
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       auto& queue = ctx_->gpu_queue();
@@ -177,7 +184,8 @@ struct StandardSynthesisInternal {
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "{} StandardSynthesis.get({}, {}, {})",
                        (const void*)this, (int)f, (const void*)img, ld);
     if (planHost_) {
-      planHost_.value().get(f, img, ld);
+      auto& p = planHost_.value();
+      p.get(f, HostView<T, 2>(img,{p.num_pixel(), p.num_intervals()}, {1, ld}));
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       planGPU_->get(f, img, ld);

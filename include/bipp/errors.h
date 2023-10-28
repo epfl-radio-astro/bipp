@@ -24,10 +24,6 @@ enum BippError {
    */
   BIPP_INVALID_POINTER_ERROR,
   /**
-   * Invalid stride error.
-   */
-  BIPP_INVALID_STRIDE_ERROR,
-  /**
    * Invalid handle error.
    */
   BIPP_INVALID_HANDLE_ERROR,

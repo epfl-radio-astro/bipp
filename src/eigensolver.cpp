@@ -11,6 +11,7 @@
 #include "bipp/config.h"
 #include "bipp/context.hpp"
 #include "context_internal.hpp"
+#include "memory/view.hpp"
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/eigensolver.hpp"
@@ -95,7 +96,10 @@ BIPP_EXPORT auto eigh(Context& ctx, std::size_t m, std::size_t nEig, const std::
     throw GPUSupportError();
 #endif
   } else {
-    host::eigh<T>(ctxInternal, m, nEig, a, lda, b, ldb, d, v, ldv);
+    host::eigh<T>(ctxInternal, nEig, ConstHostView<std::complex<T>, 2>(a, {m, m}, {1, lda}),
+                  ConstHostView<std::complex<T>, 2>(b, {m, m}, {1, ldb}),
+                  HostView<T, 1>(d, {nEig}, {1}),
+                  HostView<std::complex<T>, 2>(v, {m, nEig}, {1, ldv}));
   }
   *nEigOut = nEig;
 }

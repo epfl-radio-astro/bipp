@@ -3,11 +3,12 @@
 #include <any>
 #include <complex>
 #include <cstddef>
-#include <string>
 #include <memory>
+#include <string>
 
 #include "bipp/bipp.h"
 #include "bipp/config.h"
+#include "memory/view.hpp"
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/util/runtime_api.hpp"
@@ -43,6 +44,19 @@ public:
                    const std::complex<float>* array, std::size_t ld) -> void;
    auto log_matrix(BippLogLevel level, const std::string_view& s, std::size_t m, std::size_t n,
                    const std::complex<double>* array, std::size_t ld) -> void;
+
+   template <typename T>
+   inline auto log_matrix(BippLogLevel level, const std::string_view& s,
+                          ConstHostView<T, 2> array) {
+     this->log_matrix(level, s, array.shape()[0], array.shape()[1], array.data(),
+                      array.strides()[1]);
+   }
+
+   template <typename T>
+   inline auto log_matrix(BippLogLevel level, const std::string_view& s,
+                          ConstHostView<T, 1> array) {
+     this->log_matrix(level, s, array.shape()[0], 1, array.data(), array.shape()[0]);
+   }
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
    inline auto log_matrix(BippLogLevel level, const std::string_view& s, std::size_t m, std::size_t n,
