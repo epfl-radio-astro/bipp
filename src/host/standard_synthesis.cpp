@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <complex>
 #include <limits>
+#include <cassert>
 
 #include "bipp/bipp.h"
 #include "bipp/config.h"
@@ -36,7 +37,7 @@ StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, st
                                         std::size_t nBeam, std::size_t nIntervals,
                                         std::size_t nFilter, const BippFilter* filter,
                                         std::size_t nPixel, const T* pixelX, const T* pixelY,
-                                        const T* pixelZ)
+                                        const T* pixelZ, const bool filter_negative_eigenvalues)
     : ctx_(std::move(ctx)),
       nIntervals_(nIntervals),
       nFilter_(nFilter),
@@ -74,11 +75,8 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals,
   center_vector(nAntenna_, xyz + ldxyz, xyzCentered.get() + nAntenna_);
   center_vector(nAntenna_, xyz + 2 * ldxyz, xyzCentered.get() + 2 * nAntenna_);
 
-  {
-    auto g = Buffer<std::complex<T>>(ctx_->host_alloc(), nBeam_ * nBeam_);
 
-    gram_matrix<T>(*ctx_, nAntenna_, nBeam_, w, ldw, xyzCentered.get(), nAntenna_, wl, g.get(),
-                   nBeam_);
+  auto g = Buffer<std::complex<T>>(ctx_->host_alloc(), nBeam_ * nBeam_);
 
     // Note different order of s and g input
     if (s)

@@ -31,7 +31,7 @@ auto virtual_vis(ContextInternal& ctx, std::size_t nFilter, const BippFilter* fi
     V = VUnbeamBuffer.get();
     ldv = nAntenna;
   }
-  // V is alwayts of shape (nAntenna, nEig) from here on
+  // V is always of shape (nAntenna, nEig) from here on
 
   auto VMulDBuffer = Buffer<std::complex<T>>(ctx.host_alloc(), nEig * nAntenna);
 
@@ -55,6 +55,7 @@ auto virtual_vis(ContextInternal& ctx, std::size_t nFilter, const BippFilter* fi
           ctx.logger().log(
               BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
               D[start + k], DVal, intervals[j * ldIntervals], intervals[j * ldIntervals + 1]);
+          // Handle sensitivity case where nz_vis is zero
           for (std::size_t l = 0; l < nAntenna; ++l) {
             VMulD[l] = VSelect[l] * DVal;
           }

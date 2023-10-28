@@ -17,16 +17,12 @@ import astropy.units as u
 import casacore.tables as ct
 import numpy as np
 import pandas as pd
-import scipy.sparse as sparse
-import bipp.imot_tools.util.argcheck as chk
+
 import bipp.beamforming as beamforming
 import bipp.instrument as instrument
 import bipp.statistics as vis
 
 
-@chk.check(
-    dict(S=chk.is_instance(vis.VisibilityMatrix), W=chk.is_instance(beamforming.BeamWeights))
-)
 def filter_data(S, W):
     """
     Fix mis-matches to make data streams compatible.
@@ -68,13 +64,8 @@ def filter_data(S, W):
     broken_beam_idx = beam_idx2[np.isclose(np.sum(S_f.data, axis=1), 0)]
     mask = np.any(beam_idx2.values.reshape(-1, 1) == broken_beam_idx.values.reshape(1, -1), axis=1)
 
-    if np.any(mask) and sparse.isspmatrix(W.data):
-        w_lil = W.data.tolil()  # for efficiency
-        w_lil[:, mask] = 0
-        w_f = w_lil.tocsr()
-    else:
-        w_f = W.data.copy()
-        w_f[:, mask] = 0
+    w_f = W.data.copy()
+    w_f[:, mask] = 0
     W_f = beamforming.BeamWeights(data=w_f, ant_idx=W.index[0], beam_idx=beam_idx2)
 
     return S_f, W_f
@@ -89,7 +80,6 @@ class MeasurementSet:
     Focus is given to reading MS files from phased-arrays for the moment (i.e, not dish arrays).
     """
 
-    @chk.check("file_name", chk.is_instance(str))
     def __init__(self, file_name):
         """
         Parameters
@@ -197,6 +187,27 @@ class MeasurementSet:
             self._time = tb.QTable(dict(TIME_ID=t_id, TIME=t))
 
         return self._time
+    
+    @property
+    def uvw(self, mirror_uvw=True):
+        """
+        UVW coverage acquisition.
+
+        Returns
+        -------
+        :py:class:`~astropy.table.QTable`
+            (N_time, N_antenna, 3) UVW per timestep per antenna
+
+            * UVW : float
+        """
+
+        tab = ct.table(self._msf, ack=False, readonly=True)
+        UVW = tab.getcol('UVW')
+        UVW_time = UVW.reshape(len(self._time), UVW.shape[0]//len(self._time), 3)
+        if(mirror_uvw):
+            UVW_time = np.hstack((UVW_time, -UVW_time))
+
+        return UVW_time
 
     @property
     def instrument(self):
@@ -221,13 +232,6 @@ class MeasurementSet:
         """
         raise NotImplementedError
 
-    @chk.check(
-        dict(
-            channel_id=chk.accept_any(chk.has_integers, chk.is_instance(slice)),
-            time_id=chk.accept_any(chk.is_integer, chk.is_instance(slice)),
-            column=chk.is_instance(str),
-        )
-    )
     def visibilities(self, channel_id, time_id, column):
         """
         Extract visibility matrices.
@@ -257,7 +261,7 @@ class MeasurementSet:
             raise ValueError(f"column={column} does not exist in {self._msf}::MAIN.")
 
         channel_id = self.channels["CHANNEL_ID"][channel_id]
-        if chk.is_integer(time_id):
+        if isinstance(time_id, int):
             time_id = slice(time_id, time_id + 1, 1)
         N_time = len(self.time)
         time_start, time_stop, time_step = time_id.indices(N_time)
@@ -362,13 +366,6 @@ class LofarMeasurementSet(MeasurementSet):
     LOw-Frequency ARray (LOFAR) Measurement Set reader.
     """
 
-    @chk.check(
-        dict(
-            file_name=chk.is_instance(str),
-            N_station=chk.allow_None(chk.is_integer),
-            station_only=chk.is_boolean,
-        )
-    )
     def __init__(self, file_name, N_station=None, station_only=False):
         """
         Parameters
@@ -431,9 +428,8 @@ class LofarMeasurementSet(MeasurementSet):
             cfg_idx = pd.MultiIndex.from_product(
                 [station_id, range(N_antenna)], names=("STATION_ID", "ANTENNA_ID")
             )
-            cfg = pd.DataFrame(data=antenna_xyz, columns=("X", "Y", "Z"), index=cfg_idx).loc[
-                ~antenna_flag
-            ]
+
+            cfg = pd.DataFrame(data=antenna_xyz, columns=("X", "Y", "Z"), index=cfg_idx).loc[~antenna_flag]
 
             # If in `station_only` mode, return centroid of each station only.
             # Why do we not just use `station_mean` above? Because it arbitrarily
@@ -479,7 +475,6 @@ class MwaMeasurementSet(MeasurementSet):
     Murchison Widefield Array (MWA) Measurement Set reader.
     """
 
-    @chk.check("file_name", chk.is_instance(str))
     def __init__(self, file_name):
         """
         Parameters

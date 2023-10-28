@@ -150,7 +150,8 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSy
                                                     size_t nIntervals, size_t nFilter,
                                                     const BippFilter* filter, size_t nPixel,
                                                     const float* lmnX, const float* lmnY,
-                                                    const float* lmnZ, BippNufftSynthesisF* plan);
+                                                    const float* lmnZ, BippNufftSynthesisF* plan,
+                                                    const bool filter_negative_eigenvalues);
 
 /**
  * Create a nufft synthesis plan.
@@ -174,7 +175,8 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, BippNufftSynt
                                                   size_t nFilter, const BippFilter* filter,
                                                   size_t nPixel, const double* lmnX,
                                                   const double* lmnY, const double* lmnZ,
-                                                  BippNufftSynthesis* plan);
+                                                  BippNufftSynthesis* plan,
+                                                  const bool filter_negative_eigenvalues);
 
 /**
  * Destroy a nufft synthesis plan.
@@ -285,7 +287,8 @@ BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t n
                                                        size_t nFilter, const BippFilter* filter,
                                                        size_t nPixel, const float* lmnX,
                                                        const float* lmnY, const float* lmnZ,
-                                                       BippStandardSynthesisF* plan);
+                                                       BippStandardSynthesisF* plan,
+                                                       const bool filter_negative_eigenvalues);
 
 /**
  * Create a standard synthesis plan.
@@ -308,7 +311,8 @@ BIPP_EXPORT BippError bipp_standard_synthesis_create(BippContext ctx, size_t nAn
                                                      const BippFilter* filter, size_t nPixel,
                                                      const double* lmnX, const double* lmnY,
                                                      const double* lmnZ,
-                                                     BippStandardSynthesis* plan);
+                                                     BippStandardSynthesis* plan,
+                                                     const bool filter_negative_eigenvalues);
 
 /**
  * Destroy a standard synthesis plan.

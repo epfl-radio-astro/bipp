@@ -4,6 +4,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <cassert>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
@@ -26,7 +27,8 @@ template <typename T>
 NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
                                   std::size_t nAntenna, std::size_t nBeam, std::size_t nIntervals,
                                   std::size_t nFilter, const BippFilter* filterHost,
-                                  std::size_t nPixel, const T* lmnX, const T* lmnY, const T* lmnZ)
+                                  std::size_t nPixel, const T* lmnX, const T* lmnY, const T* lmnZ,
+                                  const bool filter_negative_eigenvalues)
     : ctx_(std::move(ctx)),
       opt_(std::move(opt)),
       nIntervals_(nIntervals),
@@ -109,10 +111,13 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals, std:
   auto v = queue.create_device_buffer<api::ComplexType<T>>(nBeam_ * nEig);
   auto d = queue.create_device_buffer<T>(nEig);
 
-  {
-    auto g = queue.create_device_buffer<api::ComplexType<T>>(nBeam_ * nBeam_);
+  auto g = queue.create_device_buffer<api::ComplexType<T>>(nBeam_ * nBeam_);
+  
+  gram_matrix<T>(*ctx_, nAntenna_, nBeam_, w, ldw, xyz, ldxyz, wl, g.get(), nBeam_);
+  
+  std::size_t nEigOut = 0;
 
-    gram_matrix<T>(*ctx_, nAntenna_, nBeam_, w, ldw, xyz, ldxyz, wl, g.get(), nBeam_);
+  char range = filter_negative_eigenvalues_ ? 'V' : 'A';
 
     std::size_t nEigOut = 0;
     // Note different order of s and g input
@@ -128,7 +133,6 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals, std:
               d.get(), nAntenna_, v.get(), nBeam_, nBeam_, w, ldw, virtVisPtr,
               nMaxInputCount_ * nIntervals_ * nAntenna_ * nAntenna_,
               nMaxInputCount_ * nAntenna_ * nAntenna_, nAntenna_, nz_vis);
-
   ++collectCount_;
   ++totalCollectCount_;
   ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "collect count: {} / {}", collectCount_, nMaxInputCount_);

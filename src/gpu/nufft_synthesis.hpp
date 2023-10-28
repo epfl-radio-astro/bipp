@@ -16,7 +16,8 @@ public:
   NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
                  std::size_t nAntenna, std::size_t nBeam, std::size_t nIntervals,
                  std::size_t nFilter, const BippFilter* filterHost, std::size_t nPixel,
-                 const T* lmnX, const T* lmnY, const T* lmnZ);
+                 const T* lmnX, const T* lmnY, const T* lmnZ,
+                 const bool filter_negative_eigenvalues);
 
   auto collect(std::size_t nEig, T wl, const T* intervals, std::size_t ldIntervals,
                const api::ComplexType<T>* s, std::size_t lds, const api::ComplexType<T>* w,

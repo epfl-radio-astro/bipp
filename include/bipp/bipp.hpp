@@ -56,7 +56,7 @@ BIPP_EXPORT auto gram_matrix(Context& ctx, std::size_t m, std::size_t n, const s
 template <typename T,
           typename = std::enable_if_t<std::is_same_v<T, double> || std::is_same_v<T, float>>>
 BIPP_EXPORT auto eigh(Context& ctx, std::size_t m, std::size_t nEig, const std::complex<T>* a,
-                      std::size_t lda, const std::complex<T>* b, std::size_t ldb,
+                      std::size_t lda, const std::complex<T>* b, std::size_t ldb, const char range,
                       std::size_t* nEigOut, T* d, std::complex<T>* v, std::size_t ldv) -> void;
 
 /*! \cond PRIVATE */

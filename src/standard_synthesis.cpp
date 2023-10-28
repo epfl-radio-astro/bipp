@@ -22,8 +22,9 @@ struct StandardSynthesisInternal {
   StandardSynthesisInternal(const std::shared_ptr<ContextInternal>& ctx, std::size_t nAntenna,
                             std::size_t nBeam, std::size_t nIntervals, std::size_t nFilter,
                             const BippFilter* filter, std::size_t nPixel, const T* pixelX,
-                            const T* pixelY, const T* pixelZ)
-      : ctx_(ctx), nAntenna_(nAntenna), nBeam_(nBeam), nIntervals_(nIntervals), nPixel_(nPixel) {
+                            const T* pixelY, const T* pixelZ, const bool filter_negative_eigenvalues)
+      : ctx_(ctx), nAntenna_(nAntenna), nBeam_(nBeam), nIntervals_(nIntervals), nPixel_(nPixel),
+        filter_negative_eigenvalues_(filter_negative_eigenvalues), nEpochs_(0) {
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
                        "{} StandardSynthesis.create({}, opt, {}, {} ,{} ,{} {}, {}, {}, {}, {})",
                        (const void*)this, (const void*)ctx_.get(), nAntenna, nBeam, nIntervals,
@@ -36,7 +37,7 @@ struct StandardSynthesisInternal {
 
     if (ctx_->processing_unit() == BIPP_PU_CPU) {
       planHost_.emplace(ctx_, nAntenna, nBeam, nIntervals, nFilter, filter, nPixel, pixelX, pixelY,
-                        pixelZ);
+                        pixelZ, filter_negative_eigenvalues);
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       auto& queue = ctx_->gpu_queue();
@@ -70,7 +71,7 @@ struct StandardSynthesisInternal {
       }
 
       planGPU_.emplace(ctx_, nAntenna, nBeam, nIntervals, nFilter, filter, nPixel, pixelXDevice,
-                       pixelYDevice, pixelZDevice);
+                       pixelYDevice, pixelZDevice, filter_negative_eigenvalues);
 #else
       throw GPUSupportError();
 #endif
@@ -90,6 +91,7 @@ struct StandardSynthesisInternal {
   void collect(std::size_t nEig, T wl, const T* intervals, std::size_t ldIntervals,
                const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
                const T* xyz, std::size_t ldxyz) {
+
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "------------");
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
                        "{} NufftSynthesis.collect({}, {}, {}, {}, {} ,{} ,{} {}, {}, {})",
@@ -197,11 +199,19 @@ struct StandardSynthesisInternal {
       throw GPUSupportError();
 #endif
     }
+
+    printf("-D- Scaling image by the total number of processed epochs %ld\n", nEpochs_);
+    auto scale = static_cast<T>(nEpochs_);
+    for (std::size_t i = 0; i < nIntervals_ * nPixel_; i++) {
+        img[i] /= scale;
+    }
+
   }
 
   std::shared_ptr<ContextInternal> ctx_;
-  std::size_t nAntenna_, nBeam_, nIntervals_, nPixel_;
+  std::size_t nAntenna_, nBeam_, nIntervals_, nPixel_, nEpochs_;
   std::optional<host::StandardSynthesis<T>> planHost_;
+  const bool filter_negative_eigenvalues_;
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
   std::optional<gpu::StandardSynthesis<T>> planGPU_;
 #endif
@@ -211,12 +221,13 @@ template <typename T>
 StandardSynthesis<T>::StandardSynthesis(Context& ctx, std::size_t nAntenna, std::size_t nBeam,
                                         std::size_t nIntervals, std::size_t nFilter,
                                         const BippFilter* filter, std::size_t nPixel,
-                                        const T* pixelX, const T* pixelY, const T* pixelZ) {
+                                        const T* pixelX, const T* pixelY, const T* pixelZ,
+                                        const bool filter_negative_eigenvalues) {
   try {
     plan_ = decltype(plan_)(
         new StandardSynthesisInternal<T>(InternalContextAccessor::get(ctx), nAntenna, nBeam,
                                          nIntervals, nFilter, filter, nPixel, pixelX, pixelY,
-                                         pixelZ),
+                                         pixelZ, filter_negative_eigenvalues),
         [](auto&& ptr) { delete reinterpret_cast<StandardSynthesisInternal<T>*>(ptr); });
   } catch (const std::exception& e) {
     try {
@@ -263,14 +274,15 @@ BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t n
                                                        size_t nFilter, const BippFilter* filter,
                                                        size_t nPixel, const float* lmnX,
                                                        const float* lmnY, const float* lmnZ,
-                                                       BippStandardSynthesisF* plan) {
+                                                       BippStandardSynthesisF* plan,
+                                                       const bool filter_negative_eigenvalues) {
   if (!ctx) {
     return BIPP_INVALID_HANDLE_ERROR;
   }
   try {
     *plan = new StandardSynthesisInternal<float>(
         InternalContextAccessor::get(*reinterpret_cast<Context*>(ctx)), nAntenna, nBeam, nIntervals,
-        nFilter, filter, nPixel, lmnX, lmnY, lmnZ);
+        nFilter, filter, nPixel, lmnX, lmnY, lmnZ, filter_negative_eigenvalues);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -334,14 +346,15 @@ BIPP_EXPORT BippError bipp_standard_synthesis_create(BippContext ctx, size_t nAn
                                                      const BippFilter* filter, size_t nPixel,
                                                      const double* lmnX, const double* lmnY,
                                                      const double* lmnZ,
-                                                     BippStandardSynthesis* plan) {
+                                                     BippStandardSynthesis* plan,
+                                                     const bool filter_negative_eigenvalues) {
   if (!ctx) {
     return BIPP_INVALID_HANDLE_ERROR;
   }
   try {
     *plan = new StandardSynthesisInternal<double>(
         InternalContextAccessor::get(*reinterpret_cast<Context*>(ctx)), nAntenna, nBeam, nIntervals,
-        nFilter, filter, nPixel, lmnX, lmnY, lmnZ);
+        nFilter, filter, nPixel, lmnX, lmnY, lmnZ, filter_negative_eigenvalues);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
