@@ -35,7 +35,7 @@ import matplotlib.cm as cm
 from matplotlib.colors import TwoSlopeNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 # for final figure text sizes
-plt.rcParams.update({'font.size': 60})
+plt.rcParams.update({'font.size': 50})
 
 
 
@@ -69,8 +69,12 @@ try:
 
 except: 
     raise(SyntaxError("This file must be called with the telescope name and path to ms file at a minimum. "+\
-                      "Eg:\npython realData.py [telescope name(string)] [path_to_ms(string)] [output_name(string)] [N_pix(int)] [FoV(float(deg))] [N_levels(int)] [Clustering(bool/list_of_eigenvalue_bin_edges)] [WSCleangrid(bool)] [WSCleanPath(string)]"))
+                      "Eg:\npython realData.py [telescope name(string)] [path_to_ms(string)] [output_name(string)] [N_pix(int)] [FoV(float(deg))] [N_levels(int)] [Clustering(bool/list_of_eigenvalue_bin_edges)] [partitions] [WSCleangrid(bool)] [WSCleanPath(string)]"))
 
+# EXAMPLE COMMAND LINE RUNS: 
+# python ~/bipp/bipp/examples/real_data/realData.py LOFAR ~/bluebild/testData/gauss4_t201806301100_SBL180.MS 4Gauss_t1_sigma095 2000 4.26 4 3e24,7e3,0 2>&1 | tee gauss4_sigma095_t1.log
+# python ~/bipp/bipp/examples/real_data/realData.py LOFAR ~/bluebild/testData/gauss4_t201806301100_SBL180.MS 4Gauss_t1_sigma095_custom 2000 4.26 4 3e34,7e4,4e3,2e3,0 2>&1 | tee gauss4_sigma095_t1_custom.log
+#
 try:
     outName=sys.argv[3]
 except:
@@ -160,7 +164,9 @@ except:
         raise(SyntaxError("If WSClean Grid is set to True then path to wsclean fits file must be provided!"))
     else:
         print ("WSClean fits file not provided.")
-        wsclean_path= "/home/krishna/OSKAR/Example/simulation_oskarImaged_MWA_Obsparams_I.fits"
+        #wsclean_path= "/scratch/izar/krishna/MWA/WSClean/Simulation/simulation_MWA_Obsparams.ms_WSClean-dirty.fits"
+        #wsclean_path = "/home/krishna/OSKAR/Example/simulation_oskarImaged_MWA_Obsparams_I.fits"
+        wsclean_path= "/scratch/izar/krishna/MWA/WSClean/1133149192-187-188_Sun_10s_cal.ms_WSClean-dirty.fits"
 
 
 
@@ -208,19 +214,19 @@ user_fieldcenter = coord.SkyCoord(ra=218 * u.deg, dec=34.5 * u.deg, frame="icrs"
 
 #Time
 time_start = 0
-time_end = 1
+time_end = -1
 time_slice = 1
 
 # channel
-channel_id = np.array([0], dtype = np.int64)
-#channel_id = np.array([4,5], dtype = np.int64) # vary the number of partitions - 1 channel works sometimes with 1, sometimes doesn't, 64 channels will need more partitions. 
-#channel_id = np.arange(64, dtype = np.int32)
+#channel_id = np.array([4], dtype = np.int64)
+#channel_id = np.array([4,5], dtype = np.int64)
+channel_id = np.arange(64, dtype = np.int32)
 
 # Create context with selected processing unit.
 # Options are "AUTO", "CPU" and "GPU".
 ctx = bipp.Context("CPU")
 
-filter_tuple = ('lsq', 'std') # might need to make this a list
+filter_tuple = ['lsq','std'] # might need to make this a list
 
 std_img_flag = True # put to true if std is passed as a filter
 
@@ -315,32 +321,31 @@ print (f"Initial set up takes {tt.time() - start_time} s")
 # Parameter Estimation
 ########################################################################################
 print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@ PARAMETER ESTIMATION @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n")
-if (clusteringBool):
-    if (clustering):
-        num_time_steps = 0
-        I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=1, ctx=ctx)
-        #for t, f, S, uvw_t in ProgressBar(
-        for t, f, S in ProgressBar(
-                #ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name, return_UVW = True)
-                ms.visibilities(channel_id=channel_id, time_id=slice(time_start, time_end, time_slice), column=column_name)
-        ):
-            wl = constants.speed_of_light / f.to_value(u.Hz)
-            XYZ = ms.instrument(t)
 
-            W = ms.beamformer(XYZ, wl)
-            G = gram(XYZ, W, wl)
-            S, _ = measurement_set.filter_data(S, W)
-            I_est.collect(S, G)
-            num_time_steps +=1
+num_time_steps = 0
+I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=1, ctx=ctx)
+#for t, f, S, uvw_t in ProgressBar(
+for t, f, S in ProgressBar(
+        #ms.visibilities(channel_id=[channel_id], time_id=slice(time_start, time_end, time_slice), column=column_name, return_UVW = True)
+        ms.visibilities(channel_id=channel_id, time_id=slice(time_start, time_end, time_slice), column=column_name)
+):
+    wl = constants.speed_of_light / f.to_value(u.Hz)
+    XYZ = ms.instrument(t)
 
-        print (f"Number of time steps: {num_time_steps}")
-        N_eig, intensity_intervals = I_est.infer_parameters()
-    else:
-        # Set number of eigenvalues to number of eigenimages 
-        # and equally divide the data between them 
-        N_eig, intensity_intervals = N_level, np.arange(N_level)
-else:
-    N_eig, intensity_intervals=39, clustering # N_eig still to be obtained from parameter estimator????? IMP # 26 for 083 084 39 for????
+    W = ms.beamformer(XYZ, wl)
+    G = gram(XYZ, W, wl)
+    S, _ = measurement_set.filter_data(S, W)
+    I_est.collect(S, G)
+    num_time_steps +=1
+
+print (f"Number of time steps: {num_time_steps}")
+Eigs, N_eig, intensity_intervals = I_est.infer_parameters(return_eigenvalues=True)
+
+
+
+
+if (clusteringBool == False):
+    intensity_intervals=clustering # N_eig still to be obtained from parameter estimator????? IMP # 26 for 083 084 39 for????
 
 print (f"Number of Eigenvalues:{N_eig}, Intensity intervals: {intensity_intervals}")
 
@@ -375,7 +380,10 @@ for t, f, S in ProgressBar(
     #uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
     UVW_baselines_t = ms.instrument.baselines(t, uvw=True, field_center=ms.field_center)
     uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
+    print (uvw.shape)
 
+    if np.allclose(S.data, np.zeros(S.data.shape)):
+        continue
     imager.collect(N_eig, wl, intensity_intervals, W.data, XYZ.data, uvw, S.data)
 
 lsq_image = imager.get("LSQ").reshape((-1, N_pix, N_pix))
@@ -400,7 +408,7 @@ t2 = tt.time()
 
 #plot output image
 
-lsq_levels = I_lsq_eq.data # Nlevel, Npix, Npix
+lsq_levels = I_lsq_eq.data  # Nlevel, Npix, Npix
 lsq_image = lsq_levels.sum(axis = 0)
 print (f"Lsq Levels shape:{lsq_levels.shape}")
 
@@ -410,66 +418,246 @@ if (std_img_flag):
 
     print (f"STD Levels shape:{std_levels.shape}")
 
-"""
+#"""
 # Code to output figure needed for BB paper 
+if (telescope_name.lower() =="mwa"):
+    if (ms_file== '/work/ska/MWA/simulation_MWA_Obsparams.ms/'):
 
-path = "/scratch/izar/krishna/MWA/20151203_240MHz_psimas.sav"
-import scipy.io as io
-simulation = io.readsav(path)#, python_dict = True)
+        #SOLAR SIMULATION PAPER FIGURE
+        path = "/scratch/izar/krishna/MWA/20151203_240MHz_psimas.sav"
+        import scipy.io as io
+        simulation = io.readsav(path)#, python_dict = True)
 
-trueImg = np.fliplr(simulation['quantmap'][0][0][:, :])
+        trueImg = simulation['quantmap'][0][0][:, :]
 
-fig, ax = plt.subplots(2,3, figsize=(60, 40))
+        fig, ax = plt.subplots(2,4, figsize=(80, 40))
 
-simScale = ax[0, 0].imshow(trueImg, cmap="cubehelix")
-ax[0, 0].set_title("Simulation")
-ax[0, 0].axis('off')
-divider = make_axes_locatable(ax[0, 0])
-cax = divider.append_axes("right", size = "5%", pad = 0.05)
-cbar = plt.colorbar(simScale, cax)
-
-WSClean_image = fits.getdata(wsclean_path)
-WSClean_image = np.fliplr(WSClean_image.reshape(WSClean_image.shape[-2:]))
-
-wscScale = ax[0, 1].imshow(WSClean_image, cmap="cubehelix")
-ax[0, 1].set_title("Dirty Image")
-ax[0, 1].axis('off')
-divider = make_axes_locatable(ax[0, 1])
-cax = divider.append_axes("right", size = "5%", pad = 0.05)
-cbar = plt.colorbar(wscScale, cax)
-
-lsqScale = ax[0, 2].imshow(lsq_image, cmap="cubehelix")
-ax[0, 2].set_title("Bluebild Least-Squares Image")
-ax[0, 2].axis('off')
-divider = make_axes_locatable(ax[0, 2])
-cax = divider.append_axes("right", size = "5%", pad = 0.05)
-cbar = plt.colorbar(lsqScale, cax)
-
-lsqScale = ax[1, 0].imshow(lsq_levels[0, :, :],cmap="cubehelix")
-ax[1, 0].set_title("Bluebild LSQ Level 0")
-ax[1, 0].axis('off')
-divider = make_axes_locatable(ax[1, 0])
-cax = divider.append_axes("right", size = "5%", pad = 0.05)
-cbar = plt.colorbar(lsqScale, cax)
-
-lsqScale = ax[1, 1].imshow(lsq_levels[1, :, :], cmap="cubehelix")
-ax[1, 1].set_title("Bluebild LSQ Level 1")
-ax[1, 1].axis('off')
-divider = make_axes_locatable(ax[1, 1])
-cax = divider.append_axes("right", size = "5%", pad = 0.05)
-cbar = plt.colorbar(lsqScale, cax)
+        simScale = ax[0, 0].imshow(trueImg, cmap="cubehelix") # Unit is K
+        ax[0, 0].set_title("Simulation")
+        ax[0, 0].axis('off')
+        divider = make_axes_locatable(ax[0, 0])
+        cax = divider.append_axes("right", size = "5%", pad = 0.05)
+        cbar = plt.colorbar(simScale, cax)
+        cbar.set_label('Flux (K)', rotation=270, labelpad=40)
 
 
-lsqSCale = ax[1, 2].imshow(lsq_levels[2, :, :], cmap="cubehelix")
-ax[1, 2].set_title("Bluebild LSQ Level 2")
-ax[1, 2].axis('off')
-divider = make_axes_locatable(ax[1, 2])
-cax = divider.append_axes("right", size = "5%", pad = 0.05)
-cbar = plt.colorbar(lsqScale, cax)
+        WSClean_image = fits.getdata(wsclean_path)
+        WSClean_image = WSClean_image.reshape(WSClean_image.shape[-2:])
+
+        wscScale = ax[0, 1].imshow(WSClean_image, cmap="cubehelix") # Unit is K
+        ax[0, 1].set_title("Dirty Image")
+        ax[0, 1].axis('off')
+        divider = make_axes_locatable(ax[0, 1])
+        cax = divider.append_axes("right", size = "5%", pad = 0.05)
+        cbar = plt.colorbar(wscScale, cax)
+        cbar.set_label('Flux (K)', rotation=270, labelpad=40)
+
+
+        lsqScale = ax[0, 2].imshow(np.fliplr(lsq_image), cmap="cubehelix")
+        ax[0, 2].set_title("Bluebild Least-Squares Image")
+        ax[0, 2].axis('off')
+        divider = make_axes_locatable(ax[0, 2])
+        cax = divider.append_axes("right", size = "5%", pad = 0.05)
+        cbar = plt.colorbar(lsqScale, cax)
+        cbar.set_label('Flux (K)', rotation=270, labelpad=40)
+
+        residual_image = np.fliplr(lsq_image)-WSClean_image
+        residual_norm = TwoSlopeNorm(vcenter=0, vmin=residual_image.min(), vmax=residual_image.max())
+        residualScale= ax[0, 3].imshow(residual_image, cmap = "RdBu_r", norm=residual_norm)
+        ax[0, 3].set_title("Residual Image")
+        ax[0, 3].axis('off')
+        divider = make_axes_locatable(ax[0, 3])
+        cax = divider.append_axes("right", size = "5%", pad = 0.05)
+        cbar = plt.colorbar(residualScale, cax)
+        cbar.set_label('Flux (K)', rotation=270, labelpad=40)
+
+        lsqScale = ax[1, 0].imshow(np.fliplr(lsq_levels[0, :, :]),cmap="cubehelix")
+        ax[1, 0].set_title("Bluebild LSQ Level 0")
+        ax[1, 0].axis('off')
+        divider = make_axes_locatable(ax[1, 0])
+        cax = divider.append_axes("right", size = "5%", pad = 0.05)
+        cbar = plt.colorbar(lsqScale, cax)
+        cbar.set_label('Flux (K)', rotation=270, labelpad=40)
+
+        lsqScale = ax[1, 1].imshow(np.fliplr(lsq_levels[1, :, :]), cmap="cubehelix")
+        ax[1, 1].set_title("Bluebild LSQ Level 1")
+        ax[1, 1].axis('off')
+        divider = make_axes_locatable(ax[1, 1])
+        cax = divider.append_axes("right", size = "5%", pad = 0.05)
+        cbar = plt.colorbar(lsqScale, cax)
+        cbar.set_label('Flux (K)', rotation=270, labelpad=40)
+
+
+        lsqSCale = ax[1, 2].imshow(np.fliplr(lsq_levels[2, :, :]), cmap="cubehelix")
+        ax[1, 2].set_title("Bluebild LSQ Level 2")
+        ax[1, 2].axis('off')
+        divider = make_axes_locatable(ax[1, 2])
+        cax = divider.append_axes("right", size = "5%", pad = 0.05)
+        cbar = plt.colorbar(lsqScale, cax)
+        cbar.set_label('Flux (K)', rotation=270, labelpad=40)
+
+        ax[1, 3].hist(np.log10(Eigs), bins=25)
+        ax[1, 3].set_title("Eigenvalue Histogram")
+        ax[1, 3].set_xlabel(r'$log_{10}(\lambda_{a})$')
+        ax[1, 3].set_ylabel("Count")
+        ax[1, 3].axvline(np.log10(2e9), color="r")
+        ax[1, 3].axvline(np.log10(4e7), color="r")
+    
+    else: 
+        # SOLAR OBSERVATION PAPER FIGURE
+        fig, ax = plt.subplots(2,3, figsize=(60, 40))
+        
+        WSClean_image = fits.getdata(wsclean_path)
+        WSClean_image = np.flipud(WSClean_image.reshape(WSClean_image.shape[-2:]))
+
+        wscScale = ax[0, 0].imshow(WSClean_image, cmap="cubehelix") # Unit is K
+        ax[0, 0].set_title("Dirty Image")
+        ax[0, 0].axis('off')
+        divider = make_axes_locatable(ax[0, 0])
+        cax = divider.append_axes("right", size = "5%", pad = 0.05)
+        cbar = plt.colorbar(wscScale, cax)
+        cbar.set_label('Flux (K)', rotation=270, labelpad=40)
+
+
+        lsqScale = ax[0, 1].imshow(lsq_image, cmap="cubehelix")
+        ax[0, 1].set_title("Bluebild Least-Squares Image")
+        ax[0, 1].axis('off')
+        divider = make_axes_locatable(ax[0, 1])
+        cax = divider.append_axes("right", size = "5%", pad = 0.05)
+        cbar = plt.colorbar(lsqScale, cax)
+        cbar.set_label('Flux (K)', rotation=270, labelpad=40)
+
+        residual_image = lsq_image-WSClean_image
+        residual_norm = TwoSlopeNorm(vcenter=0, vmin=residual_image.min(), vmax=residual_image.max())
+        residualScale= ax[0, 2].imshow(residual_image, cmap = "RdBu_r", norm=residual_norm)
+        ax[0, 2].set_title("Residual Image")
+        ax[0, 2].axis('off')
+        divider = make_axes_locatable(ax[0, 2])
+        cax = divider.append_axes("right", size = "5%", pad = 0.05)
+        cbar = plt.colorbar(residualScale, cax)
+        cbar.set_label('Flux (K)', rotation=270, labelpad=40)
+
+        lsqScale = ax[1, 0].imshow(lsq_levels[0, :, :],cmap="cubehelix")
+        ax[1, 0].set_title("Bluebild LSQ Level 0")
+        ax[1, 0].axis('off')
+        divider = make_axes_locatable(ax[1, 0])
+        cax = divider.append_axes("right", size = "5%", pad = 0.05)
+        cbar = plt.colorbar(lsqScale, cax)
+        cbar.set_label('Flux (K)', rotation=270, labelpad=40)
+
+        lsqScale = ax[1, 1].imshow(lsq_levels[1, :, :], cmap="cubehelix")
+        ax[1, 1].set_title("Bluebild LSQ Level 1")
+        ax[1, 1].axis('off')
+        divider = make_axes_locatable(ax[1, 1])
+        cax = divider.append_axes("right", size = "5%", pad = 0.05)
+        cbar = plt.colorbar(lsqScale, cax)
+        cbar.set_label('Flux (K)', rotation=270, labelpad=40)
+
+        ax[1, 2].hist(np.log10(Eigs), bins=25)
+        ax[1, 2].set_title("Eigenvalue Histogram")
+        ax[1, 2].set_xlabel(r'$log_{10}(\lambda_{a})$')
+        ax[1, 2].set_ylabel("Count")
+        
+        eigenvalue_binEdges = np.sort(np.unique(np.array(intensity_intervals))) [1:-1]  # select all but first and last bin edge (0 and 3e34)
+
+        for eigenvalue_binEdge in eigenvalue_binEdges:
+            ax[1, 2].axvline(np.log10(eigenvalue_binEdge), color="r")
+
+
+elif (telescope_name.lower()=='lofar'):
+    fig, ax = plt.subplots(1,5, figsize=(100, 20))
+
+    lsqScale = ax[0].imshow(lsq_image, cmap="cubehelix")
+    ax[0].set_title("BB LSQ")
+    ax[0].axis('off')
+    divider = make_axes_locatable(ax[0])
+    cax = divider.append_axes("right", size = "5%", pad = 0.05)
+    cbar = plt.colorbar(lsqScale, cax)
+
+    lsqScale = ax[1].imshow(lsq_levels[0, :, :], cmap="cubehelix")
+    ax[1].set_title("LSQ Lvl 0")
+    ax[1].axis('off')
+    divider = make_axes_locatable(ax[1])
+    cax = divider.append_axes("right", size = "5%", pad = 0.05)
+    cbar = plt.colorbar(lsqScale, cax)
+
+    lsqScale = ax[2].imshow(lsq_levels[1, :, :], cmap="cubehelix")
+    ax[2].set_title("LSQ Lvl 1")
+    ax[2].axis('off')
+    divider = make_axes_locatable(ax[2])
+    cax = divider.append_axes("right", size = "5%", pad = 0.05)
+    cbar = plt.colorbar(lsqScale, cax)
+
+    lsqScale = ax[3].imshow(lsq_levels[2, :, :], cmap="cubehelix")
+    ax[3].set_title("LSQ Lvl 2")
+    ax[3].axis('off')
+    divider = make_axes_locatable(ax[3])
+    cax = divider.append_axes("right", size = "5%", pad = 0.05)
+    cbar = plt.colorbar(lsqScale, cax)
+
+    lsqScale = ax[4].imshow(lsq_levels[3, :, :], cmap="cubehelix")
+    ax[4].set_title("LSQ Lvl 3")
+    ax[4].axis('off')
+    divider = make_axes_locatable(ax[4])
+    cax = divider.append_axes("right", size = "5%", pad = 0.05)
+    cbar = plt.colorbar(lsqScale, cax)
+
+elif (telescope_name.lower() == "skalow"):
+
+    fig, ax = plt.subplots(2,3, figsize=(40, 20))
+
+    lsqScale = ax[0, 0].imshow(lsq_image, cmap="cubehelix")
+    ax[0, 0].set_title("BB LSQ")
+    ax[0, 0].axis('off')
+    divider = make_axes_locatable(ax[0, 0])
+    cax = divider.append_axes("right", size = "5%", pad = 0.05)
+    cbar = plt.colorbar(lsqScale, cax)
+    cbar.set_label('Flux (Jy/Beam)', rotation=270, labelpad=40)
+
+    lsqScale = ax[0, 1].imshow(lsq_levels[0, :, :], cmap="cubehelix")
+    ax[0, 1].set_title("LSQ Lvl 0")
+    ax[0, 1].axis('off')
+    divider = make_axes_locatable(ax[0, 1])
+    cax = divider.append_axes("right", size = "5%", pad = 0.05)
+    cbar = plt.colorbar(lsqScale, cax)
+    cbar.set_label('Flux (Jy/Beam)', rotation=270, labelpad=40)
+
+    lsqScale = ax[0, 2].imshow(lsq_levels[1, :, :], cmap="cubehelix")
+    ax[0, 2].set_title("LSQ Lvl 1")
+    ax[0, 2].axis('off')
+    divider = make_axes_locatable(ax[0, 2])
+    cax = divider.append_axes("right", size = "5%", pad = 0.05)
+    cbar = plt.colorbar(lsqScale, cax)
+    cbar.set_label('Flux (Jy/Beam)', rotation=270, labelpad=40)
+
+    lsqScale = ax[1, 0].imshow(lsq_levels[2, :, :], cmap="cubehelix")
+    ax[1, 0].set_title("LSQ Lvl 2")
+    ax[1, 0].axis('off')
+    divider = make_axes_locatable(ax[1, 0])
+    cax = divider.append_axes("right", size = "5%", pad = 0.05)
+    cbar = plt.colorbar(lsqScale, cax)
+    cbar.set_label('Flux (Jy/Beam)', rotation=270, labelpad=40)
+
+    lsqScale = ax[1, 1].imshow(lsq_levels[3, :, :], cmap="cubehelix")
+    ax[1, 1].set_title("LSQ Lvl 3")
+    ax[1, 1].axis('off')
+    divider = make_axes_locatable(ax[1, 1])
+    cax = divider.append_axes("right", size = "5%", pad = 0.05)
+    cbar = plt.colorbar(lsqScale, cax)
+    cbar.set_label('Flux (Jy/Beam)', rotation=270, labelpad=40)
+    
+    lsqScale = ax[1, 2].imshow(lsq_levels[4, :, :], cmap="cubehelix")
+    ax[1, 2].set_title("LSQ Lvl 4")
+    ax[1, 2].axis('off')
+    divider = make_axes_locatable(ax[1, 2])
+    cax = divider.append_axes("right", size = "5%", pad = 0.05)
+    cbar = plt.colorbar(lsqScale, cax)
+    cbar.set_label('Flux (Jy/Beam)', rotation=270, labelpad=40)
 
 fig.tight_layout()
 
-fig.savefig(f"{outName}")
+fig.savefig(f"{outName}.pdf")
+fig.savefig(f"{outName}.png")
 """
 
 
@@ -487,7 +675,6 @@ if (4 in plotList):
         fig_comp, ax_comp = plt.subplots(int(len(filter_tuple)), 3, figsize = (40,20))
 if (1 in plotList):
     fig_out, ax_out = plt.subplots(len(filter_tuple), 1, figsize = (40,20) )
-    ax_outList = ax_out.ravel()
 if (2 in plotList):
     fig_out, ax_out = plt.subplots(len(filter_tuple), 1 + eigenlevels, figsize = (40,20))
 if (3 in plotList):
@@ -503,6 +690,7 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
     divider = make_axes_locatable(ax_out[0, 0])
     cax = divider.append_axes("right", size = "5%", pad = 0.05)
     cbar = plt.colorbar(BBScale, cax)
+    cbar.formatter.set_powerlimits((0, 0))
 
     # Output STD Image
     if (std_img_flag):
@@ -512,6 +700,7 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
         divider = make_axes_locatable(ax_out[1, 0])
         cax = divider.append_axes("right", size = "5%", pad = 0.05)
         cbar = plt.colorbar(BBScale, cax)
+        cbar.formatter.set_powerlimits((0, 0))
 
     # output eigen levels
     if ((2 in plotList) or (3 in plotList)):
@@ -526,6 +715,7 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
             divider = make_axes_locatable(ax_out[0, i + 1])
             cax = divider.append_axes("right", size="5%", pad=0.05)
             cbar = plt.colorbar(lsqScale, cax)
+            cbar.formatter.set_powerlimits((0, 0))
 
             if (std_img_flag):
                 stdScale = ax_out[1, i + 1].imshow(std_levels[i, :, :], cmap = "cubehelix")
@@ -534,6 +724,7 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
                 divider = make_axes_locatable(ax_out[1, i + 1])
                 cax = divider.append_axes("right", size="5%", pad=0.05)
                 cbar = plt.colorbar(stdScale, cax)
+                cbar.formatter.set_powerlimits((0, 0))
 
         # WSC Image
     if ((3 in plotList)):
@@ -543,6 +734,7 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
         divider = make_axes_locatable(ax_out[0, -1])
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cbar = plt.colorbar(WSCleanScale, cax)
+        cbar.formatter.set_powerlimits((0, 0))
     
         if (std_img_flag):
             WSCleanScale = ax_out[1, -1].imshow(WSClean_image, cmap = "cubehelix")
@@ -551,6 +743,7 @@ if ((1 in plotList) or (2 in plotList) or (3 in plotList)):
             divider = make_axes_locatable(ax_out[1, -1])
             cax = divider.append_axes("right", size="5%", pad=0.05)
             cbar = plt.colorbar(WSCleanScale, cax)
+            cbar.formatter.set_powerlimits((0, 0))
 
     if (2 not in plotList):
         fig_out.savefig(f"{outName}")
