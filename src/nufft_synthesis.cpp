@@ -36,8 +36,11 @@ struct NufftSynthesisInternal {
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "lmnZ", nPixel_, 1, lmnZ, nPixel_);
 
     if (ctx_->processing_unit() == BIPP_PU_CPU) {
-      planHost_.emplace(ctx_, std::move(opt), nAntenna, nBeam, nIntervals, nFilter, filter, nPixel, lmnX, lmnY,
-                        lmnZ);
+      planHost_.emplace(ctx_, opt, nAntenna, nBeam, nIntervals,
+                        ConstHostView<BippFilter, 1>(filter, {nFilter}, {1}),
+                        ConstHostView<T, 1>(lmnX, {nPixel}, {1}),
+                        ConstHostView<T, 1>(lmnY, {nPixel}, {1}),
+                        ConstHostView<T, 1>(lmnZ, {nPixel}, {1}));
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       auto& queue = ctx_->gpu_queue();
@@ -106,8 +109,14 @@ struct NufftSynthesisInternal {
     const auto start = std::chrono::high_resolution_clock::now();
 
     if (planHost_) {
-      planHost_.value().collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz, uvw,
-                                lduvw);
+      auto& p = planHost_.value();
+      planHost_.value().collect(
+          nEig, wl, ConstHostView<T, 2>(intervals, {2, p.num_intervals()}, {1, ldIntervals}),
+          s ? ConstHostView<std::complex<T>, 2>(s, {p.num_beam(), p.num_beam()}, {1, lds})
+            : ConstHostView<std::complex<T>, 2>{},
+          ConstHostView<std::complex<T>, 2>(w, {p.num_antenna(), p.num_beam()}, {1, ldw}),
+          ConstHostView<T, 2>(xyz, {p.num_antenna(), 3}, {1, ldxyz}),
+          ConstHostView<T, 2>(uvw, {p.num_antenna() * p.num_antenna(), 3}, {1, lduvw}));
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       auto& queue = ctx_->gpu_queue();
@@ -192,7 +201,8 @@ struct NufftSynthesisInternal {
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "{} NufftSynthesis.get({}, {}, {})", (const void*)this,
                        (int)f, (const void*)out, ld);
     if (planHost_) {
-      planHost_.value().get(f, out, ld);
+      auto& p = planHost_.value();
+      p.get(f, HostView<T, 2>(out,{p.num_pixel(), p.num_intervals()}, {1, ld}));
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       planGPU_->get(f, out, ld);
