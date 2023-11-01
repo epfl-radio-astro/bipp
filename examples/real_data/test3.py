@@ -86,8 +86,10 @@ if (args.telescope.lower()=="skalow"):
 
 elif (args.telescope.lower()=="mwa"):
     ms = measurement_set.MwaMeasurementSet(args.ms_file)
-    N_station, N_antenna = 128, 128
+    #N_station, N_antenna = 128, 128
     #N_station, N_antenna = 58, 58
+    N_station, N_antenna = 14,14
+    
 
 elif (args.telescope.lower()=="lofar"):
     N_station, N_antenna = 37, 37 # netherlands, 52 international
@@ -96,7 +98,7 @@ elif (args.telescope.lower()=="lofar"):
 else: 
     raise(NotImplementedError("A measurement set class for the telescope you are searching for has not been implemented yet - please feel free to implement the class yourself!"))
 
-
+print (f"N_station:{N_station} , N_antenna:{N_antenna}")
 if (args.output==None):
     args.output = "test"
 
@@ -188,7 +190,7 @@ print (f"Partitions:{args.partition}")
 ##############################################################################################################
 
 # Column Name: Column in MS file to be imaged (DATA is usually uncalibrated, CORRECTED_DATA is calibrated and MODEL_DATA contains WSClean model output)
-#args.column = "CORRECTED_DATA"
+#args.column = "MODEL_DATA"
 
 # IF USING WSCLEAN IMAGE GRID: sampling wrt WSClean grid
 # 1 means the output will have same number of pixels as WSClean image
@@ -211,7 +213,7 @@ filter_negative_eigenvalues= True
 
 std_img_flag = True # put to true if std is passed as a filter
 
-plotList= np.array([1,2])
+plotList= np.array([1])
 # 1 is lsq
 # 2 is levels
 # 3 is WSClean
@@ -374,12 +376,19 @@ else:
     I_lsq_eq = s2image.Image(lsq_image.reshape(args.nlevel + 1, lsq_image.shape[-2], lsq_image.shape[-1]), xyz_grid)
 print("lsq_image.shape =", lsq_image.shape)
 
+I_lsq_eq.to_fits(f"{args.output}_lvls.fits")
+
+I_lsq_eq_summed = s2image.Image(lsq_image.reshape(args.nlevel,lsq_image.shape[-2], lsq_image.shape[-1]).sum(axis = 0), xyz_grid)
+I_lsq_eq_summed.to_fits(f"{args.output}.fits")
+
 if (std_img_flag):
     std_image = imager.get("STD").reshape((-1, args.npix, args.npix))
     if (filter_negative_eigenvalues):
         I_std_eq = s2image.Image(std_image.reshape(args.nlevel, std_image.shape[-2], lsq_image.shape[-1]), xyz_grid)
     else:
         I_std_eq = s2image.Image(std_image.reshape(args.nlevel + 1, std_image.shape[-2], std_image.shape[-1]), xyz_grid)
+
+    
     print("std_image.shape =", std_image.shape)
 
 print (f"Imaging takes :{tt.time() - im_t} s")
@@ -391,12 +400,8 @@ print (f"Imaging takes :{tt.time() - im_t} s")
 pf_t = tt.time()
 
 lsq_levels = I_lsq_eq.data  # Nlevel, Npix, Npix
-hdu_lsqlvls = fits.ImageHDU(lsq_levels)
 
 lsq_image = lsq_levels.sum(axis = 0)
-hdu_lsq =fits.PrimaryHDU(lsq_image)
-
-hdul = fits.HDUList([hdu_lsq, hdu_lsqlvls])
 
 fig, ax = plt.subplots(1, args.nlevel+1)
 
@@ -405,13 +410,8 @@ if (std_img_flag):
     fig, ax = plt.subplots(2, args.nlevel+1)
 
     std_levels = I_std_eq.data  # Nlevel, Npix, Npix
-    hdu_stdlvls = fits.ImageHDU(std_levels)
 
     std_image = std_levels.sum(axis = 0)
-    hdu_std = fits.ImageHDU(std_image)
-    
-    hdul.append(hdu_std)
-    hdul.append(hdu_stdlvls)
 
     # Plot Std Summed Image
     stdScale = ax[1,0].imshow(std_image)
@@ -452,8 +452,6 @@ for i in np.arange(args.nlevel):
     cbar.set_label('Flux (Jy)', rotation=270, labelpad=40)
 
 fig.savefig(f"{args.output}.png")
-
-hdul.writeto(f"{args.output}.fits", overwrite=True)
 
 print (f"Plotting and fits output time:{tt.time() - pf_t} s")
 print (f"Total time: {tt.time()- start_time} s")
