@@ -1,0 +1,27 @@
+include:
+  - remote: 'https://gitlab.com/cscs-ci/recipes/-/raw/master/templates/v2/.ci-ext.yml'
+
+stages:
+  - build_container
+  - build
+
+build_cuda_image:
+  extends: .container-builder-dynamic-name
+  stage: build_container
+  timeout: 2h
+  variables:
+    DOCKERFILE: ci/base_cuda.Dockerfile
+    WATCH_FILECHANGES: ci/build_cuda.Dockerfile
+    PERSIST_IMAGE_NAME: $CSCS_REGISTRY_PATH/bipp/bipp-ci
+    DOCKER_BUILD_ARGS: '["cuda_arch=60", "cpu_arch=haswell", "spack_arch=haswell"]'
+
+build_library:
+  extends: .container-builder
+  needs: ["build_cuda_image"]
+  stage: build
+  variables:
+    DOCKERFILE: ci/build.Dockerfile
+    PERSIST_IMAGE_NAME: $CSCS_REGISTRY_PATH/bipp/bipp-ci:$CI_COMMIT_SHA
+    DOCKER_BUILD_ARGS: '["BASE_IMAGE=${BASE_IMAGE}"]'
+
+
