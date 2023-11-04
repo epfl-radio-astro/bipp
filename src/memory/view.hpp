@@ -62,9 +62,6 @@ inline constexpr auto array_index(const std::array<std::size_t, DIM>& indices,
 template <typename T, std::size_t DIM>
 class ViewBase {
 public:
-  static_assert(std::is_trivially_destructible_v<T>);
-  static_assert(std::is_trivially_copyable_v<T>);
-
   using IndexType = std::array<std::size_t, DIM>;
 
   ViewBase() {

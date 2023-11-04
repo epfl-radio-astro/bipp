@@ -85,9 +85,6 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
     nMaxInputCount_ = std::min<std::size_t>(std::max<std::size_t>(1, nMaxInputCount_), 200);
   }
 
-  const auto virtualVisBufferSize =
-      nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ * nMaxInputCount_;
-
   virtualVis_ = HostArray<std::complex<T>, 3>(
       ctx_->host_alloc(), {nAntenna_ * nAntenna_ * nMaxInputCount_, nIntervals_, nFilter_});
   uvw_ = HostArray<T, 2>(ctx_->host_alloc(), {nAntenna_ * nAntenna_ * nMaxInputCount_, 3});

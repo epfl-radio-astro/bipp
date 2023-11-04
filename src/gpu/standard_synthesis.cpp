@@ -174,44 +174,6 @@ auto StandardSynthesis<T>::get(BippFilter f, DeviceView<T, 2> out) -> void {
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", out.slice_view(i));
   }
 
-
-
-  /*
-
-  std::size_t index = nFilter_;
-  const BippFilter* filterPtr = filterHost_.get();
-  for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
-    if (filterPtr[idxFilter] == f) {
-      index = idxFilter;
-      break;
-    }
-  }
-  if (index == nFilter_) throw InvalidParameterError();
-
-  const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
-  if (gpu::is_device_ptr(outHostOrDevice)) {
-    for (std::size_t i = 0; i < nIntervals_; ++i) {
-      scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_,
-                      img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_, scale,
-                      outHostOrDevice + i * ld);
-    }
-  } else {
-    auto tmpBuffer = queue.create_device_buffer<T>(nPixel_);
-
-    for (std::size_t i = 0; i < nIntervals_; ++i) {
-      scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_,
-                      img_.get() + index * nIntervals_ * nPixel_ + i * nPixel_, scale,
-                      tmpBuffer.get());
-      api::memcpy_async(outHostOrDevice + i * ld, tmpBuffer.get(), nPixel_ * sizeof(T),
-                        api::flag::MemcpyDeviceToHost, queue.stream());
-    }
-  }
-
-  for (std::size_t i = 0; i < nIntervals_; ++i) {
-    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", nPixel_, 1,
-                              outHostOrDevice + i * ld, nPixel_);
-  }
-  */
 }
 
 template class StandardSynthesis<float>;

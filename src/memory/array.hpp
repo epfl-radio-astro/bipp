@@ -15,6 +15,11 @@ namespace bipp {
 template <typename T, std::size_t DIM>
 class HostArray : public HostView<T, DIM> {
 public:
+  static_assert(std::is_trivially_destructible_v<T>);
+#ifndef BIPP_ROCM // Complex type in HIP is not marked trivially copyable
+  static_assert(std::is_trivially_copyable_v<T>);
+#endif
+
   using ValueType = T;
   using BaseType = HostView<T, DIM>;
   using IndexType = typename BaseType::IndexType;
@@ -66,6 +71,11 @@ private:
 template <typename T, std::size_t DIM>
 class DeviceArray : public DeviceView<T, DIM> {
 public:
+  static_assert(std::is_trivially_destructible_v<T>);
+#ifndef BIPP_ROCM
+  static_assert(std::is_trivially_copyable_v<T>);
+#endif
+
   using ValueType = T;
   using BaseType = DeviceView<T, DIM>;
   using IndexType = typename BaseType::IndexType;

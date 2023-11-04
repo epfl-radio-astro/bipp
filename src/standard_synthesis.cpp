@@ -12,9 +12,9 @@
 #include "memory/view.hpp"
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/standard_synthesis.hpp"
+#include "gpu/util/device_accessor.hpp"
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
-#include "gpu/util/device_accessor.hpp"
 #endif
 
 namespace bipp {
@@ -51,9 +51,9 @@ struct StandardSynthesisInternal {
 
       auto filterArray = queue.create_host_array<BippFilter, 1>({nFilter});
       copy(queue, ViewBase<BippFilter, 1>(filter, {nFilter}, {1}), filterArray);
-      queue.sync(); // make sure filters are available
+      queue.sync();  // make sure filters are available
 
-      auto pixelArray= queue.create_device_array<T,2>({nPixel_, 3});
+      auto pixelArray = queue.create_device_array<T, 2>({nPixel_, 3});
       copy(queue, ViewBase<T, 1>(pixelX, {nPixel_}, {1}), pixelArray.slice_view(0));
       copy(queue, ViewBase<T, 1>(pixelY, {nPixel_}, {1}), pixelArray.slice_view(1));
       copy(queue, ViewBase<T, 1>(pixelZ, {nPixel_}, {1}), pixelArray.slice_view(2));
@@ -69,7 +69,7 @@ struct StandardSynthesisInternal {
   }
 
   ~StandardSynthesisInternal() {
-    try{
+    try {
       ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "{} StandardSynthesis destroyed",
                          static_cast<const void*>(this));
     } catch (...) {
@@ -84,7 +84,8 @@ struct StandardSynthesisInternal {
                        "{} StandardSynthesis.collect({}, {}, {}, {}, {} ,{} ,{} {}, {}, {})",
                        (const void*)this, nEig, wl, (const void*)intervals, ldIntervals,
                        (const void*)s, lds, (const void*)w, ldw, (const void*)xyz, ldxyz);
-    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "intervals", 2, nIntervals_, intervals, ldIntervals);
+    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "intervals", 2, nIntervals_, intervals,
+                              ldIntervals);
     if (s) ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "S", nBeam_, nBeam_, s, lds);
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "W", nAntenna_, nBeam_, w, ldw);
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "XYZ", nAntenna_, 3, xyz, ldxyz);
@@ -109,14 +110,14 @@ struct StandardSynthesisInternal {
       ConstHostAccessor<T, 2> hostIntervals(queue, intervals, {2, nIntervals_}, {1, ldIntervals});
       queue.sync();  // make sure it's accessible after construction
 
-
       typename ViewBase<T, 2>::IndexType sShape = {0, 0};
-      if(s) sShape = {nBeam_, nBeam_};
+      if (s) sShape = {nBeam_, nBeam_};
 
       ConstDeviceAccessor<gpu::api::ComplexType<T>, 2> sDevice(
           queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(s), sShape, {1, lds});
       ConstDeviceAccessor<gpu::api::ComplexType<T>, 2> wDevice(
-          queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(w), {nAntenna_, nBeam_}, {1, ldw});
+          queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(w), {nAntenna_, nBeam_},
+          {1, ldw});
       ConstDeviceAccessor<T, 2> xyzDevice(queue, xyz, {nAntenna_, 3}, {1, ldxyz});
 
       planGPU_->collect(nEig, wl, hostIntervals.view(), sDevice.view(), wDevice.view(),
@@ -150,7 +151,7 @@ struct StandardSynthesisInternal {
                        (const void*)this, (int)f, (const void*)img, ld);
     if (planHost_) {
       auto& p = planHost_.value();
-      p.get(f, HostView<T, 2>(img,{p.num_pixel(), p.num_intervals()}, {1, ld}));
+      p.get(f, HostView<T, 2>(img, {p.num_pixel(), p.num_intervals()}, {1, ld}));
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       auto& queue = ctx_->gpu_queue();
@@ -199,8 +200,8 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals,
                                    std::size_t lds, const std::complex<T>* w, std::size_t ldw,
                                    const T* xyz, std::size_t ldxyz) -> void {
   try {
-  reinterpret_cast<StandardSynthesisInternal<T>*>(plan_.get())
-      ->collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz);
+    reinterpret_cast<StandardSynthesisInternal<T>*>(plan_.get())
+        ->collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz);
   } catch (const std::exception& e) {
     try {
       reinterpret_cast<StandardSynthesisInternal<T>*>(plan_.get())

@@ -1,8 +1,8 @@
 #include "bipp/nufft_synthesis.hpp"
 
+#include <chrono>
 #include <complex>
 #include <optional>
-#include <chrono>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
@@ -11,9 +11,11 @@
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/nufft_synthesis.hpp"
+#include "gpu/util/device_accessor.hpp"
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
-#include "memory/buffer.hpp"
+#include "memory/array.hpp"
+#include "memory/copy.hpp"
 #endif
 
 namespace bipp {
@@ -49,32 +51,17 @@ struct NufftSynthesisInternal {
       // syncronize with stream to be synchronous with host before exiting
       auto syncGuard = queue.sync_guard();
 
-      Buffer<T> lmnXBuffer, lmnYBuffer, lmnZBuffer;
-      auto lmnXDevice = lmnX;
-      auto lmnYDevice = lmnY;
-      auto lmnZDevice = lmnZ;
+      auto filterArray = queue.create_host_array<BippFilter, 1>({nFilter});
+      copy(queue, ViewBase<BippFilter, 1>(filter, {nFilter}, {1}), filterArray);
+      queue.sync();  // make sure filters are available
 
-      if (!gpu::is_device_ptr(lmnX)) {
-        lmnXBuffer = queue.create_device_buffer<T>(nPixel);
-        lmnXDevice = lmnXBuffer.get();
-        gpu::api::memcpy_async(lmnXBuffer.get(), lmnX, nPixel * sizeof(T),
-                               gpu::api::flag::MemcpyHostToDevice, queue.stream());
-      }
-      if (!gpu::is_device_ptr(lmnY)) {
-        lmnYBuffer = queue.create_device_buffer<T>(nPixel);
-        lmnYDevice = lmnYBuffer.get();
-        gpu::api::memcpy_async(lmnYBuffer.get(), lmnY, nPixel * sizeof(T),
-                               gpu::api::flag::MemcpyHostToDevice, queue.stream());
-      }
-      if (!gpu::is_device_ptr(lmnZ)) {
-        lmnZBuffer = queue.create_device_buffer<T>(nPixel);
-        lmnZDevice = lmnZBuffer.get();
-        gpu::api::memcpy_async(lmnZBuffer.get(), lmnZ, nPixel * sizeof(T),
-                               gpu::api::flag::MemcpyHostToDevice, queue.stream());
-      }
+      auto pixelArray = queue.create_device_array<T, 2>({nPixel_, 3});
+      copy(queue, ViewBase<T, 1>(lmnX, {nPixel_}, {1}), pixelArray.slice_view(0));
+      copy(queue, ViewBase<T, 1>(lmnY, {nPixel_}, {1}), pixelArray.slice_view(1));
+      copy(queue, ViewBase<T, 1>(lmnZ, {nPixel_}, {1}), pixelArray.slice_view(2));
 
-      planGPU_.emplace(ctx_, std::move(opt), nAntenna, nBeam, nIntervals, nFilter, filter, nPixel,
-                       lmnXDevice, lmnYDevice, lmnZDevice);
+      planGPU_.emplace(ctx_, std::move(opt), nAntenna, nBeam, nIntervals, std::move(filterArray),
+                       std::move(pixelArray));
 #else
       throw GPUSupportError();
 #endif
@@ -84,7 +71,7 @@ struct NufftSynthesisInternal {
   }
 
   ~NufftSynthesisInternal() {
-    try{
+    try {
       ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "{} NufftSynthesis destroyed",
                          static_cast<const void*>(this));
     } catch (...) {
@@ -100,7 +87,8 @@ struct NufftSynthesisInternal {
                        (const void*)this, nEig, wl, (const void*)intervals, ldIntervals,
                        (const void*)s, lds, (const void*)w, ldw, (const void*)xyz, ldxyz,
                        (const void*)uvw, lduvw);
-    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "intervals", 2, nIntervals_, intervals, ldIntervals);
+    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "intervals", 2, nIntervals_, intervals,
+                              ldIntervals);
     if (s) ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "S", nBeam_, nBeam_, s, lds);
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "W", nAntenna_, nBeam_, w, ldw);
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "XYZ", nAntenna_, 3, xyz, ldxyz);
@@ -122,57 +110,25 @@ struct NufftSynthesisInternal {
       auto& queue = ctx_->gpu_queue();
       // Syncronize with default stream.
       queue.sync_with_stream(nullptr);
+      // syncronize with stream to be synchronous with host before exiting
+      auto syncGuard = queue.sync_guard();
 
-      Buffer<gpu::api::ComplexType<T>> wBuffer, sBuffer;
-      Buffer<T> xyzBuffer, uvwBuffer;
+      ConstHostAccessor<T, 2> hostIntervals(queue, intervals, {2, nIntervals_}, {1, ldIntervals});
+      queue.sync();  // make sure it's accessible after construction
 
-      auto sDevice = reinterpret_cast<const gpu::api::ComplexType<T>*>(s);
-      auto ldsDevice = lds;
-      auto wDevice = reinterpret_cast<const gpu::api::ComplexType<T>*>(w);
-      auto ldwDevice = ldw;
-      auto xyzDevice = xyz;
-      auto ldxyzDevice = ldxyz;
-      auto uvwDevice = uvw;
-      auto lduvwDevice = lduvw;
+      typename ViewBase<T, 2>::IndexType sShape = {0, 0};
+      if (s) sShape = {nBeam_, nBeam_};
 
-      if (s && !gpu::is_device_ptr(s)) {
-        sBuffer = queue.create_device_buffer<gpu::api::ComplexType<T>>(nBeam_ * nBeam_);
-        ldsDevice = nBeam_;
-        sDevice = sBuffer.get();
-        gpu::api::memcpy_2d_async(sBuffer.get(), nBeam_ * sizeof(gpu::api::ComplexType<T>), s,
-                                  lds * sizeof(gpu::api::ComplexType<T>),
-                                  nBeam_ * sizeof(gpu::api::ComplexType<T>), nBeam_,
-                                  gpu::api::flag::MemcpyHostToDevice, queue.stream());
-      }
-      if (!gpu::is_device_ptr(w)) {
-        wBuffer = queue.create_device_buffer<gpu::api::ComplexType<T>>(nAntenna_ * nBeam_);
-        ldwDevice = nAntenna_;
-        wDevice = wBuffer.get();
-        gpu::api::memcpy_2d_async(wBuffer.get(), nAntenna_ * sizeof(gpu::api::ComplexType<T>), w,
-                                  ldw * sizeof(gpu::api::ComplexType<T>),
-                                  nAntenna_ * sizeof(gpu::api::ComplexType<T>), nBeam_,
-                                  gpu::api::flag::MemcpyHostToDevice, queue.stream());
-      }
-      if (!gpu::is_device_ptr(xyz)) {
-        xyzBuffer = queue.create_device_buffer<T>(3 * nAntenna_);
-        ldxyzDevice = nAntenna_;
-        xyzDevice = xyzBuffer.get();
-        gpu::api::memcpy_2d_async(xyzBuffer.get(), nAntenna_ * sizeof(T), xyz, ldxyz * sizeof(T),
-                                  nAntenna_ * sizeof(T), 3, gpu::api::flag::MemcpyHostToDevice,
-                                  queue.stream());
-      }
-      if (!gpu::is_device_ptr(uvw)) {
-        uvwBuffer = queue.create_device_buffer<T>(3 * nAntenna_ * nAntenna_);
-        uvwDevice = uvwBuffer.get();
-        lduvwDevice = nAntenna_ * nAntenna_;
-        gpu::api::memcpy_2d_async(uvwBuffer.get(), nAntenna_ * nAntenna_ * sizeof(T), uvw,
-                                  lduvw * sizeof(T), nAntenna_ * nAntenna_ * sizeof(T), 3,
-                                  gpu::api::flag::MemcpyHostToDevice, queue.stream());
-      }
+      ConstDeviceAccessor<gpu::api::ComplexType<T>, 2> sDevice(
+          queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(s), sShape, {1, lds});
+      ConstDeviceAccessor<gpu::api::ComplexType<T>, 2> wDevice(
+          queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(w), {nAntenna_, nBeam_},
+          {1, ldw});
+      ConstDeviceAccessor<T, 2> xyzDevice(queue, xyz, {nAntenna_, 3}, {1, ldxyz});
+      ConstDeviceAccessor<T, 2> uvwDevice(queue, uvw, {nAntenna_ * nAntenna_, 3}, {1, lduvw});
 
-      planGPU_->collect(nEig, wl, intervals, ldIntervals, sDevice, ldsDevice, wDevice, ldwDevice,
-                        xyzDevice, ldxyzDevice, uvwDevice, lduvwDevice);
-      queue.sync();
+      planGPU_->collect(nEig, wl, hostIntervals.view(), sDevice.view(), wDevice.view(),
+                        xyzDevice.view(), uvwDevice.view());
 #else
       throw GPUSupportError();
 #endif
@@ -183,7 +139,7 @@ struct NufftSynthesisInternal {
     ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "{} NufftSynthesis.collect() time: {}ms",
                        (const void*)this, time.count());
 
-    if(ctx_->processing_unit() == BIPP_PU_CPU)
+    if (ctx_->processing_unit() == BIPP_PU_CPU)
       ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "{} Context memory usage: host {}MB",
                          (const void*)ctx_.get(), ctx_->host_alloc()->size() / 1000000);
     else {
@@ -202,10 +158,13 @@ struct NufftSynthesisInternal {
                        (int)f, (const void*)out, ld);
     if (planHost_) {
       auto& p = planHost_.value();
-      p.get(f, HostView<T, 2>(out,{p.num_pixel(), p.num_intervals()}, {1, ld}));
+      p.get(f, HostView<T, 2>(out, {p.num_pixel(), p.num_intervals()}, {1, ld}));
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-      planGPU_->get(f, out, ld);
+      auto& queue = ctx_->gpu_queue();
+      DeviceAccessor<T, 2> imgDevice(queue, out, {nPixel_, nIntervals_}, {1, ld});
+      planGPU_->get(f, imgDevice.view());
+      imgDevice.copy_back(queue);
       ctx_->gpu_queue().sync();
 #else
       throw GPUSupportError();
@@ -336,7 +295,8 @@ BIPP_EXPORT BippError bipp_ns_options_set_collect_group_size(BippNufftSynthesisO
   return BIPP_SUCCESS;
 }
 
-BIPP_EXPORT BippError bipp_ns_options_set_local_image_partition_auto(BippNufftSynthesisOptions opt) {
+BIPP_EXPORT BippError
+bipp_ns_options_set_local_image_partition_auto(BippNufftSynthesisOptions opt) {
   if (!opt) {
     return BIPP_INVALID_HANDLE_ERROR;
   }
@@ -350,7 +310,8 @@ BIPP_EXPORT BippError bipp_ns_options_set_local_image_partition_auto(BippNufftSy
   return BIPP_SUCCESS;
 }
 
-BIPP_EXPORT BippError bipp_ns_options_set_local_image_partition_none(BippNufftSynthesisOptions opt) {
+BIPP_EXPORT BippError
+bipp_ns_options_set_local_image_partition_none(BippNufftSynthesisOptions opt) {
   if (!opt) {
     return BIPP_INVALID_HANDLE_ERROR;
   }
@@ -426,8 +387,9 @@ BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_grid(BippNufftSynt
   return BIPP_SUCCESS;
 }
 
-BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSynthesisOptions opt, size_t nAntenna,
-                                                    size_t nBeam, size_t nIntervals, size_t nFilter,
+BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSynthesisOptions opt,
+                                                    size_t nAntenna, size_t nBeam,
+                                                    size_t nIntervals, size_t nFilter,
                                                     const BippFilter* filter, size_t nPixel,
                                                     const float* lmnX, const float* lmnY,
                                                     const float* lmnZ, BippNufftSynthesisF* plan) {
@@ -497,11 +459,12 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_get_f(BippNufftSynthesisF plan, BippF
   return BIPP_SUCCESS;
 }
 
-BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, BippNufftSynthesisOptions opt, size_t nAntenna,
-                                                  size_t nBeam, size_t nIntervals, size_t nFilter,
-                                                  const BippFilter* filter, size_t nPixel,
-                                                  const double* lmnX, const double* lmnY,
-                                                  const double* lmnZ, BippNufftSynthesis* plan) {
+BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, BippNufftSynthesisOptions opt,
+                                                  size_t nAntenna, size_t nBeam, size_t nIntervals,
+                                                  size_t nFilter, const BippFilter* filter,
+                                                  size_t nPixel, const double* lmnX,
+                                                  const double* lmnY, const double* lmnZ,
+                                                  BippNufftSynthesis* plan) {
   if (!ctx) {
     return BIPP_INVALID_HANDLE_ERROR;
   }
