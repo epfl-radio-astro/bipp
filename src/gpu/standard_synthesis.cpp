@@ -80,8 +80,7 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
   {
     auto g = queue.create_device_array<api::ComplexType<T>, 2>({nBeam_, nBeam_});
 
-    gram_matrix<T>(*ctx_, nAntenna_, nBeam_, w.data(), w.strides()[1], xyzCentered.data(),
-                   xyzCentered.strides()[1], wl, g.data(), g.strides()[1]);
+    gram_matrix<T>(*ctx_, w, xyzCentered, wl, g);
 
     std::size_t nEigOut = 0;
     // Note different order of s and g input
@@ -124,25 +123,14 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
       std::tie(start, size) = host::find_interval_indices(
           nEig, dHost.data(), intervals[{0, idxInt}], intervals[{1, idxInt}]);
 
-      // auto imgCurrent = img_.get() + (idxFilter * nIntervals_ + idxInt) * nPixel_;
       auto imgCurrent = img_.slice_view(idxFilter).slice_view(idxInt);
       for (std::size_t idxEig = start; idxEig < start + size; ++idxEig) {
-        // ctx_->logger().log(
-        //     BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
-        //     *(DBufferHost.get() + idxEig), *(DFilteredBufferHost.get() + idxEig),
-        //     intervalsHost[idxInt * ldIntervals], intervalsHost[idxInt * ldIntervals + 1]);
-        // const auto scale = DFilteredBufferHost.get()[idxEig];
-        // auto unlayeredStatsCurrent = unlayeredStats.get() + nPixel_ * idxEig;
-        // api::blas::axpy(queue.blas_handle(), nPixel_, &scale, unlayeredStatsCurrent, 1, imgCurrent,
-                        // 1);
-
         const auto scale = dFilteredHost[{idxEig}];
 
         ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
                            "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
                            dHost[{idxEig}], scale, intervals[{0, idxInt}], intervals[{1, idxInt}]);
 
-        // blas::axpy(nPixel_, scale, &unlayeredStats[{0, idxEig}], 1, imgCurrent.data(), 1);
         api::blas::axpy(queue.blas_handle(), nPixel_, &scale,
                         unlayeredStats.slice_view(idxEig).data(), 1, imgCurrent.data(), 1);
       }

@@ -6,12 +6,12 @@
 #include "bipp/config.h"
 #include "context_internal.hpp"
 #include "gpu/util/runtime_api.hpp"
+#include "memory/array.hpp"
 
 namespace bipp {
 namespace gpu {
 template <typename T>
-auto gram_matrix(ContextInternal& ctx, std::size_t m, std::size_t n, const api::ComplexType<T>* w,
-                 std::size_t ldw, const T* xyz, std::size_t ldxyz, T wl, api::ComplexType<T>* g,
-                 std::size_t ldg) -> void;
+auto gram_matrix(ContextInternal& ctx, ConstDeviceView<api::ComplexType<T>, 2> w,
+                 ConstDeviceView<T, 2> xyz, T wl, DeviceView<api::ComplexType<T>, 2> g) -> void;
 }
 }  // namespace bipp

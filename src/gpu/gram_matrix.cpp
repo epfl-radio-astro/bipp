@@ -8,60 +8,48 @@
 #include "gpu/kernels/gram.hpp"
 #include "gpu/util/blas_api.hpp"
 #include "gpu/util/runtime_api.hpp"
-#include "memory/buffer.hpp"
+#include "memory/array.hpp"
+#include "memory/view.hpp"
 
 namespace bipp {
 namespace gpu {
 
 template <typename T>
-auto gram_matrix(ContextInternal& ctx, std::size_t m, std::size_t n, const api::ComplexType<T>* w,
-                 std::size_t ldw, const T* xyz, std::size_t ldxyz, T wl, api::ComplexType<T>* g,
-                 std::size_t ldg) -> void {
-  using ComplexType = api::ComplexType<T>;
+auto gram_matrix(ContextInternal& ctx, ConstDeviceView<api::ComplexType<T>, 2> w,
+                 ConstDeviceView<T, 2> xyz, T wl, DeviceView<api::ComplexType<T>, 2> g) -> void {
+  const auto nAntenna= w.shape()[0];
+  const auto nBeam= w.shape()[1];
 
   auto& queue = ctx.gpu_queue();
-  // Syncronize with default stream.
-  queue.sync_with_stream(nullptr);
-  // syncronize with stream to be synchronous with host before exiting
-  auto syncGuard = queue.sync_guard();
 
-  auto baseD = queue.create_device_buffer<ComplexType>(m * m);
+  auto buffer = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna, nAntenna});
 
-  {
-    auto xyzD = queue.create_device_buffer<T>(3 * m);
-    api::memcpy_2d_async(xyzD.get(), m * sizeof(T), xyz, ldxyz * sizeof(T), m * sizeof(T), 3,
-                         api::flag::MemcpyDefault, queue.stream());
-    gram(queue, m, xyzD.get(), xyzD.get() + m, xyzD.get() + 2 * m, wl, baseD.get(), m);
-  }
+  gram(queue, nAntenna, xyz.slice_view(0).data(), xyz.slice_view(1).data(),
+       xyz.slice_view(2).data(), wl, buffer.data(), buffer.shape()[1]);
 
-  auto wD = queue.create_device_buffer<ComplexType>(m * n);
-  auto cD = queue.create_device_buffer<ComplexType>(m * n);
-  api::memcpy_2d_async(wD.get(), m * sizeof(ComplexType), w, ldw * sizeof(ComplexType),
-                       m * sizeof(ComplexType), n, api::flag::MemcpyDefault, queue.stream());
-  ComplexType alpha{1, 0};
-  ComplexType beta{0, 0};
-  api::blas::symm(queue.blas_handle(), api::blas::side::left, api::blas::fill::lower, m, n, &alpha,
-                  baseD.get(), m, wD.get(), m, &beta, cD.get(), m);
-  auto gD = queue.create_device_buffer<ComplexType>(n * n);
-  api::blas::gemm(queue.blas_handle(), api::blas::operation::ConjugateTranspose,
-                  api::blas::operation::None, n, n, m, &alpha, wD.get(), m, cD.get(), m, &beta,
-                  gD.get(), n);
+  api::ComplexType<T> alpha{1, 0};
+  api::ComplexType<T> beta{0, 0};
 
-  api::memcpy_2d_async(g, ldg * sizeof(ComplexType), gD.get(), n * sizeof(ComplexType),
-                       n * sizeof(ComplexType), n, api::flag::MemcpyDefault, queue.stream());
+  auto bufferC = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna, nBeam});
 
-  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gram", n, n, g, ldg);
+  api::blas::symm<api::ComplexType<T>>(queue.blas_handle(), api::blas::side::left,
+                                       api::blas::fill::lower, alpha, buffer, w, beta, bufferC);
+  api::blas::gemm<api::ComplexType<T>>(queue.blas_handle(),
+                                       api::blas::operation::ConjugateTranspose,
+                                       api::blas::operation::None, alpha, w, bufferC, beta, g);
+
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gram", g);
 }
 
-template auto gram_matrix<float>(ContextInternal& ctx, std::size_t m, std::size_t n,
-                                 const api::ComplexType<float>* w, std::size_t ldw,
-                                 const float* xyz, std::size_t ldxyz, float wl,
-                                 api::ComplexType<float>* g, std::size_t ldg) -> void;
+template auto gram_matrix<float>(ContextInternal& ctx,
+                                 ConstDeviceView<api::ComplexType<float>, 2> w,
+                                 ConstDeviceView<float, 2> xyz, float wl,
+                                 DeviceView<api::ComplexType<float>, 2> g) -> void;
 
-template auto gram_matrix<double>(ContextInternal& ctx, std::size_t m, std::size_t n,
-                                  const api::ComplexType<double>* w, std::size_t ldw,
-                                  const double* xyz, std::size_t ldxyz, double wl,
-                                  api::ComplexType<double>* g, std::size_t ldg) -> void;
+template auto gram_matrix<double>(ContextInternal& ctx,
+                                  ConstDeviceView<api::ComplexType<double>, 2> w,
+                                  ConstDeviceView<double, 2> xyz, double wl,
+                                  DeviceView<api::ComplexType<double>, 2> g) -> void;
 
 }  // namespace gpu
 }  // namespace bipp

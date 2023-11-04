@@ -42,7 +42,6 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
       imgPartition_(DomainPartition::none(ctx_, nPixel_)),
       collectCount_(0),
       totalCollectCount_(0) {
-
   auto& queue = ctx_->gpu_queue();
   api::memset_async(img_.data(), 0, img_.size() * sizeof(T), queue.stream());
 
@@ -112,8 +111,7 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
   {
     auto g = queue.create_device_array<api::ComplexType<T>, 2>({nBeam_, nBeam_});
 
-    gram_matrix<T>(*ctx_, nAntenna_, nBeam_, w.data(), w.strides()[1], xyz.data(), xyz.strides()[1],
-                   wl, g.data(), g.strides()[1]);
+    gram_matrix<T>(*ctx_, w, xyz, wl, g);
 
     std::size_t nEigOut = 0;
     // Note different order of s and g input
@@ -122,19 +120,16 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
     else {
       auto gHost = queue.create_pinned_array<api::ComplexType<T>, 2>(g.shape());
       copy(queue, g, gHost);
-      queue.sync(); // finish copy
+      queue.sync();  // finish copy
       eigh<T>(*ctx_, nEig, gHost, g, s, d, v);
     }
   }
 
   auto virtVisPtr = virtualVis_.data() + collectCount_ * nAntenna_ * nAntenna_;
 
-  // virtual_vis(*ctx_, nFilter_, filterHost_.data(), nIntervals_, intervals, ldIntervals, nEig,
-  //             d.data(), nAntenna_, v.data(), nBeam_, nBeam_, w, ldw, virtVisPtr,
-  //             nMaxInputCount_ * nIntervals_ * nAntenna_ * nAntenna_,
-  //             nMaxInputCount_ * nAntenna_ * nAntenna_, nAntenna_);
-  virtual_vis(*ctx_, nFilter_, filter_.data(), nIntervals_, intervals.data(), intervals.strides()[1], nEig, d.data(),
-              nAntenna_, v.data(), v.strides()[1], nBeam_, w.data(), w.strides()[1], virtVisPtr,
+  virtual_vis(*ctx_, nFilter_, filter_.data(), nIntervals_, intervals.data(),
+              intervals.strides()[1], nEig, d.data(), nAntenna_, v.data(), v.strides()[1], nBeam_,
+              w.data(), w.strides()[1], virtVisPtr,
               nMaxInputCount_ * nIntervals_ * nAntenna_ * nAntenna_,
               nMaxInputCount_ * nAntenna_ * nAntenna_, nAntenna_);
 
@@ -177,7 +172,7 @@ auto NufftSynthesis<T>::computeNufft() -> void {
             return DomainPartition::none(ctx_, nInputPoints);
 
           } else if constexpr (std::is_same_v<ArgType, Partition::Auto>) {
-            auto minMaxDevice = queue.create_device_array<T,1>({12});
+            auto minMaxDevice = queue.create_device_array<T, 1>({12});
             min_element(queue, nInputPoints, uvwX.data(), minMaxDevice.data());
             max_element(queue, nInputPoints, uvwX.data(), minMaxDevice.data() + 1);
 
@@ -246,7 +241,7 @@ auto NufftSynthesis<T>::computeNufft() -> void {
       if (!inputSize) continue;
       for (const auto& [imgBegin, imgSize] : imgPartition_.groups()) {
         if (!imgSize) continue;
-        
+
         if (inputSize <= 1024) {
           ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "nufft size {}, direct evaluation", inputSize);
           // Direct evaluation of sum for small input sizes
@@ -273,8 +268,8 @@ auto NufftSynthesis<T>::computeNufft() -> void {
               auto imgPtr = img_.slice_view(i).slice_view(j).data() + imgBegin;
               transform.execute(virtualVis_.data() + i * ldVirtVis1 + j * ldVirtVis2 + inputBegin,
                                 output.data());
-              ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output", imgSize, 1, output.data(),
-                                      imgSize);
+              ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output", imgSize, 1,
+                                        output.data(), imgSize);
 
               add_vector_real_of_complex<T>(queue.device_prop(), nullptr, imgSize, output.data(),
                                             imgPtr);
@@ -319,45 +314,6 @@ auto NufftSynthesis<T>::get(BippFilter f, DeviceView<T, 2> out) -> void {
     scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale, intervalOut.data());
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", intervalOut);
   }
-
-  // std::size_t index = nFilter_;
-  // const BippFilter* filterPtr = filterHost_.data();
-  // for (std::size_t i = 0; i < nFilter_; ++i) {
-  //   if (filterPtr[i] == f) {
-  //     index = i;
-  //     break;
-  //   }
-  // }
-  // if (index == nFilter_) throw InvalidParameterError();
-
-  // const T scale =
-  //     totalCollectCount_ ? static_cast<T>(1.0 / static_cast<double>(totalCollectCount_)) : 0;
-  // if (is_device_ptr(outHostOrDevice)) {
-  //   for (std::size_t i = 0; i < nIntervals_; ++i) {
-  //     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image permuted", nPixel_, 1,
-  //                               img_.data() + index * nIntervals_ * nPixel_ + i * nPixel_, nPixel_);
-  //     imgPartition_.reverse(img_.data() + index * nIntervals_ * nPixel_ + i * nPixel_,
-  //                           outHostOrDevice + i * ld);
-  //     scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale,
-  //                     outHostOrDevice + i * ld);
-  //     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", nPixel_, 1,
-  //                               outHostOrDevice + i * ld, nPixel_);
-  //   }
-  // } else {
-  //   auto workBuffer = queue.create_device_buffer<T>(nPixel_);
-  //   for (std::size_t i = 0; i < nIntervals_; ++i) {
-  //     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image permuted", nPixel_, 1,
-  //                               img_.data() + index * nIntervals_ * nPixel_ + i * nPixel_, nPixel_);
-  //     imgPartition_.reverse(img_.data() + index * nIntervals_ * nPixel_ + i * nPixel_,
-  //                           workBuffer.data());
-
-  //     scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale, workBuffer.data());
-  //     gpu::api::memcpy_async(outHostOrDevice + i * ld, workBuffer.data(), workBuffer.size_in_bytes(),
-  //                            gpu::api::flag::MemcpyDefault, queue.stream());
-  //     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", nPixel_, 1,
-  //                               outHostOrDevice + i * ld, nPixel_);
-  //   }
-  // }
 }
 
 template class NufftSynthesis<float>;

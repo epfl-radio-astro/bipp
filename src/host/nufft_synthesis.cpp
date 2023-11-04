@@ -115,8 +115,7 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
   {
     auto g = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nBeam_, nBeam_});
 
-    gram_matrix<T>(*ctx_, nAntenna_, nBeam_, w.data(), w.strides()[1], xyz.data(), xyz.strides()[1],
-                   wl, g.data(), g.strides()[1]);
+    gram_matrix<T>(*ctx_, w, xyz, wl, g);
 
     // Note different order of s and g input
     if (s.size())

@@ -36,19 +36,19 @@ void cblas_zgemm(enum CBLAS_LAYOUT order, enum CBLAS_TRANSPOSE transA, enum CBLA
                  int M, int N, int K, const void* alpha, const void* A, int lda, const void* B,
                  int ldb, const void* beta, void* C, int ldc);
 
-void cblas_ssymm(const CBLAS_LAYOUT layout, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo,
+void cblas_ssymm(const CBLAS_LAYOUT layout, const CBLAS_SIDE side, const CBLAS_UPLO uplo,
                  const int M, const int N, const float alpha, const float* A, const int lda,
                  const float* B, const int ldb, const float beta, float* C, const int ldc);
 
-void cblas_dsymm(const CBLAS_LAYOUT layout, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo,
+void cblas_dsymm(const CBLAS_LAYOUT layout, const CBLAS_SIDE side, const CBLAS_UPLO uplo,
                  const int M, const int N, const double alpha, const double* A, const int lda,
                  const double* B, const int ldb, const double beta, double* C, const int ldc);
 
-void cblas_csymm(const CBLAS_LAYOUT layout, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo,
+void cblas_csymm(const CBLAS_LAYOUT layout, const CBLAS_SIDE side, const CBLAS_UPLO uplo,
                  const int M, const int N, const void* alpha, const void* A, const int lda,
                  const void* B, const int ldb, const void* beta, void* C, const int ldc);
 
-void cblas_zsymm(const CBLAS_LAYOUT layout, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo,
+void cblas_zsymm(const CBLAS_LAYOUT layout, const CBLAS_SIDE side, const CBLAS_UPLO uplo,
                  const int M, const int N, const void* alpha, const void* A, const int lda,
                  const void* B, const int ldb, const void* beta, void* C, const int ldc);
 
@@ -196,53 +196,70 @@ auto gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB, T alpha, ConstHostView
        b.strides()[1], beta, c.data(), c.strides()[1]);
 }
 
-inline auto symm(const CBLAS_LAYOUT layout, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo,
+inline auto symm(const CBLAS_LAYOUT layout, const CBLAS_SIDE side, const CBLAS_UPLO uplo,
                  const int M, const int N, const float alpha, const float* A, const int lda,
                  const float* B, const int ldb, const float beta, float* C, const int ldc) -> void {
 #ifdef BIPP_BLAS_C
-  cblas_ssymm(layout, Side, Uplo, M, N, alpha, A, lda, B, ldb, beta, C, ldc);
+  cblas_ssymm(layout, side, uplo, M, N, alpha, A, lda, B, ldb, beta, C, ldc);
 #else
-  ssymm_(cblas_side_to_string(Side), cblas_uplo_to_string(Uplo), &M, &N, &alpha, A, &lda, B, &ldb,
+  ssymm_(cblas_side_to_string(side), cblas_uplo_to_string(uplo), &M, &N, &alpha, A, &lda, B, &ldb,
          &beta, C, &ldc, 1, 1);
 #endif
 }
 
-inline auto symm(const CBLAS_LAYOUT layout, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo,
+inline auto symm(const CBLAS_LAYOUT layout, const CBLAS_SIDE side, const CBLAS_UPLO uplo,
                  const int M, const int N, const double alpha, const double* A, const int lda,
                  const double* B, const int ldb, const double beta, double* C, const int ldc)
     -> void {
 #ifdef BIPP_BLAS_C
-  cblas_dsymm(layout, Side, Uplo, M, N, alpha, A, lda, B, ldb, beta, C, ldc);
+  cblas_dsymm(layout, side, uplo, M, N, alpha, A, lda, B, ldb, beta, C, ldc);
 #else
-  dsymm_(cblas_side_to_string(Side), cblas_uplo_to_string(Uplo), &M, &N, &alpha, A, &lda, B, &ldb,
+  dsymm_(cblas_side_to_string(side), cblas_uplo_to_string(uplo), &M, &N, &alpha, A, &lda, B, &ldb,
          &beta, C, &ldc, 1, 1);
 #endif
 }
 
-inline auto symm(const CBLAS_LAYOUT layout, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo,
+inline auto symm(const CBLAS_LAYOUT layout, const CBLAS_SIDE side, const CBLAS_UPLO uplo,
                  const int M, const int N, const std::complex<float> alpha,
                  const std::complex<float>* A, const int lda, const std::complex<float>* B,
                  const int ldb, const std::complex<float> beta, std::complex<float>* C,
                  const int ldc) -> void {
 #ifdef BIPP_BLAS_C
-  cblas_csymm(layout, Side, Uplo, M, N, &alpha, A, lda, B, ldb, &beta, C, ldc);
+  cblas_csymm(layout, side, uplo, M, N, &alpha, A, lda, B, ldb, &beta, C, ldc);
 #else
-  csymm_(cblas_side_to_string(Side), cblas_uplo_to_string(Uplo), &M, &N, &alpha, A, &lda, B, &ldb,
+  csymm_(cblas_side_to_string(side), cblas_uplo_to_string(uplo), &M, &N, &alpha, A, &lda, B, &ldb,
          &beta, C, &ldc, 1, 1);
 #endif
 }
 
-inline auto symm(const CBLAS_LAYOUT layout, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo,
+inline auto symm(const CBLAS_LAYOUT layout, const CBLAS_SIDE side, const CBLAS_UPLO uplo,
                  const int M, const int N, const std::complex<double> alpha,
                  const std::complex<double>* A, const int lda, const std::complex<double>* B,
                  const int ldb, const std::complex<double> beta, std::complex<double>* C,
                  const int ldc) -> void {
 #ifdef BIPP_BLAS_C
-  cblas_zsymm(layout, Side, Uplo, M, N, &alpha, A, lda, B, ldb, &beta, C, ldc);
+  cblas_zsymm(layout, side, uplo, M, N, &alpha, A, lda, B, ldb, &beta, C, ldc);
 #else
-  zsymm_(cblas_side_to_string(Side), cblas_uplo_to_string(Uplo), &M, &N, &alpha, A, &lda, B, &ldb,
+  zsymm_(cblas_side_to_string(side), cblas_uplo_to_string(uplo), &M, &N, &alpha, A, &lda, B, &ldb,
          &beta, C, &ldc, 1, 1);
 #endif
+}
+
+template <typename T>
+auto symm(const CBLAS_SIDE side, const CBLAS_UPLO uplo, std::complex<T> alpha,
+          ConstHostView<std::complex<T>, 2> A, ConstHostView<std::complex<T>, 2> B,
+          std::complex<T> beta, HostView<std::complex<T>, 2> C) {
+  const auto m = C.shape()[0];
+  const auto n = C.shape()[1];
+
+  assert(side == CblasLeft ? (A.shape()[0] == m) : (A.shape()[0] == n));
+  assert(side == CblasLeft ? (A.shape()[1] == m) : (A.shape()[1] == n));
+
+  assert(B.shape()[0] == m);
+  assert(B.shape()[1] == n);
+
+  symm(CblasColMajor, side, uplo, m, n, alpha, A.data(), A.strides()[1], B.data(), B.strides()[1],
+       beta, C.data(), C.strides()[1]);
 }
 
 inline auto axpy(const int n, const float a, const float* x, const int incx, float* y,

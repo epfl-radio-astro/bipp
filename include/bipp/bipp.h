@@ -442,8 +442,8 @@ BIPP_EXPORT BippError bipp_eigh(BippContext ctx, size_t m, size_t nEig, const vo
  * Data processor for the gram matrix in single precision.
  *
  * @param[in] ctx Context handle.
- * @param[in] m Number of antenna.
- * @param[in] n Number of beams.
+ * @param[in] nAntenna Number of antenna.
+ * @param[in] nBeam Number of beams.
  * @param[in] w Beamforming matrix.
  * @param[in] ldw Leading dimension of W.
  * @param[in] xyz Three dimensional antenna coordinates, where each coloumn
@@ -454,16 +454,16 @@ BIPP_EXPORT BippError bipp_eigh(BippContext ctx, size_t m, size_t nEig, const vo
  * @param[out] ldg Leading of G.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_gram_matrix_f(BippContext ctx, size_t m, size_t n, const void* w,
-                                         size_t ldw, const float* xyz, size_t ldxyz, float wl,
-                                         void* g, size_t ldg);
+BIPP_EXPORT BippError bipp_gram_matrix_f(BippContext ctx, size_t nAntenna, size_t nBeam,
+                                         const void* w, size_t ldw, const float* xyz, size_t ldxyz,
+                                         float wl, void* g, size_t ldg);
 
 /**
  * Data processor for the gram matrix in double precision.
  *
  * @param[in] ctx Context handle.
- * @param[in] m Number of antenna.
- * @param[in] n Number of beams.
+ * @param[in] nAntenna Number of antenna.
+ * @param[in] nBeam Number of beams.
  * @param[in] w Beamforming matrix.
  * @param[in] ldw Leading dimension of W.
  * @param[in] xyz Three dimensional antenna coordinates, where each coloumn
@@ -474,9 +474,9 @@ BIPP_EXPORT BippError bipp_gram_matrix_f(BippContext ctx, size_t m, size_t n, co
  * @param[out] ldg Leading of G.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_gram_matrix(BippContext ctx, size_t m, size_t n, const void* w,
-                                       size_t ldw, const double* xyz, size_t ldxyz, double wl,
-                                       void* g, size_t ldg);
+BIPP_EXPORT BippError bipp_gram_matrix(BippContext ctx, size_t nAntenna, size_t nBeam,
+                                       const void* w, size_t ldw, const double* xyz, size_t ldxyz,
+                                       double wl, void* g, size_t ldg);
 
 #ifdef __cplusplus
 }

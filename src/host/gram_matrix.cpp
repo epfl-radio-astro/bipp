@@ -14,7 +14,8 @@
 #include "context_internal.hpp"
 #include "host/blas_api.hpp"
 #include "memory/allocator.hpp"
-#include "memory/buffer.hpp"
+#include "memory/array.hpp"
+#include "memory/view.hpp"
 
 namespace bipp {
 namespace host {
@@ -25,46 +26,43 @@ static T calc_pi_sinc(T a, T x) {
 }
 
 template <typename T>
-auto gram_matrix(ContextInternal& ctx, std::size_t m, std::size_t n, const std::complex<T>* w,
-                 std::size_t ldw, const T* xyz, std::size_t ldxyz, T wl, std::complex<T>* g,
-                 std::size_t ldg) -> void {
-  auto bufferBase = Buffer<std::complex<T>>(ctx.host_alloc(), m * m);
-  auto basePtr = bufferBase.get();
+auto gram_matrix(ContextInternal& ctx, ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz,
+                 T wl, HostView<std::complex<T>, 2> g) -> void {
+  const auto nAntenna= w.shape()[0];
+  const auto nBeam= w.shape()[1];
 
-  auto x = xyz;
-  auto y = xyz + ldxyz;
-  auto z = xyz + 2 * ldxyz;
+  auto buffer = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nAntenna, nAntenna});
+
+  auto x = xyz.slice_view(0);
+  auto y = xyz.slice_view(1);
+  auto z = xyz.slice_view(2);
   T sincScale = 2 * 3.14159265358979323846 / wl;
-  for (std::size_t i = 0; i < m; ++i) {
-    basePtr[i * m + i] = 4 * 3.14159265358979323846;
-    for (std::size_t j = i + 1; j < m; ++j) {
-      auto diffX = x[i] - x[j];
-      auto diffY = y[i] - y[j];
-      auto diffZ = z[i] - z[j];
+  for (std::size_t i = 0; i < nAntenna; ++i) {
+    buffer[{i, i}] = 4 * 3.14159265358979323846;
+    for (std::size_t j = i + 1; j < nAntenna; ++j) {
+      auto diffX = x[{i}] - x[{j}];
+      auto diffY = y[{i}] - y[{j}];
+      auto diffZ = z[{i}] - z[{j}];
       auto norm = std::sqrt(diffX * diffX + diffY * diffY + diffZ * diffZ);
-      basePtr[i * m + j] = 4 * calc_pi_sinc(sincScale, norm);
+      buffer[{j, i}] = 4 * calc_pi_sinc(sincScale, norm);
     }
   }
 
-  auto bufferC = Buffer<std::complex<T>>(ctx.host_alloc(), m * n);
+  auto bufferC = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nAntenna, nBeam});
 
-  blas::symm(CblasColMajor, CblasLeft, CblasLower, m, n, {1, 0}, basePtr, m, w, ldw, {0, 0},
-             bufferC.get(), m);
-  blas::gemm(CblasColMajor, CblasConjTrans, CblasNoTrans, n, n, m, {1, 0}, w, ldw, bufferC.get(), m,
-             {0, 0}, g, ldg);
+  blas::symm(CblasLeft, CblasLower, {1, 0}, buffer, w, {0, 0}, bufferC);
+  blas::gemm(CblasConjTrans, CblasNoTrans, {1, 0}, w, bufferC, {0, 0}, g);
 
-  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gram", n, n, g, ldg);
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gram", g);
 }
 
-template auto gram_matrix<float>(ContextInternal& ctx, std::size_t m, std::size_t n,
-                                 const std::complex<float>* w, std::size_t ldw, const float* xyz,
-                                 std::size_t ldxyz, float wl, std::complex<float>* g,
-                                 std::size_t ldg) -> void;
+template auto gram_matrix<float>(ContextInternal& ctx, ConstHostView<std::complex<float>, 2> w,
+                                 ConstHostView<float, 2> xyz, float wl,
+                                 HostView<std::complex<float>, 2> g) -> void;
 
-template auto gram_matrix<double>(ContextInternal& ctx, std::size_t m, std::size_t n,
-                                  const std::complex<double>* w, std::size_t ldw, const double* xyz,
-                                  std::size_t ldxyz, double wl, std::complex<double>* g,
-                                  std::size_t ldg) -> void;
+template auto gram_matrix<double>(ContextInternal& ctx, ConstHostView<std::complex<double>, 2> w,
+                                  ConstHostView<double, 2> xyz, double wl,
+                                  HostView<std::complex<double>, 2> g) -> void;
 
 }  // namespace host
 }  // namespace bipp
