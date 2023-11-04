@@ -113,11 +113,14 @@ struct NufftSynthesisInternal {
       // syncronize with stream to be synchronous with host before exiting
       auto syncGuard = queue.sync_guard();
 
-      ConstHostAccessor<T, 2> hostIntervals(queue, intervals, {2, nIntervals_}, {1, ldIntervals});
-      queue.sync();  // make sure it's accessible after construction
-
       typename ViewBase<T, 2>::IndexType sShape = {0, 0};
       if (s) sShape = {nBeam_, nBeam_};
+
+      ConstHostAccessor<T, 2> hostIntervals(queue, intervals, {2, nIntervals_}, {1, ldIntervals});
+      ConstHostAccessor<gpu::api::ComplexType<T>, 2> sHost(
+          queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(s), sShape, {1, lds});
+      queue.sync();  // make sure it's accessible after construction
+
 
       ConstDeviceAccessor<gpu::api::ComplexType<T>, 2> sDevice(
           queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(s), sShape, {1, lds});
@@ -127,8 +130,8 @@ struct NufftSynthesisInternal {
       ConstDeviceAccessor<T, 2> xyzDevice(queue, xyz, {nAntenna_, 3}, {1, ldxyz});
       ConstDeviceAccessor<T, 2> uvwDevice(queue, uvw, {nAntenna_ * nAntenna_, 3}, {1, lduvw});
 
-      planGPU_->collect(nEig, wl, hostIntervals.view(), sDevice.view(), wDevice.view(),
-                        xyzDevice.view(), uvwDevice.view());
+      planGPU_->collect(nEig, wl, hostIntervals.view(), sHost.view(), sDevice.view(),
+                        wDevice.view(), xyzDevice.view(), uvwDevice.view());
 #else
       throw GPUSupportError();
 #endif

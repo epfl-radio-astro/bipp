@@ -6,13 +6,13 @@
 #include "bipp/config.h"
 #include "context_internal.hpp"
 #include "gpu/util/runtime_api.hpp"
-#include "memory/buffer.hpp"
+#include "memory/view.hpp"
 
 namespace bipp {
 namespace gpu {
 template <typename T>
-auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const api::ComplexType<T>* a,
-          std::size_t lda, const api::ComplexType<T>* b, std::size_t ldb, T* d,
-          api::ComplexType<T>* v, std::size_t ldv) -> void;
+auto eigh(ContextInternal& ctx, std::size_t nEig, ConstHostView<api::ComplexType<T>, 2> aHost,
+          ConstDeviceView<api::ComplexType<T>, 2> a, ConstDeviceView<api::ComplexType<T>, 2> b,
+          DeviceView<T, 1> d, DeviceView<api::ComplexType<T>, 2> v) -> void;
 }
 }  // namespace bipp

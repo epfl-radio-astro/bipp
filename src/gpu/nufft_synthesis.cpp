@@ -85,6 +85,7 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
 
 template <typename T>
 auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> intervals,
+                                ConstHostView<api::ComplexType<T>, 2> sHost,
                                 ConstDeviceView<api::ComplexType<T>, 2> s,
                                 ConstDeviceView<api::ComplexType<T>, 2> w,
                                 ConstDeviceView<T, 2> xyz, ConstDeviceView<T, 2> uvw) -> void {
@@ -117,11 +118,13 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
     std::size_t nEigOut = 0;
     // Note different order of s and g input
     if (s.size())
-      eigh<T>(*ctx_, nBeam_, nEig, s.data(), s.strides()[1], g.data(), g.strides()[1], d.data(),
-              v.data(), v.strides()[1]);
-    else
-      eigh<T>(*ctx_, nBeam_, nEig, g.data(), g.strides()[1], nullptr, 0, d.data(), v.data(),
-              v.strides()[1]);
+      eigh<T>(*ctx_, nEig, sHost, s, g, d, v);
+    else {
+      auto gHost = queue.create_pinned_array<api::ComplexType<T>, 2>(g.shape());
+      copy(queue, g, gHost);
+      queue.sync(); // finish copy
+      eigh<T>(*ctx_, nEig, gHost, g, s, d, v);
+    }
   }
 
   auto virtVisPtr = virtualVis_.data() + collectCount_ * nAntenna_ * nAntenna_;

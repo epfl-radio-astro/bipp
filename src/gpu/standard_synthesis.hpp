@@ -18,6 +18,7 @@ public:
                     DeviceArray<T, 2> pixel);
 
   auto collect(std::size_t nEig, T wl, ConstHostView<T, 2> intervals,
+               ConstHostView<api::ComplexType<T>, 2> sHost,
                ConstDeviceView<api::ComplexType<T>, 2> s, ConstDeviceView<api::ComplexType<T>, 2> w,
                ConstDeviceView<T, 2> xyz) -> void;
 

@@ -15,6 +15,7 @@
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/eigensolver.hpp"
+#include "gpu/util/device_accessor.hpp"
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
 #include "memory/buffer.hpp"
@@ -34,64 +35,26 @@ BIPP_EXPORT auto eigh(Context& ctx, std::size_t m, std::size_t nEig, const std::
     // syncronize with stream to be synchronous with host before exiting
     auto syncGuard = queue.sync_guard();
 
-    Buffer<gpu::api::ComplexType<T>> aBuffer, bBuffer, vBuffer;
-    Buffer<T> dBuffer;
-    auto aDevice = reinterpret_cast<const gpu::api::ComplexType<T>*>(a);
-    auto bDevice = reinterpret_cast<const gpu::api::ComplexType<T>*>(b);
-    auto dDevice = d;
-    auto vDevice = reinterpret_cast<gpu::api::ComplexType<T>*>(v);
-    std::size_t ldaDevice = lda;
-    std::size_t ldbDevice = ldb;
-    std::size_t ldvDevice = ldv;
+    ConstHostAccessor<gpu::api::ComplexType<T>, 2> aHost(
+        queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(a), {m, m}, {1, lda});
 
-    // copy input if required
-    if (!gpu::is_device_ptr(a)) {
-      aBuffer = queue.create_device_buffer<gpu::api::ComplexType<T>>(m * m);
-      ldaDevice = m;
-      aDevice = aBuffer.get();
-      gpu::api::memcpy_2d_async(aBuffer.get(), ldaDevice * sizeof(gpu::api::ComplexType<T>), a,
-                                lda * sizeof(gpu::api::ComplexType<T>),
-                                m * sizeof(gpu::api::ComplexType<T>), m,
-                                gpu::api::flag::MemcpyHostToDevice, queue.stream());
-    }
+    queue.sync(); // make sure a is on host
 
-    if (b && !gpu::is_device_ptr(b)) {
-      bBuffer = queue.create_device_buffer<gpu::api::ComplexType<T>>(m * m);
-      ldbDevice = m;
-      bDevice = bBuffer.get();
-      gpu::api::memcpy_2d_async(bBuffer.get(), ldbDevice * sizeof(gpu::api::ComplexType<T>), b,
-                                ldb * sizeof(gpu::api::ComplexType<T>),
-                                m * sizeof(gpu::api::ComplexType<T>), m,
-                                gpu::api::flag::MemcpyHostToDevice, queue.stream());
-    }
-
-    if (!gpu::is_device_ptr(v)) {
-      vBuffer = queue.create_device_buffer<gpu::api::ComplexType<T>>(nEig * m);
-      ldvDevice = m;
-      vDevice = vBuffer.get();
-    }
-
-    if (!gpu::is_device_ptr(d)) {
-      dBuffer = queue.create_device_buffer<T>(nEig);
-      dDevice = dBuffer.get();
-    }
+    ConstDeviceAccessor<gpu::api::ComplexType<T>, 2> aDevice(
+        queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(a), {m, m}, {1, lda});
+    ConstDeviceAccessor<gpu::api::ComplexType<T>, 2> bDevice(
+        queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(b), {b ? m : 0, b ? m : 0},
+        {1, ldb});
+    DeviceAccessor<gpu::api::ComplexType<T>, 2> vDevice(
+        queue, reinterpret_cast<gpu::api::ComplexType<T>*>(v), {m, nEig}, {1, ldv});
+    DeviceAccessor<T, 1> dDevice(queue, d, {nEig}, {1});
 
     // call eigh on GPU
-    gpu::eigh<T>(ctxInternal, m, nEig, aDevice, ldaDevice, bDevice, ldbDevice, dDevice, vDevice,
-                 ldvDevice);
+    gpu::eigh<T>(ctxInternal, nEig, aHost.view(), aDevice.view(), bDevice.view(), dDevice.view(),
+                 vDevice.view());
 
-    // copy back results if required
-    if (vBuffer) {
-      gpu::api::memcpy_2d_async(v, ldv * sizeof(gpu::api::ComplexType<T>), vBuffer.get(),
-                                ldvDevice * sizeof(gpu::api::ComplexType<T>),
-                                m * sizeof(gpu::api::ComplexType<T>), nEig,
-                                gpu::api::flag::MemcpyDeviceToHost, queue.stream());
-    }
-    if (dBuffer) {
-      gpu::api::memcpy_async(d, dDevice, nEig * sizeof(T), gpu::api::flag::MemcpyDeviceToHost,
-                             queue.stream());
-    }
-
+    dDevice.copy_back(queue);
+    vDevice.copy_back(queue);
 #else
     throw GPUSupportError();
 #endif

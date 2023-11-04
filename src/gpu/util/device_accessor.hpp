@@ -22,9 +22,11 @@ public:
   using IndexType = typename ViewBase<T, DIM>::IndexType;
 
   DeviceAccessor(gpu::Queue& q, HostView<T, DIM> v) : sourceView_(v) {
-    deviceArray_.reset(new DeviceArray<T, DIM>(q.create_device_array<T, DIM>(v.shape())));
-    deviceView_ = deviceArray_->view();
-    copy(q, v, deviceView_);
+    if(v.size()){
+      deviceArray_.reset(new DeviceArray<T, DIM>(q.create_device_array<T, DIM>(v.shape())));
+      deviceView_ = deviceArray_->view();
+      copy(q, v, deviceView_);
+    }
   }
 
   DeviceAccessor(gpu::Queue& q, DeviceView<T, DIM> v) : deviceView_(v) {}
@@ -55,9 +57,11 @@ public:
   using IndexType = typename ViewBase<T, DIM>::IndexType;
 
   ConstDeviceAccessor(gpu::Queue& q, ConstHostView<T, DIM> v) {
-    deviceArray_.reset(new DeviceArray<T, DIM>(q.create_device_array<T, DIM>(v.shape())));
-    deviceView_ = deviceArray_->view();
-    copy(q, v, *deviceArray_);
+    if(v.size()) {
+      deviceArray_.reset(new DeviceArray<T, DIM>(q.create_device_array<T, DIM>(v.shape())));
+      deviceView_ = deviceArray_->view();
+      copy(q, v, *deviceArray_);
+    }
   }
 
   ConstDeviceAccessor(gpu::Queue& q, ConstDeviceView<T, DIM> v) : deviceView_(v) {}
@@ -83,9 +87,11 @@ public:
   using IndexType = typename ViewBase<T, DIM>::IndexType;
 
   HostAccessor(gpu::Queue& q, DeviceView<T, DIM> v) : sourceView_(v) {
-    hostArray_.reset(new HostArray<T, DIM>(q.create_host_array<T, DIM>(v.shape())));
-    hostView_ = hostArray_->view();
-    copy(q, v, hostView_);
+    if (v.size()) {
+      hostArray_.reset(new HostArray<T, DIM>(q.create_host_array<T, DIM>(v.shape())));
+      hostView_ = hostArray_->view();
+      copy(q, v, hostView_);
+    }
   }
 
   HostAccessor(gpu::Queue& q, HostView<T, DIM> v) : hostView_(v) {}
@@ -116,9 +122,11 @@ public:
   using IndexType = typename ViewBase<T, DIM>::IndexType;
 
   ConstHostAccessor(gpu::Queue& q, ConstDeviceView<T, DIM> v) {
-    hostArray_.reset(new HostArray<T, DIM>(q.create_host_array<T, DIM>(v.shape())));
-    hostView_ = hostArray_->view();
-    copy(q, v, *hostArray_);
+    if(v.size()) {
+      hostArray_.reset(new HostArray<T, DIM>(q.create_host_array<T, DIM>(v.shape())));
+      hostView_ = hostArray_->view();
+      copy(q, v, *hostArray_);
+    }
   }
 
   ConstHostAccessor(gpu::Queue& q, ConstHostView<T, DIM> v) : hostView_(v) {}
