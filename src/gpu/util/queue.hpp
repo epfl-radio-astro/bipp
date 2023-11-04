@@ -12,6 +12,7 @@
 #include "memory/allocator.hpp"
 #include "memory/allocator_factory.hpp"
 #include "memory/buffer.hpp"
+#include "memory/array.hpp"
 
 #if !defined(BIPP_MAGMA) && defined(BIPP_CUDA)
 #include <cusolverDn.h>
@@ -115,6 +116,27 @@ public:
     Buffer<T> b(deviceAllocator_, size);
     allocatedData_.emplace_back(b.data_handler());
     return b;
+  }
+
+  template <typename T, std::size_t N>
+  auto create_host_array(typename HostArray<T, N>::IndexType shape) -> HostArray<T, N> {
+    HostArray<T, N> a(hostAllocator_, shape);
+    allocatedData_.emplace_back(a.data_handler());
+    return a;
+  }
+
+  template <typename T, std::size_t N>
+  auto create_pinned_array(typename HostArray<T, N>::IndexType shape) -> HostArray<T, N> {
+    HostArray<T, N> a(pinnedAllocator_, shape);
+    allocatedData_.emplace_back(a.data_handler());
+    return a;
+  }
+
+  template <typename T, std::size_t N>
+  auto create_device_array(typename DeviceArray<T, N>::IndexType shape) -> DeviceArray<T, N> {
+    DeviceArray<T, N> a(deviceAllocator_, shape);
+    allocatedData_.emplace_back(a.data_handler());
+    return a;
   }
 
   // Enter "wait for stream" into queue

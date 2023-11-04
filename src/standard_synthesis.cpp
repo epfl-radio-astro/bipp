@@ -14,6 +14,7 @@
 #include "gpu/standard_synthesis.hpp"
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
+#include "gpu/util/device_accessor.hpp"
 #endif
 
 namespace bipp {
@@ -48,32 +49,17 @@ struct StandardSynthesisInternal {
       // syncronize with stream to be synchronous with host before exiting
       auto syncGuard = queue.sync_guard();
 
-      Buffer<T> pixelXBuffer, pixelYBuffer, pixelZBuffer;
-      auto pixelXDevice = pixelX;
-      auto pixelYDevice = pixelY;
-      auto pixelZDevice = pixelZ;
+      auto filterArray = queue.create_host_array<BippFilter, 1>({nFilter});
+      copy(queue, ViewBase<BippFilter, 1>(filter, {nFilter}, {1}), filterArray);
+      queue.sync(); // make sure filters are available
 
-      if (!gpu::is_device_ptr(pixelX)) {
-        pixelXBuffer = queue.create_device_buffer<T>(nPixel);
-        pixelXDevice = pixelXBuffer.get();
-        gpu::api::memcpy_async(pixelXBuffer.get(), pixelX, nPixel * sizeof(T),
-                               gpu::api::flag::MemcpyHostToDevice, queue.stream());
-      }
-      if (!gpu::is_device_ptr(pixelY)) {
-        pixelYBuffer = queue.create_device_buffer<T>(nPixel);
-        pixelYDevice = pixelYBuffer.get();
-        gpu::api::memcpy_async(pixelYBuffer.get(), pixelY, nPixel * sizeof(T),
-                               gpu::api::flag::MemcpyHostToDevice, queue.stream());
-      }
-      if (!gpu::is_device_ptr(pixelZ)) {
-        pixelZBuffer = queue.create_device_buffer<T>(nPixel);
-        pixelZDevice = pixelZBuffer.get();
-        gpu::api::memcpy_async(pixelZBuffer.get(), pixelZ, nPixel * sizeof(T),
-                               gpu::api::flag::MemcpyHostToDevice, queue.stream());
-      }
+      auto pixelArray= queue.create_device_array<T,2>({nPixel_, 3});
+      copy(queue, ViewBase<T, 1>(pixelX, {nPixel_}, {1}), pixelArray.slice_view(0));
+      copy(queue, ViewBase<T, 1>(pixelY, {nPixel_}, {1}), pixelArray.slice_view(1));
+      copy(queue, ViewBase<T, 1>(pixelZ, {nPixel_}, {1}), pixelArray.slice_view(2));
 
-      planGPU_.emplace(ctx_, nAntenna, nBeam, nIntervals, nFilter, filter, nPixel, pixelXDevice,
-                       pixelYDevice, pixelZDevice);
+      planGPU_.emplace(ctx_, nAntenna, nBeam, nIntervals, std::move(filterArray),
+                       std::move(pixelArray));
 #else
       throw GPUSupportError();
 #endif
@@ -117,45 +103,24 @@ struct StandardSynthesisInternal {
       auto& queue = ctx_->gpu_queue();
       // Syncronize with default stream.
       queue.sync_with_stream(nullptr);
+      // syncronize with stream to be synchronous with host before exiting
+      auto syncGuard = queue.sync_guard();
 
-      Buffer<gpu::api::ComplexType<T>> wBuffer, sBuffer;
-      Buffer<T> xyzBuffer;
+      ConstHostAccessor<T, 2> hostIntervals(queue, intervals, {2, nIntervals_}, {1, ldIntervals});
+      queue.sync();  // make sure it's accessible after construction
 
-      auto sDevice = reinterpret_cast<const gpu::api::ComplexType<T>*>(s);
-      auto ldsDevice = lds;
-      auto wDevice = reinterpret_cast<const gpu::api::ComplexType<T>*>(w);
-      auto ldwDevice = ldw;
 
-      if (s && !gpu::is_device_ptr(s)) {
-        sBuffer = queue.create_device_buffer<gpu::api::ComplexType<T>>(nBeam_ * nBeam_);
-        ldsDevice = nBeam_;
-        sDevice = sBuffer.get();
-        gpu::api::memcpy_2d_async(sBuffer.get(), nBeam_ * sizeof(gpu::api::ComplexType<T>), s,
-                                  lds * sizeof(gpu::api::ComplexType<T>),
-                                  nBeam_ * sizeof(gpu::api::ComplexType<T>), nBeam_,
-                                  gpu::api::flag::MemcpyHostToDevice, queue.stream());
-      }
-      if (!gpu::is_device_ptr(w)) {
-        wBuffer = queue.create_device_buffer<gpu::api::ComplexType<T>>(nAntenna_ * nBeam_);
-        ldwDevice = nAntenna_;
-        wDevice = wBuffer.get();
-        gpu::api::memcpy_2d_async(wBuffer.get(), nAntenna_ * sizeof(gpu::api::ComplexType<T>), w,
-                                  ldw * sizeof(gpu::api::ComplexType<T>),
-                                  nAntenna_ * sizeof(gpu::api::ComplexType<T>), nBeam_,
-                                  gpu::api::flag::MemcpyHostToDevice, queue.stream());
-      }
+      typename ViewBase<T, 2>::IndexType sShape = {0, 0};
+      if(s) sShape = {nBeam_, nBeam_};
 
-      // Always copy xyz, even when on device, since it will be overwritten
-      xyzBuffer = queue.create_device_buffer<T>(3 * nAntenna_);
-      auto ldxyzDevice = nAntenna_;
-      auto xyzDevice = xyzBuffer.get();
-      gpu::api::memcpy_2d_async(xyzBuffer.get(), nAntenna_ * sizeof(T), xyz, ldxyz * sizeof(T),
-                                nAntenna_ * sizeof(T), 3, gpu::api::flag::MemcpyDefault,
-                                queue.stream());
+      ConstDeviceAccessor<gpu::api::ComplexType<T>, 2> sDevice(
+          queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(s), sShape, {1, lds});
+      ConstDeviceAccessor<gpu::api::ComplexType<T>, 2> wDevice(
+          queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(w), {nAntenna_, nBeam_}, {1, ldw});
+      ConstDeviceAccessor<T, 2> xyzDevice(queue, xyz, {nAntenna_, 3}, {1, ldxyz});
 
-      planGPU_->collect(nEig, wl, intervals, ldIntervals, sDevice, ldsDevice, wDevice, ldwDevice,
-                        xyzDevice, ldxyzDevice);
-      queue.sync();
+      planGPU_->collect(nEig, wl, hostIntervals.view(), sDevice.view(), wDevice.view(),
+                        xyzDevice.view());
 #else
       throw GPUSupportError();
 #endif
@@ -188,7 +153,10 @@ struct StandardSynthesisInternal {
       p.get(f, HostView<T, 2>(img,{p.num_pixel(), p.num_intervals()}, {1, ld}));
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-      planGPU_->get(f, img, ld);
+      auto& queue = ctx_->gpu_queue();
+      DeviceAccessor<T, 2> imgDevice(queue, img, {nPixel_, nIntervals_}, {1, ld});
+      planGPU_->get(f, imgDevice.view());
+      imgDevice.copy_back(queue);
       ctx_->gpu_queue().sync();
 #else
       throw GPUSupportError();

@@ -67,6 +67,18 @@ public:
                    const gpu::api::ComplexType<double>* array, std::size_t ld) -> void {
      log_matrix(level, s, m, n, reinterpret_cast<const std::complex<double>*>(array), ld);
    }
+   template <typename T>
+   inline auto log_matrix(BippLogLevel level, const std::string_view& s,
+                          ConstDeviceView<T, 2> array) {
+     this->log_matrix(level, s, array.shape()[0], array.shape()[1], array.data(),
+                      array.strides()[1]);
+   }
+
+   template <typename T>
+   inline auto log_matrix(BippLogLevel level, const std::string_view& s,
+                          ConstDeviceView<T, 1> array) {
+     this->log_matrix(level, s, array.shape()[0], 1, array.data(), array.shape()[0]);
+   }
 #endif
 
 

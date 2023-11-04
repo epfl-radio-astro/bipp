@@ -36,8 +36,6 @@ public:
 
 
 private:
-  auto computeNufft() -> void;
-
   std::shared_ptr<ContextInternal> ctx_;
   const std::size_t nFilter_, nPixel_, nIntervals_, nAntenna_, nBeam_;
   std::size_t count_;

@@ -1,5 +1,6 @@
 #include "gpu/standard_synthesis.hpp"
 
+#include <cassert>
 #include <complex>
 #include <cstddef>
 #include <cstring>
@@ -21,6 +22,7 @@
 #include "gpu/util/runtime_api.hpp"
 #include "host/kernels/apply_filter.hpp"
 #include "host/kernels/interval_indices.hpp"
+#include "memory/copy.hpp"
 
 namespace bipp {
 namespace gpu {
@@ -28,102 +30,118 @@ namespace gpu {
 template <typename T>
 StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nAntenna,
                                         std::size_t nBeam, std::size_t nIntervals,
-                                        std::size_t nFilter, const BippFilter* filterHost,
-                                        std::size_t nPixel, const T* pixelX, const T* pixelY,
-                                        const T* pixelZ)
+                                        HostArray<BippFilter, 1> filter, DeviceArray<T, 2> pixel)
     : ctx_(std::move(ctx)),
       nIntervals_(nIntervals),
-      nFilter_(nFilter),
-      nPixel_(nPixel),
+      nFilter_(filter.size()),
+      nPixel_(pixel.shape()[0]),
       nAntenna_(nAntenna),
       nBeam_(nBeam),
-      count_(0) {
+      count_(0),
+      filter_(std::move(filter)),
+      pixel_(std::move(pixel)),
+      img_(ctx_->gpu_queue().create_device_array<T, 3>({nPixel_, nIntervals_, nFilter_})) {
   auto& queue = ctx_->gpu_queue();
-  filterHost_ = queue.create_host_buffer<BippFilter>(nFilter_);
-  std::memcpy(filterHost_.get(), filterHost, sizeof(BippFilter) * nFilter_);
-  pixelX_ = queue.create_device_buffer<T>(nPixel_);
-  api::memcpy_async(pixelX_.get(), pixelX, sizeof(T) * nPixel_, api::flag::MemcpyDeviceToDevice,
-                    queue.stream());
-  pixelY_ = queue.create_device_buffer<T>(nPixel_);
-  api::memcpy_async(pixelY_.get(), pixelY, sizeof(T) * nPixel_, api::flag::MemcpyDeviceToDevice,
-                    queue.stream());
-  pixelZ_ = queue.create_device_buffer<T>(nPixel_);
-  api::memcpy_async(pixelZ_.get(), pixelZ, sizeof(T) * nPixel_, api::flag::MemcpyDeviceToDevice,
-                    queue.stream());
-
-  img_ = queue.create_device_buffer<T>(nPixel_ * nIntervals_ * nFilter_);
-  api::memset_async(img_.get(), 0, nPixel_ * nIntervals_ * nFilter_ * sizeof(T), queue.stream());
+  api::memset_async(img_.data(), 0, img_.size() * sizeof(T), queue.stream());
 }
 
 template <typename T>
-auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervalsHost,
-                                   std::size_t ldIntervals, const api::ComplexType<T>* s,
-                                   std::size_t lds, const api::ComplexType<T>* w, std::size_t ldw,
-                                   T* xyz, std::size_t ldxyz) -> void {
+auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> intervals,
+                                   ConstDeviceView<api::ComplexType<T>, 2> s,
+                                   ConstDeviceView<api::ComplexType<T>, 2> w,
+                                   ConstDeviceView<T, 2> xyz) -> void {
+  assert(xyz.shape()[0] == nAntenna_);
+  assert(xyz.shape()[1] == 3);
+  assert(intervals.shape()[1] == nIntervals_);
+  assert(intervals.shape()[0] == 2);
+  assert(w.shape()[0] == nAntenna_);
+  assert(w.shape()[1] == nBeam_);
+  assert(!s.size() || s.shape()[0] == nBeam_);
+  assert(!s.size() || s.shape()[1] == nBeam_);
+
   auto& queue = ctx_->gpu_queue();
-  auto v = queue.create_device_buffer<api::ComplexType<T>>(nBeam_ * nEig);
-  auto d = queue.create_device_buffer<T>(nEig);
-  auto vUnbeam = queue.create_device_buffer<api::ComplexType<T>>(nAntenna_ * nEig);
-  auto unlayeredStats = queue.create_device_buffer<T>(nPixel_ * nEig);
+  auto v = queue.create_device_array<api::ComplexType<T>, 2>({nBeam_, nEig});
+  auto vUnbeam = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna_, nEig});
+
+  auto unlayeredStats = queue.create_device_array<T, 2>({nPixel_, nEig});
+
+  auto d = queue.create_device_array<T, 1>({nEig});
+  auto dFiltered = queue.create_device_array<T, 1>({nEig});
 
   // Center coordinates for much better performance of cos / sin
-  for (std::size_t i = 0; i < 3; ++i) {
-    center_vector<T>(queue, nAntenna_, xyz + i * ldxyz);
+  auto xyzCentered = queue.create_device_array<T, 2>(xyz.shape());
+  copy(queue, xyz, xyzCentered);
+
+  for (std::size_t i = 0; i < xyzCentered.shape()[1]; ++i) {
+    center_vector<T>(queue, nAntenna_, xyzCentered.slice_view(i).data());
   }
 
   {
-    auto g = queue.create_device_buffer<api::ComplexType<T>>(nBeam_ * nBeam_);
+    auto g = queue.create_device_array<api::ComplexType<T>, 2>({nBeam_, nBeam_});
 
-    gram_matrix<T>(*ctx_, nAntenna_, nBeam_, w, ldw, xyz, ldxyz, wl, g.get(), nBeam_);
+    gram_matrix<T>(*ctx_, nAntenna_, nBeam_, w.data(), w.strides()[1], xyzCentered.data(),
+                   xyzCentered.strides()[1], wl, g.data(), g.strides()[1]);
 
     std::size_t nEigOut = 0;
     // Note different order of s and g input
-    if (s)
-      eigh<T>(*ctx_, nBeam_, nEig, s, lds, g.get(), nBeam_, d.get(), v.get(), nBeam_);
+    if (s.size())
+      eigh<T>(*ctx_, nBeam_, nEig, s.data(), s.strides()[1], g.data(), g.strides()[1], d.data(),
+              v.data(), v.strides()[1]);
     else
-      eigh<T>(*ctx_, nBeam_, nEig, g.get(), nBeam_, nullptr, 0, d.get(), v.get(), nBeam_);
+      eigh<T>(*ctx_, nBeam_, nEig, g.data(), g.strides()[1], nullptr, 0, d.data(), v.data(),
+              v.strides()[1]);
   }
 
-  auto DBufferHost = queue.create_pinned_buffer<T>(nEig);
-  auto DFilteredBufferHost = queue.create_host_buffer<T>(nEig);
-  api::memcpy_async(DBufferHost.get(), d.get(), nEig * sizeof(T), api::flag::MemcpyDeviceToHost,
-                    queue.stream());
+  auto dHost = queue.create_pinned_array<T,1>({nEig});
+  auto dFilteredHost = queue.create_host_array<T,1>({nEig});
+
+  copy(queue, d, dHost);
   // Make sure D is available on host
   queue.sync();
 
   api::ComplexType<T> one{1, 0};
   api::ComplexType<T> zero{0, 0};
   api::blas::gemm(queue.blas_handle(), api::blas::operation::None, api::blas::operation::None,
-                  nAntenna_, nEig, nBeam_, &one, w, ldw, v.get(), nBeam_, &zero, vUnbeam.get(),
-                  nAntenna_);
+                  nAntenna_, nEig, nBeam_, &one, w.data(), w.strides()[1], v.data(), v.strides()[1],
+                  &zero, vUnbeam.data(), vUnbeam.strides()[1]);
 
   T alpha = 2.0 * M_PI / wl;
-  gemmexp<T>(queue, nEig, nPixel_, nAntenna_, alpha, vUnbeam.get(), nAntenna_, xyz, ldxyz,
-             pixelX_.get(), pixelY_.get(), pixelZ_.get(), unlayeredStats.get(), nPixel_);
-  ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gemmexp", nPixel_, nEig, unlayeredStats.get(),
+  gemmexp<T>(queue, nEig, nPixel_, nAntenna_, alpha, vUnbeam.data(), vUnbeam.strides()[1], xyzCentered.data(),
+             xyzCentered.strides()[1], pixel_.slice_view(0).data(), pixel_.slice_view(1).data(),
+             pixel_.slice_view(2).data(), unlayeredStats.data(), nPixel_);
+  ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gemmexp", nPixel_, nEig, unlayeredStats.data(),
                             nPixel_);
 
   // cluster eigenvalues / vectors based on invervals
   for (std::size_t idxFilter = 0; idxFilter < static_cast<std::size_t>(nFilter_); ++idxFilter) {
-    host::apply_filter(filterHost_.get()[idxFilter], nEig, DBufferHost.get(),
-                       DFilteredBufferHost.get());
+    host::apply_filter(filter_[{idxFilter}], nEig, dHost.data(), dFilteredHost.data());
 
     for (std::size_t idxInt = 0; idxInt < static_cast<std::size_t>(nIntervals_); ++idxInt) {
       std::size_t start, size;
       std::tie(start, size) = host::find_interval_indices(
-          nEig, DBufferHost.get(), intervalsHost[idxInt * static_cast<std::size_t>(ldIntervals)],
-          intervalsHost[idxInt * static_cast<std::size_t>(ldIntervals) + 1]);
+          nEig, dHost.data(), intervals[{0, idxInt}], intervals[{1, idxInt}]);
 
-      auto imgCurrent = img_.get() + (idxFilter * nIntervals_ + idxInt) * nPixel_;
+      // auto imgCurrent = img_.get() + (idxFilter * nIntervals_ + idxInt) * nPixel_;
+      auto imgCurrent = img_.slice_view(idxFilter).slice_view(idxInt);
       for (std::size_t idxEig = start; idxEig < start + size; ++idxEig) {
-        ctx_->logger().log(
-            BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
-            *(DBufferHost.get() + idxEig), *(DFilteredBufferHost.get() + idxEig),
-            intervalsHost[idxInt * ldIntervals], intervalsHost[idxInt * ldIntervals + 1]);
-        const auto scale = DFilteredBufferHost.get()[idxEig];
-        auto unlayeredStatsCurrent = unlayeredStats.get() + nPixel_ * idxEig;
-        api::blas::axpy(queue.blas_handle(), nPixel_, &scale, unlayeredStatsCurrent, 1, imgCurrent,
-                        1);
+        // ctx_->logger().log(
+        //     BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
+        //     *(DBufferHost.get() + idxEig), *(DFilteredBufferHost.get() + idxEig),
+        //     intervalsHost[idxInt * ldIntervals], intervalsHost[idxInt * ldIntervals + 1]);
+        // const auto scale = DFilteredBufferHost.get()[idxEig];
+        // auto unlayeredStatsCurrent = unlayeredStats.get() + nPixel_ * idxEig;
+        // api::blas::axpy(queue.blas_handle(), nPixel_, &scale, unlayeredStatsCurrent, 1, imgCurrent,
+                        // 1);
+
+        const auto scale = dFilteredHost[{idxEig}];
+
+        ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
+                           "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
+                           dHost[{idxEig}], scale, intervals[{0, idxInt}], intervals[{1, idxInt}]);
+
+        // blas::axpy(nPixel_, scale, &unlayeredStats[{0, idxEig}], 1, imgCurrent.data(), 1);
+        api::blas::axpy(queue.blas_handle(), nPixel_, &scale,
+                        unlayeredStats.slice_view(idxEig).data(), 1, imgCurrent.data(), 1);
       }
     }
   }
@@ -131,8 +149,35 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervalsHos
 }
 
 template <typename T>
-auto StandardSynthesis<T>::get(BippFilter f, T* outHostOrDevice, std::size_t ld) -> void {
+auto StandardSynthesis<T>::get(BippFilter f, DeviceView<T, 2> out) -> void {
   auto& queue = ctx_->gpu_queue();
+
+
+  assert(out.shape()[0] == nPixel_);
+  assert(out.shape()[1] == nIntervals_);
+
+  std::size_t index = nFilter_;
+  for (std::size_t i = 0; i < nFilter_; ++i) {
+    if (filter_[{i}] == f) {
+      index = i;
+      break;
+    }
+  }
+  if (index == nFilter_) throw InvalidParameterError();
+
+  auto filterImg = img_.slice_view(index);
+
+  const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
+  for (std::size_t i = 0; i < nIntervals_; ++i) {
+    scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, filterImg.slice_view(i).data(),
+                    scale, out.slice_view(i).data());
+    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", out.slice_view(i));
+  }
+
+
+
+  /*
+
   std::size_t index = nFilter_;
   const BippFilter* filterPtr = filterHost_.get();
   for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
@@ -166,6 +211,7 @@ auto StandardSynthesis<T>::get(BippFilter f, T* outHostOrDevice, std::size_t ld)
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", nPixel_, 1,
                               outHostOrDevice + i * ld, nPixel_);
   }
+  */
 }
 
 template class StandardSynthesis<float>;
