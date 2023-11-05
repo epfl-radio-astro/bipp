@@ -13,12 +13,12 @@
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
+#include "host/blas_api.hpp"
 #include "host/eigensolver.hpp"
 #include "host/gram_matrix.hpp"
 #include "host/kernels/nuft_sum.hpp"
 #include "host/nufft_3d3.hpp"
 #include "host/virtual_vis.hpp"
-#include "memory/buffer.hpp"
 #include "memory/copy.hpp"
 #include "nufft_util.hpp"
 
@@ -127,10 +127,18 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
 
   auto virtVisPtr = &virtualVis_[{collectCount_ * nAntenna_ * nAntenna_, 0, 0}];
 
-  virtual_vis(*ctx_, nFilter_, filter_.data(), nIntervals_, intervals.data(), intervals.strides()[1], nEig, d.data(),
-              nAntenna_, v.data(), v.strides()[1], nBeam_, w.data(), w.strides()[1], virtVisPtr,
-              nMaxInputCount_ * nIntervals_ * nAntenna_ * nAntenna_,
-              nMaxInputCount_ * nAntenna_ * nAntenna_, nAntenna_);
+
+  // Reverse beamforming
+  HostArray<std::complex<T>, 2> vUnbeam(ctx_->host_alloc(), {nAntenna_, v.shape()[1]});
+  blas::gemm(CblasNoTrans, CblasNoTrans, {1, 0}, w, v, {0, 0}, vUnbeam);
+
+  // slice virtual visibility for current step
+  auto virtVisCurrent =
+      virtualVis_.sub_view({collectCount_ * nAntenna_ * nAntenna_, 0, 0},
+                           {nAntenna_ * nAntenna_, virtualVis_.shape()[1], virtualVis_.shape()[2]});
+
+  // compute virtual visibilities
+  virtual_vis(*ctx_, filter_, intervals, d, vUnbeam, virtVisCurrent);
 
   ++collectCount_;
   ++totalCollectCount_;
