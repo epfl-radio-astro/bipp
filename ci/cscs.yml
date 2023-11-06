@@ -11,7 +11,7 @@ build_cuda_image:
   timeout: 2h
   variables:
     DOCKERFILE: ci/base_cuda.Dockerfile
-    WATCH_FILECHANGES: ci/build_cuda.Dockerfile
+    WATCH_FILECHANGES: ci/base_cuda.Dockerfile
     PERSIST_IMAGE_NAME: $CSCS_REGISTRY_PATH/bipp/bipp-ci
     DOCKER_BUILD_ARGS: '["cuda_arch=60", "cpu_arch=haswell", "spack_arch=haswell"]'
 
