@@ -1,5 +1,5 @@
 # Build stage with Spack pre-installed and ready to be used
-FROM spack/ubuntu-focal:v0.19.0 as builder
+FROM docker.io/spack/ubuntu-focal:v0.19.0 as builder
 # Cuda architecture list with semicolon separation, see https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/
 ARG cuda_arch="60;61;70;75;80;86"
 # GCC cpu architecture flag, see https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html
@@ -58,7 +58,7 @@ RUN cd /opt/spack-environment && \
     spack env activate --sh -d . >> /etc/profile.d/z10_spack_environment.sh
 
 # Bare OS image to run the installed executables
-FROM nvidia/cuda:11.1.1-devel-ubuntu20.04
+FROM docker.io/nvidia/cuda:11.1.1-devel-ubuntu20.04
 ARG cuda_arch="60;61;70;75;80;86"
 ARG cpu_arch=haswell
 ARG spack_arch=${cpu_arch}
