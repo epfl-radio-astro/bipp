@@ -4,6 +4,7 @@ include:
 stages:
   - build_container
   - build
+  - test
 
 build_cuda_image:
   extends: .container-builder-dynamic-name
@@ -23,5 +24,32 @@ build_library:
     DOCKERFILE: ci/build.Dockerfile
     PERSIST_IMAGE_NAME: $CSCS_REGISTRY_PATH/bipp/bipp-ci:$CI_COMMIT_SHA
     DOCKER_BUILD_ARGS: '["BASE_IMAGE=${BASE_IMAGE}"]'
+
+run_tests:
+  extends: .container-runner-daint-gpu
+  needs: ["build_library"]
+  stage: test
+  script:
+    - source /etc/profile.d/z10_spack_environment.sh
+    - source /etc/profile.d/z11_paths.sh
+    - echo "$PATH"
+    - /src/build_cuda/tests/run_tests
+  image: $CSCS_REGISTRY_PATH/bipp/bipp-ci:$CI_COMMIT_SHA
+  variables:
+    CRAY_CUDA_MPS: 0
+    GIT_STRATEGY: none
+    MPICH_MAX_THREAD_SAFETY: multiple
+    CSCS_REGISTRY_LOGIN: 'YES'
+    PULL_IMAGE: 'YES'
+    SLURM_HINT: nomultithread
+    SLURM_JOB_NUM_NODES: 1
+    SLURM_UNBUFFEREDIO: ''
+    SLURM_WAIT: 0
+    OMP_NUM_THREADS: 12
+    SLURM_CONSTRAINT: gpu
+    SLURM_CPUS_PER_TASK: 12
+    SLURM_NTASKS: 1
+    SLURM_TIMELIMIT: "30:00"
+
 
 

@@ -21,7 +21,7 @@ RUN source /etc/profile.d/z10_spack_environment.sh \
 RUN source /etc/profile.d/z10_spack_environment.sh \
  && source /etc/profile.d/z11_paths.sh \
  && cd /src \
- && BIPP_GPU=CUDA BIPP_CMAKE_ARGS="-DCMAKE_CUDA_ARCHITECTURES=${cuda_arch}" python3 -m pip install .
+ && BIPP_GPU=CUDA BIPP_CMAKE_ARGS="-DCMAKE_CUDA_ARCHITECTURES=${cuda_arch} -DCMAKE_CXX_FLAGS=\"-march=${cpu_arch}\"" python3 -m pip install .
 
 # RUN echo "export PYTHONPATH=\$PYTHONPATH:/src/build/python" >> /etc/profile.d/z11_paths.sh
 
