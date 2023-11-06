@@ -18,7 +18,9 @@
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
 #include "gpu/virtual_vis.hpp"
+#include "memory/array.hpp"
 #include "memory/copy.hpp"
+#include "memory/view.hpp"
 #include "nufft_util.hpp"
 
 namespace bipp {
@@ -125,13 +127,19 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
     }
   }
 
-  auto virtVisPtr = virtualVis_.data() + collectCount_ * nAntenna_ * nAntenna_;
 
-  virtual_vis(*ctx_, nFilter_, filter_.data(), nIntervals_, intervals.data(),
-              intervals.strides()[1], nEig, d.data(), nAntenna_, v.data(), v.strides()[1], nBeam_,
-              w.data(), w.strides()[1], virtVisPtr,
-              nMaxInputCount_ * nIntervals_ * nAntenna_ * nAntenna_,
-              nMaxInputCount_ * nAntenna_ * nAntenna_, nAntenna_);
+  // Reverse beamforming
+  auto vUnbeam = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna_, v.shape()[1]});
+  api::blas::gemm<api::ComplexType<T>>(queue.blas_handle(), api::blas::operation::None,
+                                       api::blas::operation::None, {1, 0}, w, v, {0, 0}, vUnbeam);
+
+  // slice virtual visibility for current step
+  auto virtVisCurrent =
+      virtualVis_.sub_view({collectCount_ * nAntenna_ * nAntenna_, 0, 0},
+                           {nAntenna_ * nAntenna_, virtualVis_.shape()[1], virtualVis_.shape()[2]});
+
+  // compute virtual visibilities
+  virtual_vis(*ctx_, filter_, intervals, d, vUnbeam, virtVisCurrent);
 
   ++collectCount_;
   ++totalCollectCount_;

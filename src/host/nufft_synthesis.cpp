@@ -125,9 +125,6 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
     }
   }
 
-  auto virtVisPtr = &virtualVis_[{collectCount_ * nAntenna_ * nAntenna_, 0, 0}];
-
-
   // Reverse beamforming
   HostArray<std::complex<T>, 2> vUnbeam(ctx_->host_alloc(), {nAntenna_, v.shape()[1]});
   blas::gemm(CblasNoTrans, CblasNoTrans, {1, 0}, w, v, {0, 0}, vUnbeam);
