@@ -21,8 +21,17 @@ build_library:
   needs: ["build_cuda_image"]
   stage: build
   variables:
-    DOCKERFILE: ci/build.Dockerfile
-    PERSIST_IMAGE_NAME: $CSCS_REGISTRY_PATH/bipp/bipp-ci:$CI_COMMIT_SHA
+    DOCKERFILE: ci/build_library.Dockerfile
+    PERSIST_IMAGE_NAME: $CSCS_REGISTRY_PATH/bipp/bipp-ci:unit_$CI_COMMIT_SHA
+    DOCKER_BUILD_ARGS: '["BASE_IMAGE=${BASE_IMAGE}"]'
+
+build_python_module:
+  extends: .container-builder
+  needs: ["build_cuda_image"]
+  stage: build
+  variables:
+    DOCKERFILE: ci/build_python_module.Dockerfile
+    PERSIST_IMAGE_NAME: $CSCS_REGISTRY_PATH/bipp/bipp-ci:python_$CI_COMMIT_SHA
     DOCKER_BUILD_ARGS: '["BASE_IMAGE=${BASE_IMAGE}"]'
 
 run_unit_tests:
@@ -33,7 +42,7 @@ run_unit_tests:
     - source /etc/profile.d/z10_spack_environment.sh
     - source /etc/profile.d/z11_paths.sh
     - /src/build_cuda/tests/run_tests
-  image: $CSCS_REGISTRY_PATH/bipp/bipp-ci:$CI_COMMIT_SHA
+  image: $CSCS_REGISTRY_PATH/bipp/bipp-ci:unit_$CI_COMMIT_SHA
   variables:
     CRAY_CUDA_MPS: 0
     GIT_STRATEGY: none
@@ -53,7 +62,7 @@ run_unit_tests:
 
 run_python_examples:
   extends: .container-runner-daint-gpu
-  needs: ["build_library"]
+  needs: ["build_python_module"]
   stage: test
   script:
     - source /etc/profile.d/z10_spack_environment.sh
@@ -61,7 +70,7 @@ run_python_examples:
     - cd /src/examples/simulation
     - python3 lofar_bootes_ss.py
     - python3 lofar_bootes_nufft.py
-  image: $CSCS_REGISTRY_PATH/bipp/bipp-ci:$CI_COMMIT_SHA
+  image: $CSCS_REGISTRY_PATH/bipp/bipp-ci:python_$CI_COMMIT_SHA
   variables:
     CRAY_CUDA_MPS: 0
     GIT_STRATEGY: none
