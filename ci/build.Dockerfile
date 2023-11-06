@@ -5,13 +5,12 @@ COPY . /src
 WORKDIR /src
 RUN mkdir -p /src/build
 
+RUN source /etc/profile.d/z10_spack_environment.sh
+RUN source /etc/profile.d/z11_paths.sh
+
 RUN echo "${PATH}"
 RUN echo "${PYTHON_PATH}"
 RUN echo "${CMAKE_PREFIX_PATH}"
-RUN which cmake
-
-RUN source /etc/profile.d/z10_spack_environment.sh
-RUN source /etc/profile.d/z11_paths.sh
 
 WORKDIR /src/build
 RUN cmake .. -DCMAKE_CUDA_ARCHITECTURES=${cuda_arch} -DBIPP_GPU=CUDA -DBIPP_BUILD_TESTS=ON -DCMAKE_CXX_FLAGS="-march=${cpu_arch}"\
