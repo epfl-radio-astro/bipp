@@ -10,6 +10,9 @@
 #include "context_internal.hpp"
 #include "gtest/gtest.h"
 #include "host/domain_partition.hpp"
+#include "memory/view.hpp"
+#include "memory/array.hpp"
+#include "memory/copy.hpp"
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/domain_partition.hpp"
 #include "gpu/util/runtime_api.hpp"
@@ -25,6 +28,10 @@ public:
   auto test_grid(std::array<std::size_t, 3> gridDimensions, std::array<std::vector<T>, 3> domain) {
     ASSERT_EQ(domain[0].size(), domain[1].size());
     ASSERT_EQ(domain[0].size(), domain[2].size());
+
+    bipp::HostView<T, 1> domainX(domain[0].data(), {domain[0].size()}, {1});
+    bipp::HostView<T, 1> domainY(domain[1].data(), {domain[1].size()}, {1});
+    bipp::HostView<T, 1> domainZ(domain[2].data(), {domain[2].size()}, {1});
 
     const auto gridSize = std::accumulate(gridDimensions.begin(), gridDimensions.end(),
                                           std::size_t(1), std::multiplies<std::size_t>());
@@ -65,9 +72,8 @@ public:
       ASSERT_TRUE(false);
 #endif
     } else {
-      partition = bipp::host::DomainPartition::grid<T, 3>(
-          ctx_, gridDimensions, domain[0].size(),
-          {domain[0].data(), domain[1].data(), domain[2].data()});
+      partition = bipp::host::DomainPartition::grid<T, 3>(ctx_, gridDimensions,
+                                                          {domainX, domainY, domainZ});
     }
 
     std::visit(
@@ -86,13 +92,15 @@ public:
           }
 
           for (std::size_t dimIdx = 0; dimIdx < minCoord.size(); ++dimIdx) {
-            auto dataInPlace = domain[dimIdx];
-            auto dataOutOfPlace = std::vector<T>(dataInPlace.size());
+            bipp::HostArray<T, 1> dataInPlace(ctx_->host_alloc(), {domain[dimIdx].size()});
+            bipp::copy(bipp::HostView<T, 1>(domain[dimIdx].data(), {domain[dimIdx].size()}, {1}),
+                       dataInPlace);
+            auto dataOutOfPlace = bipp::HostArray<T, 1>(ctx_->host_alloc(), {dataInPlace.size()});
 
             // apply in place and out of place
             if constexpr (std::is_same_v<variantType, bipp::host::DomainPartition>) {
-              arg.apply(dataInPlace.data(), dataOutOfPlace.data());
-              arg.apply(dataInPlace.data());
+              arg.apply(dataInPlace, dataOutOfPlace);
+              arg.apply(dataInPlace);
             } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
               auto dataInPlaceDevice =
@@ -121,15 +129,15 @@ public:
 
             // check data
             for (std::size_t i = 0; i < dataInPlace.size(); ++i) {
-              ASSERT_EQ(dataInPlace[i], dataOutOfPlace[i]);
+              ASSERT_EQ(dataInPlace[{i}], dataOutOfPlace[{i}]);
             }
 
             for (const auto& [begin, size] : arg.groups()) {
               if (size) {
-                auto minGroup = *std::min_element(dataInPlace.begin() + begin,
-                                                  dataInPlace.begin() + begin + size);
-                auto maxGroup = *std::max_element(dataInPlace.begin() + begin,
-                                                  dataInPlace.begin() + begin + size);
+                auto minGroup = *std::min_element(dataInPlace.data() + begin,
+                                                  dataInPlace.data() + begin + size);
+                auto maxGroup = *std::max_element(dataInPlace.data() + begin,
+                                                  dataInPlace.data() + begin + size);
 
                 ASSERT_LE(maxGroup - minGroup, gridSpacing[dimIdx]);
               }
@@ -137,8 +145,8 @@ public:
 
             // reverse in place and out of place
             if constexpr (std::is_same_v<variantType, bipp::host::DomainPartition>) {
-              arg.reverse(dataInPlace.data(), dataOutOfPlace.data());
-              arg.reverse(dataInPlace.data());
+              arg.reverse(dataInPlace, dataOutOfPlace);
+              arg.reverse(dataInPlace);
             } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
               auto dataInPlaceDevice =
@@ -167,8 +175,8 @@ public:
 
             // check reversed data
             for (std::size_t i = 0; i < dataInPlace.size(); ++i) {
-              ASSERT_EQ(dataInPlace[i], dataOutOfPlace[i]);
-              ASSERT_EQ(dataInPlace[i], domain[dimIdx][i]);
+              ASSERT_EQ(dataInPlace[{i}], dataOutOfPlace[{i}]);
+              ASSERT_EQ(dataInPlace[{i}], domain[dimIdx][i]);
             }
           }
         },
