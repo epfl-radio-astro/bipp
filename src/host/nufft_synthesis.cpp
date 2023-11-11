@@ -95,16 +95,16 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
                                 ConstHostView<std::complex<T>, 2> s,
                                 ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz,
                                 ConstHostView<T, 2> uvw) -> void {
-  assert(xyz.shape()[0] == nAntenna_);
-  assert(xyz.shape()[1] == 3);
-  assert(intervals.shape()[1] == nIntervals_);
-  assert(intervals.shape()[0] == 2);
-  assert(w.shape()[0] == nAntenna_);
-  assert(w.shape()[1] == nBeam_);
-  assert(!s.size() || s.shape()[0] == nBeam_);
-  assert(!s.size() || s.shape()[1] == nBeam_);
-  assert(uvw.shape()[0] == nAntenna_ * nAntenna_);
-  assert(uvw.shape()[1] == 3);
+  assert(xyz.shape(0) == nAntenna_);
+  assert(xyz.shape(1) == 3);
+  assert(intervals.shape(1) == nIntervals_);
+  assert(intervals.shape(0) == 2);
+  assert(w.shape(0) == nAntenna_);
+  assert(w.shape(1) == nBeam_);
+  assert(!s.size() || s.shape(0) == nBeam_);
+  assert(!s.size() || s.shape(1) == nBeam_);
+  assert(uvw.shape(0) == nAntenna_ * nAntenna_);
+  assert(uvw.shape(1) == 3);
 
   // store coordinates
   copy(uvw, uvw_.sub_view({collectCount_ * nAntenna_ * nAntenna_, 0}, {nAntenna_ * nAntenna_, 3}));
@@ -126,13 +126,13 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
   }
 
   // Reverse beamforming
-  HostArray<std::complex<T>, 2> vUnbeam(ctx_->host_alloc(), {nAntenna_, v.shape()[1]});
+  HostArray<std::complex<T>, 2> vUnbeam(ctx_->host_alloc(), {nAntenna_, v.shape(1)});
   blas::gemm(CblasNoTrans, CblasNoTrans, {1, 0}, w, v, {0, 0}, vUnbeam);
 
   // slice virtual visibility for current step
   auto virtVisCurrent =
       virtualVis_.sub_view({collectCount_ * nAntenna_ * nAntenna_, 0, 0},
-                           {nAntenna_ * nAntenna_, virtualVis_.shape()[1], virtualVis_.shape()[2]});
+                           {nAntenna_ * nAntenna_, virtualVis_.shape(1), virtualVis_.shape(2)});
 
   // compute virtual visibilities
   virtual_vis(*ctx_, filter_, intervals, d, vUnbeam, virtVisCurrent);
@@ -159,7 +159,7 @@ auto NufftSynthesis<T>::computeNufft() -> void {
     auto uvwZ = uvw_.slice_view(2).sub_view({0}, {nInputPoints});;
 
     auto virtVisCurrent = virtualVis_.sub_view(
-        {0, 0, 0}, {nInputPoints, virtualVis_.shape()[1], virtualVis_.shape()[2]});
+        {0, 0, 0}, {nInputPoints, virtualVis_.shape(1), virtualVis_.shape(2)});
 
     auto pixelX = pixel_.slice_view(0);
     auto pixelY = pixel_.slice_view(1);

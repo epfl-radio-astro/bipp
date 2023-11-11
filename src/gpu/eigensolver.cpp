@@ -23,7 +23,7 @@ template <typename T>
 auto eigh(ContextInternal& ctx, std::size_t nEig, ConstHostView<api::ComplexType<T>, 2> aHost,
           ConstDeviceView<api::ComplexType<T>, 2> a, ConstDeviceView<api::ComplexType<T>, 2> b,
           DeviceView<T, 1> d, DeviceView<api::ComplexType<T>, 2> v) -> void {
-  const auto m = a.shape()[0];
+  const auto m = a.shape(0);
   auto& queue = ctx.gpu_queue();
 
   // flag working coloumns / rows
@@ -90,8 +90,8 @@ auto eigh(ContextInternal& ctx, std::size_t nEig, ConstHostView<api::ComplexType
   if (nEigOut < nEig) api::memset_async(d.data(), 0, d.size() * sizeof(T), queue.stream());
 
   if (nEigOut < nEig || m != mReduced) {
-    for (std::size_t i = 0; i < v.shape()[1]; ++i)
-      api::memset_async(v.slice_view(i).data(), 0, v.shape()[0] * sizeof(api::ComplexType<T>),
+    for (std::size_t i = 0; i < v.shape(1); ++i)
+      api::memset_async(v.slice_view(i).data(), 0, v.shape(0) * sizeof(api::ComplexType<T>),
                         queue.stream());
   }
 

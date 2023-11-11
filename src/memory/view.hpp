@@ -93,9 +93,9 @@ public:
   ViewBase(const T* ptr, const IndexType& shape, const IndexType& strides)
       : shape_(shape), strides_(strides), totalSize_(view_size(shape)), constPtr_(ptr) {
 #ifndef NDEBUG
-    assert(stride(0) == 1);
+    assert(this->strides(0) == 1);
     for (std::size_t i = 1; i < DIM; ++i) {
-      // assert(stride(i) >= shape(i - 1) * stride(i - 1));
+      assert(this->strides(i) >= this->shape(i - 1) * this->strides(i - 1));
     }
 #endif
   }
@@ -111,6 +111,7 @@ public:
   inline auto shape() const noexcept -> const IndexType& { return shape_; }
 
   inline auto shape(std::size_t i) const noexcept -> std::size_t {
+    assert(i < DIM);
     if constexpr (DIM == 1)
       return shape_;
     else
@@ -119,7 +120,8 @@ public:
 
   inline auto strides() const noexcept -> const IndexType& { return strides_; }
 
-  inline auto stride(std::size_t i) const noexcept -> std::size_t {
+  inline auto strides(std::size_t i) const noexcept -> std::size_t {
+    assert(i < DIM);
     if constexpr (DIM == 1)
       return strides_;
     else
@@ -153,7 +155,7 @@ protected:
       std::copy(this->strides_.begin(), this->strides_.end() - 1, sliceStrides.begin());
     }
 
-    return SLICE_TYPE{ViewBase<T, DIM - 1>{this->constPtr_ + outer_index * this->stride(DIM - 1),
+    return SLICE_TYPE{ViewBase<T, DIM - 1>{this->constPtr_ + outer_index * this->strides(DIM - 1),
                                            sliceShape, sliceStrides}};
   }
 

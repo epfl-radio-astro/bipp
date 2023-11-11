@@ -65,14 +65,14 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
                                    ConstHostView<std::complex<T>, 2> s,
                                    ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz)
     -> void {
-  assert(xyz.shape()[0] == nAntenna_);
-  assert(xyz.shape()[1] == 3);
-  assert(intervals.shape()[1] == nIntervals_);
-  assert(intervals.shape()[0] == 2);
-  assert(w.shape()[0] == nAntenna_);
-  assert(w.shape()[1] == nBeam_);
-  assert(!s.size() || s.shape()[0] == nBeam_);
-  assert(!s.size() || s.shape()[1] == nBeam_);
+  assert(xyz.shape(0) == nAntenna_);
+  assert(xyz.shape(1) == 3);
+  assert(intervals.shape(1) == nIntervals_);
+  assert(intervals.shape(0) == 2);
+  assert(w.shape(0) == nAntenna_);
+  assert(w.shape(1) == nBeam_);
+  assert(!s.size() || s.shape(0) == nBeam_);
+  assert(!s.size() || s.shape(1) == nBeam_);
 
   auto v = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nBeam_, nEig});
   auto vUnbeam = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nAntenna_, nEig});
@@ -136,8 +136,8 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
 
 template <typename T>
 auto StandardSynthesis<T>::get(BippFilter f, HostView<T, 2> out) -> void {
-  assert(out.shape()[0] == nPixel_);
-  assert(out.shape()[1] == nIntervals_);
+  assert(out.shape(0) == nPixel_);
+  assert(out.shape(1) == nIntervals_);
 
   std::size_t index = nFilter_;
   for (std::size_t i = 0; i < nFilter_; ++i) {

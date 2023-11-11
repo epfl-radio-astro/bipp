@@ -23,20 +23,20 @@ auto virtual_vis(ContextInternal& ctx, ConstHostView<BippFilter, 1> filter,
                  ConstHostView<T, 2> intervals, ConstHostView<T, 1> d,
                  ConstHostView<std::complex<T>, 2> v, HostView<std::complex<T>, 3> virtVis)
     -> void {
-  assert(filter.size() == virtVis.shape()[2]);
-  assert(intervals.shape()[1] == virtVis.shape()[1]);
-  assert(v.shape()[0] * v.shape()[0] == virtVis.shape()[0]);
-  assert(v.shape()[1] == d.size());
+  assert(filter.size() == virtVis.shape(2));
+  assert(intervals.shape(1) == virtVis.shape(1));
+  assert(v.shape(0) * v.shape(0) == virtVis.shape(0));
+  assert(v.shape(1) == d.size());
 
-  const auto nAntenna = v.shape()[0];
+  const auto nAntenna = v.shape(0);
 
   auto vScaled = HostArray<std::complex<T>, 2>(ctx.host_alloc(), v.shape());
   auto dFiltered = HostArray<T, 1>(ctx.host_alloc(), d.shape());
 
-  for (std::size_t i = 0; i < virtVis.shape()[2]; ++i) {
+  for (std::size_t i = 0; i < virtVis.shape(2); ++i) {
     apply_filter(filter[{i}], d.size(), d.data(), dFiltered.data());
 
-    for (std::size_t j = 0; j < virtVis.shape()[1]; ++j) {
+    for (std::size_t j = 0; j < virtVis.shape(1); ++j) {
       std::size_t start, size;
       std::tie(start, size) =
           find_interval_indices(d.size(), d.data(), intervals[{0, j}], intervals[{1, j}]);
@@ -44,8 +44,8 @@ auto virtual_vis(ContextInternal& ctx, ConstHostView<BippFilter, 1> filter,
       auto virtVisCurrent = virtVis.slice_view(i).slice_view(j);
       if (size) {
         // Multiply each col of v with the selected eigenvalue
-        auto vScaledCurrent = vScaled.sub_view({0, 0}, {vScaled.shape()[0], size});
-        auto vCurrent = v.sub_view({0, start}, {v.shape()[0], size});
+        auto vScaledCurrent = vScaled.sub_view({0, 0}, {vScaled.shape(0), size});
+        auto vCurrent = v.sub_view({0, start}, {v.shape(0), size});
         for (std::size_t k = 0; k < size; ++k) {
           const auto dVal = dFiltered[{start + k}];
           auto* __restrict__ vScaledPtr = &vScaledCurrent[{0, k}];
@@ -54,7 +54,7 @@ auto virtual_vis(ContextInternal& ctx, ConstHostView<BippFilter, 1> filter,
           ctx.logger().log(BIPP_LOG_LEVEL_DEBUG,
                            "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
                            d[{start + k}], dVal, intervals[{0, j}], intervals[{1, j}]);
-          for (std::size_t l = 0; l < v.shape()[0]; ++l) {
+          for (std::size_t l = 0; l < v.shape(0); ++l) {
             vScaledPtr[l] = vPtr[l] * dVal;
           }
         }

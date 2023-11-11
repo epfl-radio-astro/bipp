@@ -17,15 +17,15 @@ namespace gpu {
 template <typename T>
 auto gram_matrix(ContextInternal& ctx, ConstDeviceView<api::ComplexType<T>, 2> w,
                  ConstDeviceView<T, 2> xyz, T wl, DeviceView<api::ComplexType<T>, 2> g) -> void {
-  const auto nAntenna= w.shape()[0];
-  const auto nBeam= w.shape()[1];
+  const auto nAntenna= w.shape(0);
+  const auto nBeam= w.shape(1);
 
   auto& queue = ctx.gpu_queue();
 
   auto buffer = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna, nAntenna});
 
   gram(queue, nAntenna, xyz.slice_view(0).data(), xyz.slice_view(1).data(),
-       xyz.slice_view(2).data(), wl, buffer.data(), buffer.shape()[1]);
+       xyz.slice_view(2).data(), wl, buffer.data(), buffer.shape(1));
 
   api::ComplexType<T> alpha{1, 0};
   api::ComplexType<T> beta{0, 0};

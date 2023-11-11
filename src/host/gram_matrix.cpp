@@ -28,8 +28,8 @@ static T calc_pi_sinc(T a, T x) {
 template <typename T>
 auto gram_matrix(ContextInternal& ctx, ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz,
                  T wl, HostView<std::complex<T>, 2> g) -> void {
-  const auto nAntenna= w.shape()[0];
-  const auto nBeam= w.shape()[1];
+  const auto nAntenna= w.shape(0);
+  const auto nBeam= w.shape(1);
 
   auto buffer = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nAntenna, nAntenna});
 

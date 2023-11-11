@@ -34,7 +34,7 @@ StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, st
     : ctx_(std::move(ctx)),
       nIntervals_(nIntervals),
       nFilter_(filter.size()),
-      nPixel_(pixel.shape()[0]),
+      nPixel_(pixel.shape(0)),
       nAntenna_(nAntenna),
       nBeam_(nBeam),
       count_(0),
@@ -51,14 +51,14 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
                                    ConstDeviceView<api::ComplexType<T>, 2> s,
                                    ConstDeviceView<api::ComplexType<T>, 2> w,
                                    ConstDeviceView<T, 2> xyz) -> void {
-  assert(xyz.shape()[0] == nAntenna_);
-  assert(xyz.shape()[1] == 3);
-  assert(intervals.shape()[1] == nIntervals_);
-  assert(intervals.shape()[0] == 2);
-  assert(w.shape()[0] == nAntenna_);
-  assert(w.shape()[1] == nBeam_);
-  assert(!s.size() || s.shape()[0] == nBeam_);
-  assert(!s.size() || s.shape()[1] == nBeam_);
+  assert(xyz.shape(0) == nAntenna_);
+  assert(xyz.shape(1) == 3);
+  assert(intervals.shape(1) == nIntervals_);
+  assert(intervals.shape(0) == 2);
+  assert(w.shape(0) == nAntenna_);
+  assert(w.shape(1) == nBeam_);
+  assert(!s.size() || s.shape(0) == nBeam_);
+  assert(!s.size() || s.shape(1) == nBeam_);
 
   auto& queue = ctx_->gpu_queue();
   auto v = queue.create_device_array<api::ComplexType<T>, 2>({nBeam_, nEig});
@@ -73,7 +73,7 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
   auto xyzCentered = queue.create_device_array<T, 2>(xyz.shape());
   copy(queue, xyz, xyzCentered);
 
-  for (std::size_t i = 0; i < xyzCentered.shape()[1]; ++i) {
+  for (std::size_t i = 0; i < xyzCentered.shape(1); ++i) {
     center_vector<T>(queue, nAntenna_, xyzCentered.slice_view(i).data());
   }
 
@@ -143,8 +143,8 @@ template <typename T>
 auto StandardSynthesis<T>::get(BippFilter f, DeviceView<T, 2> out) -> void {
   auto& queue = ctx_->gpu_queue();
 
-  assert(out.shape()[0] == nPixel_);
-  assert(out.shape()[1] == nIntervals_);
+  assert(out.shape(0) == nPixel_);
+  assert(out.shape(1) == nIntervals_);
 
   std::size_t index = nFilter_;
   for (std::size_t i = 0; i < nFilter_; ++i) {

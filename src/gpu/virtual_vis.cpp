@@ -19,13 +19,13 @@ auto virtual_vis(ContextInternal& ctx, ConstHostView<BippFilter, 1> filter,
                  ConstHostView<T, 2> intervals, ConstDeviceView<T, 1> d,
                  ConstDeviceView<api::ComplexType<T>, 2> v,
                  DeviceView<api::ComplexType<T>, 3> virtVis) -> void {
-  assert(filter.size() == virtVis.shape()[2]);
-  assert(intervals.shape()[1] == virtVis.shape()[1]);
-  assert(v.shape()[0] * v.shape()[0] == virtVis.shape()[0]);
-  assert(v.shape()[1] == d.size());
+  assert(filter.size() == virtVis.shape(2));
+  assert(intervals.shape(1) == virtVis.shape(1));
+  assert(v.shape(0) * v.shape(0) == virtVis.shape(0));
+  assert(v.shape(1) == d.size());
 
   auto& queue = ctx.gpu_queue();
-  const auto nAntenna = v.shape()[0];
+  const auto nAntenna = v.shape(0);
 
   const auto zero = api::ComplexType<T>{0, 0};
   const auto one = api::ComplexType<T>{1, 0};
@@ -39,7 +39,7 @@ auto virtual_vis(ContextInternal& ctx, ConstHostView<BippFilter, 1> filter,
   for (std::size_t i = 0; i < filter.size(); ++i) {
     apply_filter(queue, filter[{i}], d.size(), d.data(), dFiltered.data());
 
-    for (std::size_t j = 0; j < intervals.shape()[1]; ++j) {
+    for (std::size_t j = 0; j < intervals.shape(1); ++j) {
       std::size_t start, size;
       std::tie(start, size) = host::find_interval_indices(dHost.size(), dHost.data(),
                                                           intervals[{0, j}], intervals[{1, j}]);
@@ -47,8 +47,8 @@ auto virtual_vis(ContextInternal& ctx, ConstHostView<BippFilter, 1> filter,
       auto virtVisCurrent = virtVis.slice_view(i).slice_view(j);
       if (size) {
         // Multiply each col of V with the selected eigenvalue
-        auto vScaledCurrent = vScaled.sub_view({0, 0}, {vScaled.shape()[0], size});
-        auto vCurrent = v.sub_view({0, start}, {v.shape()[0], size});
+        auto vScaledCurrent = vScaled.sub_view({0, 0}, {vScaled.shape(0), size});
+        auto vCurrent = v.sub_view({0, start}, {v.shape(0), size});
         scale_matrix<T>(queue, nAntenna, size, vCurrent.data(), vCurrent.strides()[1],
                         dFiltered.data() + start, vScaledCurrent.data(),
                         vScaledCurrent.strides()[1]);

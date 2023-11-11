@@ -25,7 +25,7 @@ template <typename T>
 static auto copy_lower_triangle_at_indices(const std::vector<std::size_t>& indices,
                                            const ConstHostView<T, 2>& a, HostView<T, 2> b) {
   const std::size_t mReduced = indices.size();
-  if (mReduced == a.shape()[0]) {
+  if (mReduced == a.shape(0)) {
     copy(a, b);
   } else {
     for (std::size_t col = 0; col < mReduced; ++col) {
@@ -44,13 +44,13 @@ template <typename T>
 auto eigh(ContextInternal& ctx, std::size_t nEig, const ConstHostView<std::complex<T>, 2>& a,
           const ConstHostView<std::complex<T>, 2>& b, HostView<T, 1> d,
           HostView<std::complex<T>, 2> v) -> void {
-  const auto m = a.shape()[0];
+  const auto m = a.shape(0);
 
   std::vector<short> nonZeroIndexFlag(m, 0);
 
   // flag working coloumns / rows
-  for (std::size_t col = 0; col < a.shape()[1]; ++col) {
-    for (std::size_t row = col; row < a.shape()[0]; ++row) {
+  for (std::size_t col = 0; col < a.shape(1); ++col) {
+    for (std::size_t row = col; row < a.shape(0); ++row) {
       const auto val = a[{row, col}];
       if (val.real() != 0 || val.imag() != 0) {
         nonZeroIndexFlag[col] |= 1;
