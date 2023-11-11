@@ -4,7 +4,6 @@
 #include "context_internal.hpp"
 #include "gpu/util/runtime_api.hpp"
 #include "memory/array.hpp"
-#include "memory/buffer.hpp"
 #include "memory/view.hpp"
 
 namespace bipp {

@@ -10,7 +10,6 @@
 #include "gpu/util/runtime.hpp"
 #include "gpu/util/runtime_api.hpp"
 #include "memory/array.hpp"
-#include "memory/buffer.hpp"
 #include "memory/copy.hpp"
 #include "memory/view.hpp"
 

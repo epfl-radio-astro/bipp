@@ -7,7 +7,6 @@
 #include "bipp/bipp.hpp"
 #include "bipp/config.h"
 #include "context_internal.hpp"
-#include "memory/buffer.hpp"
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/gram_matrix.hpp"

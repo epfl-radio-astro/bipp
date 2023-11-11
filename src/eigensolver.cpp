@@ -18,7 +18,6 @@
 #include "gpu/util/device_accessor.hpp"
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
-#include "memory/buffer.hpp"
 #endif
 
 namespace bipp {
