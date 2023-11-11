@@ -88,6 +88,8 @@ public:
 
   inline auto size() const noexcept -> std::size_t { return totalSize_; }
 
+  inline auto size_in_bytes() const noexcept -> std::size_t { return totalSize_ * sizeof(T); }
+
   inline auto shape() const noexcept -> const std::array<std::size_t, DIM> { return shape_; }
 
   inline auto strides() const noexcept -> const std::array<std::size_t, DIM> { return strides_; }

@@ -6,6 +6,7 @@
 #include "gpu/util/runtime_api.hpp"
 #include "host/lapack_api.hpp"
 #include "memory/buffer.hpp"
+#include "memory/array.hpp"
 
 #ifdef BIPP_MAGMA
 #include <magma.h>
@@ -174,17 +175,19 @@ auto solve(ContextInternal& ctx, char jobz, char range, char uplo, int n,
                                    &lwork) != CUSOLVER_STATUS_SUCCESS)
     throw EigensolverError();
 
-  auto workspace = ctx.gpu_queue().create_device_buffer<api::ComplexType<float>>(lwork);
-  auto devInfo = ctx.gpu_queue().create_device_buffer<int>(1);
+  auto workspace =
+      ctx.gpu_queue().create_device_array<api::ComplexType<float>, 1>({std::size_t(lwork)});
+  auto devInfo = ctx.gpu_queue().create_device_array<int, 1>({1});
+  api::memset_async(devInfo.data(), 0, sizeof(int), ctx.gpu_queue().stream());
   if (cusolverDnCheevdx(ctx.gpu_queue().solver_handle(), jobzEnum, rangeEnum, uploEnum, n, a, lda,
-                        vl, vu, il, iu, m, w, workspace.get(), lwork,
-                        devInfo.get()) != CUSOLVER_STATUS_SUCCESS)
+                        vl, vu, il, iu, m, w, workspace.data(), lwork,
+                        devInfo.data()) != CUSOLVER_STATUS_SUCCESS)
     throw EigensolverError();
 
   int hostInfo;
-  api::memcpy_async(&hostInfo, devInfo.get(), sizeof(int), api::flag::MemcpyDeviceToHost,
+  api::memcpy_async(&hostInfo, devInfo.data(), sizeof(int), api::flag::MemcpyDeviceToHost,
                     ctx.gpu_queue().stream());
-  api::stream_synchronize(ctx.gpu_queue().stream());
+  ctx.gpu_queue().sync();
   if (hostInfo) {
     throw EigensolverError();
   }
@@ -248,18 +251,19 @@ auto solve(ContextInternal& ctx, char jobz, char range, char uplo, int n,
                                    &lwork) != CUSOLVER_STATUS_SUCCESS)
     throw EigensolverError();
 
-  auto workspace = ctx.gpu_queue().create_device_buffer<api::ComplexType<double>>(lwork);
-  auto devInfo = ctx.gpu_queue().create_device_buffer<int>(1);
+  auto workspace =
+      ctx.gpu_queue().create_device_array<api::ComplexType<double>, 1>({std::size_t(lwork)});
+  auto devInfo = ctx.gpu_queue().create_device_array<int, 1>({1});
   // make sure info is always 0. Second entry might not be set otherwise.
-  api::memset_async(devInfo.get(), 0, sizeof(int), ctx.gpu_queue().stream());
+  api::memset_async(devInfo.data(), 0, sizeof(int), ctx.gpu_queue().stream());
   if (cusolverDnZheevdx(ctx.gpu_queue().solver_handle(), jobzEnum, rangeEnum, uploEnum, n, a, lda,
-                        vl, vu, il, iu, m, w, workspace.get(), lwork,
-                        devInfo.get()) != CUSOLVER_STATUS_SUCCESS)
+                        vl, vu, il, iu, m, w, workspace.data(), lwork,
+                        devInfo.data()) != CUSOLVER_STATUS_SUCCESS)
     throw EigensolverError();
   int hostInfo;
-  api::memcpy_async(&hostInfo, devInfo.get(), sizeof(int), api::flag::MemcpyDeviceToHost,
+  api::memcpy_async(&hostInfo, devInfo.data(), sizeof(int), api::flag::MemcpyDeviceToHost,
                     ctx.gpu_queue().stream());
-  api::stream_synchronize(ctx.gpu_queue().stream());
+  ctx.gpu_queue().sync();
   if (hostInfo) {
     throw EigensolverError();
   }
@@ -328,16 +332,18 @@ auto solve(ContextInternal& ctx, char jobz, char range, char uplo, int n,
                                    nullptr, &lwork) != CUSOLVER_STATUS_SUCCESS)
     throw EigensolverError();
 
-  auto workspace = ctx.gpu_queue().create_device_buffer<api::ComplexType<float>>(lwork);
-  auto devInfo = ctx.gpu_queue().create_device_buffer<int>(2);
+  auto workspace =
+      ctx.gpu_queue().create_device_array<api::ComplexType<float>, 1>({std::size_t(lwork)});
+  auto devInfo = ctx.gpu_queue().create_device_array<int, 1>({1});
+  api::memset_async(devInfo.data(), 0, sizeof(int), ctx.gpu_queue().stream());
   if (cusolverDnChegvdx(ctx.gpu_queue().solver_handle(), CUSOLVER_EIG_TYPE_1, jobzEnum, rangeEnum,
-                        uploEnum, n, a, lda, b, ldb, vl, vu, il, iu, m, w, workspace.get(), lwork,
-                        devInfo.get()) != CUSOLVER_STATUS_SUCCESS)
+                        uploEnum, n, a, lda, b, ldb, vl, vu, il, iu, m, w, workspace.data(), lwork,
+                        devInfo.data()) != CUSOLVER_STATUS_SUCCESS)
     throw EigensolverError();
   int hostInfo;
-  api::memcpy_async(&hostInfo, devInfo.get(), sizeof(int), api::flag::MemcpyDeviceToHost,
+  api::memcpy_async(&hostInfo, devInfo.data(), sizeof(int), api::flag::MemcpyDeviceToHost,
                     ctx.gpu_queue().stream());
-  api::stream_synchronize(ctx.gpu_queue().stream());
+  ctx.gpu_queue().sync();
   if (hostInfo) {
     throw EigensolverError();
   }
@@ -404,16 +410,18 @@ auto solve(ContextInternal& ctx, char jobz, char range, char uplo, int n,
                                    nullptr, &lwork) != CUSOLVER_STATUS_SUCCESS)
     throw EigensolverError();
 
-  auto workspace = ctx.gpu_queue().create_device_buffer<api::ComplexType<double>>(lwork);
-  auto devInfo = ctx.gpu_queue().create_device_buffer<int>(1);
+  auto workspace =
+      ctx.gpu_queue().create_device_array<api::ComplexType<double>, 1>({std::size_t(lwork)});
+  auto devInfo = ctx.gpu_queue().create_device_array<int, 1>({1});
+  api::memset_async(devInfo.data(), 0, sizeof(int), ctx.gpu_queue().stream());
   if (cusolverDnZhegvdx(ctx.gpu_queue().solver_handle(), CUSOLVER_EIG_TYPE_1, jobzEnum, rangeEnum,
-                        uploEnum, n, a, lda, b, ldb, vl, vu, il, iu, m, w, workspace.get(), lwork,
-                        devInfo.get()) != CUSOLVER_STATUS_SUCCESS)
+                        uploEnum, n, a, lda, b, ldb, vl, vu, il, iu, m, w, workspace.data(), lwork,
+                        devInfo.data()) != CUSOLVER_STATUS_SUCCESS)
     throw EigensolverError();
   int hostInfo;
-  api::memcpy_async(&hostInfo, devInfo.get(), sizeof(int), api::flag::MemcpyDeviceToHost,
+  api::memcpy_async(&hostInfo, devInfo.data(), sizeof(int), api::flag::MemcpyDeviceToHost,
                     ctx.gpu_queue().stream());
-  api::stream_synchronize(ctx.gpu_queue().stream());
+  ctx.gpu_queue().sync();
   if (hostInfo) {
     throw EigensolverError();
   }

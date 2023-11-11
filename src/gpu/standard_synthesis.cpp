@@ -103,9 +103,8 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
 
   api::ComplexType<T> one{1, 0};
   api::ComplexType<T> zero{0, 0};
-  api::blas::gemm(queue.blas_handle(), api::blas::operation::None, api::blas::operation::None,
-                  nAntenna_, nEig, nBeam_, &one, w.data(), w.strides()[1], v.data(), v.strides()[1],
-                  &zero, vUnbeam.data(), vUnbeam.strides()[1]);
+  api::blas::gemm(queue.blas_handle(), api::blas::operation::None, api::blas::operation::None, one,
+                  w, v, zero, vUnbeam);
 
   T alpha = 2.0 * M_PI / wl;
   gemmexp<T>(queue, nEig, nPixel_, nAntenna_, alpha, vUnbeam.data(), vUnbeam.strides()[1], xyzCentered.data(),

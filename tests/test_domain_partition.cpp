@@ -54,19 +54,16 @@ public:
 
     if (ctx_->processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-      auto bufferX = ctx_->gpu_queue().create_device_buffer<T>(domain[0].size());
-      auto bufferY = ctx_->gpu_queue().create_device_buffer<T>(domain[0].size());
-      auto bufferZ = ctx_->gpu_queue().create_device_buffer<T>(domain[0].size());
+      auto bufferX = ctx_->gpu_queue().create_device_array<T, 1>({domain[0].size()});
+      auto bufferY = ctx_->gpu_queue().create_device_array<T, 1>({domain[0].size()});
+      auto bufferZ = ctx_->gpu_queue().create_device_array<T, 1>({domain[0].size()});
 
-      bipp::gpu::api::memcpy_async(bufferX.get(), domain[0].data(), bufferX.size_in_bytes(),
-                                   bipp::gpu::api::flag::MemcpyDefault, ctx_->gpu_queue().stream());
-      bipp::gpu::api::memcpy_async(bufferY.get(), domain[1].data(), bufferY.size_in_bytes(),
-                                   bipp::gpu::api::flag::MemcpyDefault, ctx_->gpu_queue().stream());
-      bipp::gpu::api::memcpy_async(bufferZ.get(), domain[2].data(), bufferZ.size_in_bytes(),
-                                   bipp::gpu::api::flag::MemcpyDefault, ctx_->gpu_queue().stream());
+      copy(ctx_->gpu_queue(), domainX, bufferX);
+      copy(ctx_->gpu_queue(), domainY, bufferY);
+      copy(ctx_->gpu_queue(), domainZ, bufferZ);
 
-      partition = bipp::gpu::DomainPartition::grid<T>(
-          ctx_, gridDimensions, domain[0].size(), {bufferX.get(), bufferY.get(), bufferZ.get()});
+      partition =
+          bipp::gpu::DomainPartition::grid<T>(ctx_, gridDimensions, {bufferX, bufferY, bufferZ});
 
 #else
       ASSERT_TRUE(false);
@@ -104,24 +101,18 @@ public:
             } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
               auto dataInPlaceDevice =
-                  ctx_->gpu_queue().create_device_buffer<T>(dataInPlace.size());
+                  ctx_->gpu_queue().create_device_array<T,1>(dataInPlace.shape());
               auto dataOutOfPlaceDevice =
-                  ctx_->gpu_queue().create_device_buffer<T>(dataOutOfPlace.size());
+                  ctx_->gpu_queue().create_device_array<T, 1>(dataOutOfPlace.shape());
 
-              bipp::gpu::api::memcpy_async(
-                  dataInPlaceDevice.get(), dataInPlace.data(), dataInPlaceDevice.size_in_bytes(),
-                  bipp::gpu::api::flag::MemcpyDefault, ctx_->gpu_queue().stream());
+              copy(ctx_->gpu_queue(), dataInPlace, dataInPlaceDevice);
 
-              arg.apply(dataInPlaceDevice.get(), dataOutOfPlaceDevice.get());
-              arg.apply(dataInPlaceDevice.get());
+              arg.apply(dataInPlaceDevice, dataOutOfPlaceDevice);
+              arg.apply(dataInPlaceDevice);
 
-              bipp::gpu::api::memcpy_async(
-                  dataInPlace.data(), dataInPlaceDevice.get(), dataInPlaceDevice.size_in_bytes(),
-                  bipp::gpu::api::flag::MemcpyDefault, ctx_->gpu_queue().stream());
-              bipp::gpu::api::memcpy_async(dataOutOfPlace.data(), dataOutOfPlaceDevice.get(),
-                                           dataOutOfPlaceDevice.size_in_bytes(),
-                                           bipp::gpu::api::flag::MemcpyDefault,
-                                           ctx_->gpu_queue().stream());
+
+              copy(ctx_->gpu_queue(), dataInPlaceDevice, dataInPlace);
+              copy(ctx_->gpu_queue(), dataOutOfPlaceDevice, dataOutOfPlace);
 
               ctx_->gpu_queue().sync();
 #endif
@@ -149,25 +140,19 @@ public:
               arg.reverse(dataInPlace);
             } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+
               auto dataInPlaceDevice =
-                  ctx_->gpu_queue().create_device_buffer<T>(dataInPlace.size());
+                  ctx_->gpu_queue().create_device_array<T,1>(dataInPlace.shape());
               auto dataOutOfPlaceDevice =
-                  ctx_->gpu_queue().create_device_buffer<T>(dataOutOfPlace.size());
+                  ctx_->gpu_queue().create_device_array<T, 1>(dataOutOfPlace.shape());
 
-              bipp::gpu::api::memcpy_async(
-                  dataInPlaceDevice.get(), dataInPlace.data(), dataInPlaceDevice.size_in_bytes(),
-                  bipp::gpu::api::flag::MemcpyDefault, ctx_->gpu_queue().stream());
+              copy(ctx_->gpu_queue(), dataInPlace, dataInPlaceDevice);
 
-              arg.reverse(dataInPlaceDevice.get(), dataOutOfPlaceDevice.get());
-              arg.reverse(dataInPlaceDevice.get());
+              arg.reverse(dataInPlaceDevice, dataOutOfPlaceDevice);
+              arg.reverse(dataInPlaceDevice);
 
-              bipp::gpu::api::memcpy_async(
-                  dataInPlace.data(), dataInPlaceDevice.get(), dataInPlaceDevice.size_in_bytes(),
-                  bipp::gpu::api::flag::MemcpyDefault, ctx_->gpu_queue().stream());
-              bipp::gpu::api::memcpy_async(dataOutOfPlace.data(), dataOutOfPlaceDevice.get(),
-                                           dataOutOfPlaceDevice.size_in_bytes(),
-                                           bipp::gpu::api::flag::MemcpyDefault,
-                                           ctx_->gpu_queue().stream());
+              copy(ctx_->gpu_queue(), dataInPlaceDevice, dataInPlace);
+              copy(ctx_->gpu_queue(), dataOutOfPlaceDevice, dataOutOfPlace);
 
               ctx_->gpu_queue().sync();
 #endif

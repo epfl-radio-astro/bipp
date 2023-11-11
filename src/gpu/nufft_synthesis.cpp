@@ -54,8 +54,8 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
           ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "image partition: grid ({}, {}, {})",
                              arg.dimensions[0], arg.dimensions[1], arg.dimensions[2]);
           imgPartition_ = DomainPartition::grid<T>(
-              ctx_, arg.dimensions, nPixel_,
-              {pixel.slice_view(0).data(), pixel.slice_view(1).data(), pixel.slice_view(2).data()});
+              ctx_, arg.dimensions,
+              {pixel.slice_view(0), pixel.slice_view(1), pixel.slice_view(2)});
         } else if constexpr (std::is_same_v<ArgType, Partition::None> ||
                              std::is_same_v<ArgType, Partition::Auto>) {
           ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "image partition: none");
@@ -63,9 +63,9 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
       },
       opt_.localImagePartition.method);
 
-  imgPartition_.apply(pixel_.slice_view(0).data());
-  imgPartition_.apply(pixel_.slice_view(1).data());
-  imgPartition_.apply(pixel_.slice_view(2).data());
+  imgPartition_.apply(pixel_.slice_view(0));
+  imgPartition_.apply(pixel_.slice_view(1));
+  imgPartition_.apply(pixel_.slice_view(2));
 
   if (opt_.collectGroupSize && opt_.collectGroupSize.value() > 0) {
     nMaxInputCount_ = opt_.collectGroupSize.value();
@@ -158,9 +158,12 @@ auto NufftSynthesis<T>::computeNufft() -> void {
 
     const auto nInputPoints = nAntenna_ * nAntenna_ * collectCount_;
 
-    auto uvwX = uvw_.slice_view(0);
-    auto uvwY = uvw_.slice_view(1);
-    auto uvwZ = uvw_.slice_view(2);
+    auto uvwX = uvw_.slice_view(0).sub_view({0}, {nInputPoints});
+    auto uvwY = uvw_.slice_view(1).sub_view({0}, {nInputPoints});;
+    auto uvwZ = uvw_.slice_view(2).sub_view({0}, {nInputPoints});;
+
+    auto currentVirtualVis = virtualVis_.sub_view(
+        {0, 0, 0}, {nInputPoints, virtualVis_.shape()[1], virtualVis_.shape()[2]});
 
     auto pixelX = pixel_.slice_view(0);
     auto pixelY = pixel_.slice_view(1);
@@ -172,8 +175,7 @@ auto NufftSynthesis<T>::computeNufft() -> void {
           if constexpr (std::is_same_v<ArgType, Partition::Grid>) {
             ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "uvw partition: grid ({}, {}, {})",
                                arg.dimensions[0], arg.dimensions[1], arg.dimensions[2]);
-            return DomainPartition::grid<T>(ctx_, arg.dimensions, nInputPoints,
-                                            {uvwX.data(), uvwY.data(), uvwZ.data()});
+            return DomainPartition::grid<T>(ctx_, arg.dimensions, {uvwX, uvwY, uvwZ});
 
           } else if constexpr (std::is_same_v<ArgType, Partition::None>) {
             ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "uvw partition: none");
@@ -223,25 +225,20 @@ auto NufftSynthesis<T>::computeNufft() -> void {
 
             // set partition method to grid and create grid partition
             opt_.localUVWPartition.method = Partition::Grid{gridSize};
-            return DomainPartition::grid<T>(ctx_, gridSize, nInputPoints,
-                                            {uvwX.data(), uvwY.data(), uvwZ.data()});
+            return DomainPartition::grid<T>(ctx_, gridSize, {uvwX, uvwY, uvwZ});
           }
         },
         opt_.localUVWPartition.method);
 
-    const auto ldVirtVis3 = nAntenna_;
-    const auto ldVirtVis2 = nMaxInputCount_ * nAntenna_ * ldVirtVis3;
-    const auto ldVirtVis1 = nIntervals_ * ldVirtVis2;
-
     for (std::size_t i = 0; i < nFilter_; ++i) {
       for (std::size_t j = 0; j < nIntervals_; ++j) {
-        inputPartition.apply(virtualVis_.data() + i * ldVirtVis1 + j * ldVirtVis2);
+        inputPartition.apply(currentVirtualVis.slice_view(i).slice_view(j));
       }
     }
 
-    inputPartition.apply(uvwX.data());
-    inputPartition.apply(uvwY.data());
-    inputPartition.apply(uvwZ.data());
+    inputPartition.apply(uvwX);
+    inputPartition.apply(uvwY);
+    inputPartition.apply(uvwZ);
 
     queue.signal_stream(nullptr);  // cufinufft uses default stream
 
@@ -257,7 +254,7 @@ auto NufftSynthesis<T>::computeNufft() -> void {
             for (std::size_t j = 0; j < nIntervals_; ++j) {
               auto imgPtr = img_.slice_view(i).slice_view(j).data() + imgBegin;
               nuft_sum<T>(queue.device_prop(), nullptr, 1.0, inputSize,
-                          virtualVis_.data() + i * ldVirtVis1 + j * ldVirtVis2 + inputBegin,
+                          currentVirtualVis.slice_view(i).slice_view(j).data() + inputBegin,
                           uvwX.data() + inputBegin, uvwY.data() + inputBegin,
                           uvwZ.data() + inputBegin, imgSize, pixelX.data() + imgBegin,
                           pixelY.data() + imgBegin, pixelZ.data() + imgBegin, imgPtr);
@@ -274,7 +271,7 @@ auto NufftSynthesis<T>::computeNufft() -> void {
           for (std::size_t i = 0; i < nFilter_; ++i) {
             for (std::size_t j = 0; j < nIntervals_; ++j) {
               auto imgPtr = img_.slice_view(i).slice_view(j).data() + imgBegin;
-              transform.execute(virtualVis_.data() + i * ldVirtVis1 + j * ldVirtVis2 + inputBegin,
+              transform.execute(currentVirtualVis.slice_view(i).slice_view(j).data() + inputBegin,
                                 output.data());
               ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output", imgSize, 1,
                                         output.data(), imgSize);
@@ -317,7 +314,7 @@ auto NufftSynthesis<T>::get(BippFilter f, DeviceView<T, 2> out) -> void {
     auto intervalImage = filterImg.slice_view(i);
     auto intervalOut = out.slice_view(i);
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image permuted", intervalImage);
-    imgPartition_.reverse(intervalImage.data(), intervalOut.data());
+    imgPartition_.reverse(intervalImage, intervalOut);
 
     scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale, intervalOut.data());
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", intervalOut);

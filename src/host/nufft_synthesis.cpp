@@ -154,9 +154,12 @@ auto NufftSynthesis<T>::computeNufft() -> void {
 
     ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "computing nufft for collected data");
 
-    auto uvwX = uvw_.slice_view(0);
-    auto uvwY = uvw_.slice_view(1);
-    auto uvwZ = uvw_.slice_view(2);
+    auto uvwX = uvw_.slice_view(0).sub_view({0}, {nInputPoints});
+    auto uvwY = uvw_.slice_view(1).sub_view({0}, {nInputPoints});;
+    auto uvwZ = uvw_.slice_view(2).sub_view({0}, {nInputPoints});;
+
+    auto virtVisCurrent = virtualVis_.sub_view(
+        {0, 0, 0}, {nInputPoints, virtualVis_.shape()[1], virtualVis_.shape()[2]});
 
     auto pixelX = pixel_.slice_view(0);
     auto pixelY = pixel_.slice_view(1);
@@ -200,16 +203,10 @@ auto NufftSynthesis<T>::computeNufft() -> void {
 
             // set partition method to grid and create grid partition
             opt_.localUVWPartition.method = Partition::Grid{gridSize};
-            return DomainPartition::grid<T>(
-                ctx_, gridSize,
-                {uvwX.sub_view({0}, {nInputPoints}), uvwY.sub_view({0}, {nInputPoints}),
-                 uvwZ.sub_view({0}, {nInputPoints})});
+            return DomainPartition::grid<T>(ctx_, gridSize, {uvwX, uvwY, uvwZ});
           }
         },
         opt_.localUVWPartition.method);
-
-    auto virtVisCurrent = virtualVis_.sub_view(
-        {0, 0, 0}, {nInputPoints, virtualVis_.shape()[1], virtualVis_.shape()[2]});
 
     for (std::size_t i = 0; i < nFilter_; ++i) {
       for (std::size_t j = 0; j < nIntervals_; ++j) {
@@ -217,9 +214,9 @@ auto NufftSynthesis<T>::computeNufft() -> void {
       }
     }
 
-    inputPartition.apply(uvwX.sub_view({0}, {nInputPoints}));
-    inputPartition.apply(uvwY.sub_view({0}, {nInputPoints}));
-    inputPartition.apply(uvwZ.sub_view({0}, {nInputPoints}));
+    inputPartition.apply(uvwX);
+    inputPartition.apply(uvwY);
+    inputPartition.apply(uvwZ);
 
     for (const auto& [inputBegin, inputSize] : inputPartition.groups()) {
       if (!inputSize) continue;
