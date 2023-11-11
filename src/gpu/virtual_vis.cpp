@@ -49,9 +49,9 @@ auto virtual_vis(ContextInternal& ctx, ConstHostView<BippFilter, 1> filter,
         // Multiply each col of V with the selected eigenvalue
         auto vScaledCurrent = vScaled.sub_view({0, 0}, {vScaled.shape(0), size});
         auto vCurrent = v.sub_view({0, start}, {v.shape(0), size});
-        scale_matrix<T>(queue, nAntenna, size, vCurrent.data(), vCurrent.strides()[1],
+        scale_matrix<T>(queue, nAntenna, size, vCurrent.data(), vCurrent.strides(1),
                         dFiltered.data() + start, vScaledCurrent.data(),
-                        vScaledCurrent.strides()[1]);
+                        vScaledCurrent.strides(1));
 
         for (std::size_t k = 0; k < size; ++k) {
           ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} to inverval [{}, {}]",

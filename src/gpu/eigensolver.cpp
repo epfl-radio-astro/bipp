@@ -61,7 +61,7 @@ auto eigh(ContextInternal& ctx, std::size_t nEig, ConstHostView<api::ComplexType
     indicesDevice = queue.create_device_array<std::size_t, 1>(indicesHost.shape());
     copy(queue, indicesHost, indicesDevice);
     copy_matrix_from_indices(queue.device_prop(), queue.stream(), mReduced, indicesDevice.data(),
-                             a.data(), a.strides()[1], aBuffer.data(), aBuffer.strides()[1]);
+                             a.data(), a.strides(1), aBuffer.data(), aBuffer.strides(1));
   }
 
   int hMeig = 0;
@@ -74,14 +74,14 @@ auto eigh(ContextInternal& ctx, std::size_t nEig, ConstHostView<api::ComplexType
       copy(queue, b, bBuffer);
     } else {
       copy_matrix_from_indices(queue.device_prop(), queue.stream(), mReduced, indicesDevice.data(),
-                               b.data(), b.strides()[1], bBuffer.data(), bBuffer.strides()[1]);
+                               b.data(), b.strides(1), bBuffer.data(), bBuffer.strides(1));
     }
 
-    eigensolver::solve(ctx, 'V', 'I', 'L', mReduced, aBuffer.data(), aBuffer.strides()[1],
-                       bBuffer.data(), bBuffer.strides()[1], 0, 0, firstEigIndexFortran, mReduced,
+    eigensolver::solve(ctx, 'V', 'I', 'L', mReduced, aBuffer.data(), aBuffer.strides(1),
+                       bBuffer.data(), bBuffer.strides(1), 0, 0, firstEigIndexFortran, mReduced,
                        &hMeig, dBuffer.data());
   } else {
-    eigensolver::solve(ctx, 'V', 'I', 'L', mReduced, aBuffer.data(), aBuffer.strides()[1], 0, 0,
+    eigensolver::solve(ctx, 'V', 'I', 'L', mReduced, aBuffer.data(), aBuffer.strides(1), 0, 0,
                        firstEigIndexFortran, mReduced, &hMeig, dBuffer.data());
   }
 
@@ -104,7 +104,7 @@ auto eigh(ContextInternal& ctx, std::size_t nEig, ConstHostView<api::ComplexType
   } else {
     copy_matrix_rows_to_indices(queue.device_prop(), queue.stream(), mReduced, nEigOut,
                                 indicesDevice.data(), aBuffer.slice_view(hMeig - nEigOut).data(),
-                                aBuffer.strides()[1], v.data(), v.strides()[1]);
+                                aBuffer.strides(1), v.data(), v.strides(1));
   }
 
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", d);

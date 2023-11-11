@@ -85,15 +85,15 @@ auto eigh(ContextInternal& ctx, std::size_t nEig, const ConstHostView<std::compl
     copy_lower_triangle_at_indices(indices, b, bReduced);
 
     if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, 'V', 'I', 'L', mReduced, aReduced.data(),
-                           aReduced.strides()[1], bReduced.data(), bReduced.strides()[1], 0, 0,
+                           aReduced.strides(1), bReduced.data(), bReduced.strides(1), 0, 0,
                            firstEigIndexFortran, mReduced, &hMeig, dBuffer.data(), vBuffer.data(),
-                           vBuffer.strides()[1], bufferIfail.data())) {
+                           vBuffer.strides(1), bufferIfail.data())) {
       throw EigensolverError();
     }
   } else {
     if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 'V', 'I', 'L', mReduced, aReduced.data(),
-                           aReduced.strides()[1], 0, 0, firstEigIndexFortran, mReduced, &hMeig,
-                           dBuffer.data(), vBuffer.data(), vBuffer.strides()[1],
+                           aReduced.strides(1), 0, 0, firstEigIndexFortran, mReduced, &hMeig,
+                           dBuffer.data(), vBuffer.data(), vBuffer.strides(1),
                            bufferIfail.data())) {
       throw EigensolverError();
     }

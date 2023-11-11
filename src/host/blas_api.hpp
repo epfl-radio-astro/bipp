@@ -183,17 +183,17 @@ inline auto gemm(CBLAS_LAYOUT order, CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE tra
 template <typename T>
 auto gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB, T alpha, ConstHostView<T, 2> a,
           ConstHostView<T, 2> b, T beta, HostView<T, 2> c) {
-  const auto m = transA == CblasNoTrans ? a.shape()[0] : a.shape()[1];
-  const auto n = transB == CblasNoTrans ? b.shape()[1] : b.shape()[0];
-  const auto k = transA == CblasNoTrans ? a.shape()[1] : a.shape()[0];
+  const auto m = transA == CblasNoTrans ? a.shape(0) : a.shape(1);
+  const auto n = transB == CblasNoTrans ? b.shape(1) : b.shape(0);
+  const auto k = transA == CblasNoTrans ? a.shape(1) : a.shape(0);
 
-  assert(c.shape()[0] == m);
-  assert(c.shape()[1] == n);
-  assert(!(b.shape()[0] != k && transB == CblasNoTrans));
-  assert(!(b.shape()[1] != k && transB != CblasNoTrans));
+  assert(c.shape(0) == m);
+  assert(c.shape(1) == n);
+  assert(!(b.shape(0) != k && transB == CblasNoTrans));
+  assert(!(b.shape(1) != k && transB != CblasNoTrans));
 
-  gemm(CblasColMajor, transA, transB, m, n, k, alpha, a.data(), a.strides()[1], b.data(),
-       b.strides()[1], beta, c.data(), c.strides()[1]);
+  gemm(CblasColMajor, transA, transB, m, n, k, alpha, a.data(), a.strides(1), b.data(),
+       b.strides(1), beta, c.data(), c.strides(1));
 }
 
 inline auto symm(const CBLAS_LAYOUT layout, const CBLAS_SIDE side, const CBLAS_UPLO uplo,
@@ -249,17 +249,17 @@ template <typename T>
 auto symm(const CBLAS_SIDE side, const CBLAS_UPLO uplo, std::complex<T> alpha,
           ConstHostView<std::complex<T>, 2> A, ConstHostView<std::complex<T>, 2> B,
           std::complex<T> beta, HostView<std::complex<T>, 2> C) {
-  const auto m = C.shape()[0];
-  const auto n = C.shape()[1];
+  const auto m = C.shape(0);
+  const auto n = C.shape(1);
 
-  assert(side == CblasLeft ? (A.shape()[0] == m) : (A.shape()[0] == n));
-  assert(side == CblasLeft ? (A.shape()[1] == m) : (A.shape()[1] == n));
+  assert(side == CblasLeft ? (A.shape(0) == m) : (A.shape(0) == n));
+  assert(side == CblasLeft ? (A.shape(1) == m) : (A.shape(1) == n));
 
-  assert(B.shape()[0] == m);
-  assert(B.shape()[1] == n);
+  assert(B.shape(0) == m);
+  assert(B.shape(1) == n);
 
-  symm(CblasColMajor, side, uplo, m, n, alpha, A.data(), A.strides()[1], B.data(), B.strides()[1],
-       beta, C.data(), C.strides()[1]);
+  symm(CblasColMajor, side, uplo, m, n, alpha, A.data(), A.strides(1), B.data(), B.strides(1),
+       beta, C.data(), C.strides(1));
 }
 
 inline auto axpy(const int n, const float a, const float* x, const int incx, float* y,
