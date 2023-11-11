@@ -39,10 +39,9 @@ struct NufftSynthesisInternal {
 
     if (ctx_->processing_unit() == BIPP_PU_CPU) {
       planHost_.emplace(ctx_, opt, nAntenna, nBeam, nIntervals,
-                        ConstHostView<BippFilter, 1>(filter, {nFilter}, {1}),
-                        ConstHostView<T, 1>(lmnX, {nPixel}, {1}),
-                        ConstHostView<T, 1>(lmnY, {nPixel}, {1}),
-                        ConstHostView<T, 1>(lmnZ, {nPixel}, {1}));
+                        ConstHostView<BippFilter, 1>(filter, nFilter, 1),
+                        ConstHostView<T, 1>(lmnX, nPixel, 1), ConstHostView<T, 1>(lmnY, nPixel, 1),
+                        ConstHostView<T, 1>(lmnZ, nPixel, 1));
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       auto& queue = ctx_->gpu_queue();
@@ -51,14 +50,14 @@ struct NufftSynthesisInternal {
       // syncronize with stream to be synchronous with host before exiting
       auto syncGuard = queue.sync_guard();
 
-      auto filterArray = queue.create_host_array<BippFilter, 1>({nFilter});
-      copy(queue, ViewBase<BippFilter, 1>(filter, {nFilter}, {1}), filterArray);
+      auto filterArray = queue.create_host_array<BippFilter, 1>(nFilter);
+      copy(queue, ViewBase<BippFilter, 1>(filter, nFilter, 1), filterArray);
       queue.sync();  // make sure filters are available
 
       auto pixelArray = queue.create_device_array<T, 2>({nPixel_, 3});
-      copy(queue, ViewBase<T, 1>(lmnX, {nPixel_}, {1}), pixelArray.slice_view(0));
-      copy(queue, ViewBase<T, 1>(lmnY, {nPixel_}, {1}), pixelArray.slice_view(1));
-      copy(queue, ViewBase<T, 1>(lmnZ, {nPixel_}, {1}), pixelArray.slice_view(2));
+      copy(queue, ViewBase<T, 1>(lmnX, nPixel_, 1), pixelArray.slice_view(0));
+      copy(queue, ViewBase<T, 1>(lmnY, nPixel_, 1), pixelArray.slice_view(1));
+      copy(queue, ViewBase<T, 1>(lmnZ, nPixel_, 1), pixelArray.slice_view(2));
 
       planGPU_.emplace(ctx_, std::move(opt), nAntenna, nBeam, nIntervals, std::move(filterArray),
                        std::move(pixelArray));
@@ -120,7 +119,6 @@ struct NufftSynthesisInternal {
       ConstHostAccessor<gpu::api::ComplexType<T>, 2> sHost(
           queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(s), sShape, {1, lds});
       queue.sync();  // make sure it's accessible after construction
-
 
       ConstDeviceAccessor<gpu::api::ComplexType<T>, 2> sDevice(
           queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(s), sShape, {1, lds});

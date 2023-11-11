@@ -38,7 +38,7 @@ auto eigh(ContextInternal& ctx, std::size_t nEig, ConstHostView<api::ComplexType
     }
   }
 
-  auto indicesHost = queue.create_pinned_array<std::size_t, 1>({m});
+  auto indicesHost = queue.create_pinned_array<std::size_t, 1>(m);
 
   std::size_t mReduced = 0;
 
@@ -53,7 +53,7 @@ auto eigh(ContextInternal& ctx, std::size_t nEig, ConstHostView<api::ComplexType
   ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} coloumns / rows", m - mReduced);
 
   auto aBuffer = queue.create_device_array<api::ComplexType<T>, 2>({mReduced, mReduced});
-  auto dBuffer = queue.create_device_array<T, 1>({mReduced});
+  auto dBuffer = queue.create_device_array<T, 1>(mReduced);
 
   if (m == mReduced) {
     copy(queue, a, aBuffer);

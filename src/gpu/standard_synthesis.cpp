@@ -66,8 +66,8 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
 
   auto unlayeredStats = queue.create_device_array<T, 2>({nPixel_, nEig});
 
-  auto d = queue.create_device_array<T, 1>({nEig});
-  auto dFiltered = queue.create_device_array<T, 1>({nEig});
+  auto d = queue.create_device_array<T, 1>(nEig);
+  auto dFiltered = queue.create_device_array<T, 1>(nEig);
 
   // Center coordinates for much better performance of cos / sin
   auto xyzCentered = queue.create_device_array<T, 2>(xyz.shape());
@@ -89,13 +89,13 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
     else {
       auto gHost = queue.create_pinned_array<api::ComplexType<T>, 2>(g.shape());
       copy(queue, g, gHost);
-      queue.sync(); // finish copy
+      queue.sync();  // finish copy
       eigh<T>(*ctx_, nEig, gHost, g, s, d, v);
     }
   }
 
-  auto dHost = queue.create_pinned_array<T,1>({nEig});
-  auto dFilteredHost = queue.create_host_array<T,1>({nEig});
+  auto dHost = queue.create_pinned_array<T, 1>(nEig);
+  auto dFilteredHost = queue.create_host_array<T, 1>(nEig);
 
   copy(queue, d, dHost);
   // Make sure D is available on host
@@ -107,9 +107,10 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
                   w, v, zero, vUnbeam);
 
   T alpha = 2.0 * M_PI / wl;
-  gemmexp<T>(queue, nEig, nPixel_, nAntenna_, alpha, vUnbeam.data(), vUnbeam.strides()[1], xyzCentered.data(),
-             xyzCentered.strides()[1], pixel_.slice_view(0).data(), pixel_.slice_view(1).data(),
-             pixel_.slice_view(2).data(), unlayeredStats.data(), nPixel_);
+  gemmexp<T>(queue, nEig, nPixel_, nAntenna_, alpha, vUnbeam.data(), vUnbeam.strides()[1],
+             xyzCentered.data(), xyzCentered.strides()[1], pixel_.slice_view(0).data(),
+             pixel_.slice_view(1).data(), pixel_.slice_view(2).data(), unlayeredStats.data(),
+             nPixel_);
   ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gemmexp", nPixel_, nEig, unlayeredStats.data(),
                             nPixel_);
 
@@ -142,7 +143,6 @@ template <typename T>
 auto StandardSynthesis<T>::get(BippFilter f, DeviceView<T, 2> out) -> void {
   auto& queue = ctx_->gpu_queue();
 
-
   assert(out.shape()[0] == nPixel_);
   assert(out.shape()[1] == nIntervals_);
 
@@ -163,7 +163,6 @@ auto StandardSynthesis<T>::get(BippFilter f, DeviceView<T, 2> out) -> void {
                     scale, out.slice_view(i).data());
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", out.slice_view(i));
   }
-
 }
 
 template class StandardSynthesis<float>;

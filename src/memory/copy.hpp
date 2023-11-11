@@ -21,7 +21,7 @@ inline auto copy(const ConstHostView<T, DIM>& source, HostView<T, DIM> dest) {
   if (source.size() == 0) return;
 
   if constexpr (DIM == 1) {
-    std::memcpy(dest.data(), source.data(), source.shape()[0] * sizeof(T));
+    std::memcpy(dest.data(), source.data(), source.shape() * sizeof(T));
   } else {
     for (std::size_t i = 0; i < source.shape()[DIM - 1]; ++i) {
       copy<T, DIM - 1>(source.slice_view(i), dest.slice_view(i));
@@ -38,7 +38,7 @@ inline auto copy(gpu::Queue& queue, const ViewBase<T, DIM>& source, DeviceView<T
   if (source.size() == 0) return;
 
   if constexpr (DIM == 1) {
-    gpu::api::memcpy_async(dest.data(), source.data(), dest.shape()[0] * sizeof(T),
+    gpu::api::memcpy_async(dest.data(), source.data(), dest.shape() * sizeof(T),
                            gpu::api::flag::MemcpyDefault, queue.stream());
 
   } else if constexpr (DIM == 2) {
@@ -60,7 +60,7 @@ inline auto copy(gpu::Queue& queue, const ViewBase<T, DIM>& source, HostView<T, 
   if (source.size() == 0) return;
 
   if constexpr (DIM == 1) {
-    gpu::api::memcpy_async(dest.data(), source.data(), dest.shape()[0] * sizeof(T),
+    gpu::api::memcpy_async(dest.data(), source.data(), dest.shape() * sizeof(T),
                            gpu::api::flag::MemcpyDefault, queue.stream());
 
   } else if constexpr (DIM == 2) {

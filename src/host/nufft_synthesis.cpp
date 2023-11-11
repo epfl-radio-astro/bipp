@@ -40,8 +40,8 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
     : ctx_(std::move(ctx)),
       opt_(std::move(opt)),
       nIntervals_(nIntervals),
-      nFilter_(filter.shape()[0]),
-      nPixel_(pixelX.shape()[0]),
+      nFilter_(filter.shape()),
+      nPixel_(pixelX.shape()),
       nAntenna_(nAntenna),
       nBeam_(nBeam),
       filter_(ctx_->host_alloc(), filter.shape()),
@@ -110,7 +110,7 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
   copy(uvw, uvw_.sub_view({collectCount_ * nAntenna_ * nAntenna_, 0}, {nAntenna_ * nAntenna_, 3}));
 
   auto v = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nBeam_, nEig});
-  auto d = HostArray<T, 1>(ctx_->host_alloc(), {nEig});
+  auto d = HostArray<T, 1>(ctx_->host_alloc(), nEig);
 
   {
     auto g = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nBeam_, nBeam_});
@@ -148,7 +148,7 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
 template <typename T>
 auto NufftSynthesis<T>::computeNufft() -> void {
   if (collectCount_) {
-    auto output = HostArray<std::complex<T>, 1>(ctx_->host_alloc(), {nPixel_});
+    auto output = HostArray<std::complex<T>, 1>(ctx_->host_alloc(), nPixel_);
 
     const auto nInputPoints = nAntenna_ * nAntenna_ * collectCount_;
 

@@ -16,13 +16,13 @@ template <typename T, std::size_t DIM>
 class HostArray : public HostView<T, DIM> {
 public:
   static_assert(std::is_trivially_destructible_v<T>);
-#ifndef BIPP_ROCM // Complex type in HIP is not marked trivially copyable
+#ifndef BIPP_ROCM  // Complex type in HIP is not marked trivially copyable
   static_assert(std::is_trivially_copyable_v<T>);
 #endif
 
   using ValueType = T;
   using BaseType = HostView<T, DIM>;
-  using IndexType = typename BaseType::IndexType;
+  using IndexType = ViewIndexType<DIM>;
   using SliceType = HostArray<T, DIM - 1>;
 
   HostArray() : BaseType(){};
@@ -56,13 +56,17 @@ public:
 
 private:
   static inline auto shape_to_stride(const IndexType& shape) -> IndexType {
-    IndexType strides;
-    strides[0] = 1;
-    for (std::size_t i = 1; i < DIM; ++i) {
-      strides[i] = shape[i - 1] * strides[i - 1];
+    if constexpr (DIM == 1) {
+      return 1;
+    } else {
+      IndexType strides;
+      strides[0] = 1;
+      for (std::size_t i = 1; i < DIM; ++i) {
+        strides[i] = shape[i - 1] * strides[i - 1];
+      }
+      strides[0] = 1;
+      return strides;
     }
-    strides[0] = 1;
-    return strides;
   }
   std::shared_ptr<void> data_;
 };
@@ -78,7 +82,7 @@ public:
 
   using ValueType = T;
   using BaseType = DeviceView<T, DIM>;
-  using IndexType = typename BaseType::IndexType;
+  using IndexType = ViewIndexType<DIM>;
   using SliceType = DeviceArray<T, DIM - 1>;
 
   DeviceArray() : BaseType(){};
@@ -112,13 +116,17 @@ public:
 
 private:
   static inline auto shape_to_stride(const IndexType& shape) -> IndexType {
-    IndexType strides;
-    strides[0] = 1;
-    for (std::size_t i = 1; i < DIM; ++i) {
-      strides[i] = shape[i - 1] * strides[i - 1];
+    if constexpr (DIM == 1) {
+      return 1;
+    } else {
+      IndexType strides;
+      strides[0] = 1;
+      for (std::size_t i = 1; i < DIM; ++i) {
+        strides[i] = shape[i - 1] * strides[i - 1];
+      }
+      strides[0] = 1;
+      return strides;
     }
-    strides[0] = 1;
-    return strides;
   }
   std::shared_ptr<void> data_;
 };

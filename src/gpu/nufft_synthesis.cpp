@@ -34,7 +34,7 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
     : ctx_(std::move(ctx)),
       opt_(std::move(opt)),
       nIntervals_(nIntervals),
-      nFilter_(filter.shape()[0]),
+      nFilter_(filter.shape()),
       nPixel_(pixel.shape()[0]),
       nAntenna_(nAntenna),
       nBeam_(nBeam),
@@ -108,7 +108,7 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
        uvw_.sub_view({collectCount_ * nAntenna_ * nAntenna_, 0}, {nAntenna_ * nAntenna_, 3}));
 
   auto v = queue.create_device_array<api::ComplexType<T>, 2>({nBeam_, nEig});
-  auto d = queue.create_device_array<T, 1>({nEig});
+  auto d = queue.create_device_array<T, 1>(nEig);
 
   {
     auto g = queue.create_device_array<api::ComplexType<T>, 2>({nBeam_, nBeam_});
@@ -126,7 +126,6 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
       eigh<T>(*ctx_, nEig, gHost, g, s, d, v);
     }
   }
-
 
   // Reverse beamforming
   auto vUnbeam = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna_, v.shape()[1]});
@@ -154,13 +153,15 @@ auto NufftSynthesis<T>::computeNufft() -> void {
   auto& queue = ctx_->gpu_queue();
 
   if (collectCount_) {
-    auto output = queue.create_device_array<api::ComplexType<T>, 1>({nPixel_});
+    auto output = queue.create_device_array<api::ComplexType<T>, 1>(nPixel_);
 
     const auto nInputPoints = nAntenna_ * nAntenna_ * collectCount_;
 
     auto uvwX = uvw_.slice_view(0).sub_view({0}, {nInputPoints});
-    auto uvwY = uvw_.slice_view(1).sub_view({0}, {nInputPoints});;
-    auto uvwZ = uvw_.slice_view(2).sub_view({0}, {nInputPoints});;
+    auto uvwY = uvw_.slice_view(1).sub_view({0}, {nInputPoints});
+    ;
+    auto uvwZ = uvw_.slice_view(2).sub_view({0}, {nInputPoints});
+    ;
 
     auto currentVirtualVis = virtualVis_.sub_view(
         {0, 0, 0}, {nInputPoints, virtualVis_.shape()[1], virtualVis_.shape()[2]});
@@ -182,7 +183,7 @@ auto NufftSynthesis<T>::computeNufft() -> void {
             return DomainPartition::none(ctx_, nInputPoints);
 
           } else if constexpr (std::is_same_v<ArgType, Partition::Auto>) {
-            auto minMaxDevice = queue.create_device_array<T, 1>({12});
+            auto minMaxDevice = queue.create_device_array<T, 1>(12);
             min_element(queue, nInputPoints, uvwX.data(), minMaxDevice.data());
             max_element(queue, nInputPoints, uvwX.data(), minMaxDevice.data() + 1);
 

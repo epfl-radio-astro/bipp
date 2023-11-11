@@ -130,17 +130,17 @@ auto DomainPartition::grid(const std::shared_ptr<ContextInternal>& ctx,
 
   auto& q = ctx->gpu_queue();
 
-  auto permutBuffer = q.create_device_array<std::size_t, 1>({n});
-  auto groupSizesBuffer = q.create_device_array<GroupSizeType, 1>({gridSize});
+  auto permutBuffer = q.create_device_array<std::size_t, 1>(n);
+  auto groupSizesBuffer = q.create_device_array<GroupSizeType, 1>(gridSize);
   auto groupBufferHost = std::vector<Group>(gridSize);
 
   // Create block to make sure buffers go out-of-scope before next sync call to safe memory
   {
-    auto minMaxBuffer = q.create_device_array<T, 1>({2 * DIM});
+    auto minMaxBuffer = q.create_device_array<T, 1>(2 * DIM);
     auto keyBuffer = q.create_device_array<GroupIndexType, 1>(
         {n});  // GroupIndexType should be enough to enumerate groups
-    auto indicesBuffer = q.create_device_array<std::size_t, 1>({n});
-    auto sortedKeyBuffer = q.create_device_array<GroupIndexType, 1>({n});
+    auto indicesBuffer = q.create_device_array<std::size_t, 1>(n);
+    auto sortedKeyBuffer = q.create_device_array<GroupIndexType, 1>(n);
 
     // Compute the minimum and maximum in each dimension stored in minMax as
     // (min_x, min_y, ..., max_x, max_y, ...)
@@ -149,7 +149,7 @@ auto DomainPartition::grid(const std::shared_ptr<ContextInternal>& ctx,
       api::check_status(api::cub::DeviceReduce::Min<const T*, T*>(nullptr, worksize, nullptr,
                                                                   nullptr, n, q.stream()));
 
-      auto workBuffer = q.create_device_array<char, 1>({worksize});
+      auto workBuffer = q.create_device_array<char, 1>(worksize);
 
       for (std::size_t dimIdx = 0; dimIdx < DIM; ++dimIdx) {
         api::check_status(api::cub::DeviceReduce::Min<const T*, T*>(
@@ -159,7 +159,7 @@ auto DomainPartition::grid(const std::shared_ptr<ContextInternal>& ctx,
 
       api::check_status(api::cub::DeviceReduce::Max<const T*, T*>(nullptr, worksize, nullptr,
                                                                   nullptr, n, q.stream()));
-      if (worksize > workBuffer.size()) workBuffer = q.create_device_array<char, 1>({worksize});
+      if (worksize > workBuffer.size()) workBuffer = q.create_device_array<char, 1>(worksize);
 
       for (std::size_t dimIdx = 0; dimIdx < DIM; ++dimIdx) {
         api::check_status(api::cub::DeviceReduce::Max<const T*, T*>(
@@ -194,7 +194,7 @@ auto DomainPartition::grid(const std::shared_ptr<ContextInternal>& ctx,
           nullptr, workSize, keyBuffer.data(), sortedKeyBuffer.data(), indicesBuffer.data(),
           permutBuffer.data(), n, 0, sizeof(GroupIndexType) * 8, q.stream()));
 
-      auto workBuffer = q.create_device_array<char, 1>({workSize});
+      auto workBuffer = q.create_device_array<char, 1>(workSize);
       api::check_status(api::cub::DeviceRadixSort::SortPairs(
           workBuffer.data(), workSize, keyBuffer.data(), sortedKeyBuffer.data(),
           indicesBuffer.data(), permutBuffer.data(), n, 0, sizeof(GroupIndexType) * 8, q.stream()));
@@ -215,7 +215,7 @@ auto DomainPartition::grid(const std::shared_ptr<ContextInternal>& ctx,
 
   // Compute group begin and size
   {
-    auto groupSizesHostBuffer = q.create_pinned_array<GroupSizeType, 1>({groupSizesBuffer.size()});
+    auto groupSizesHostBuffer = q.create_pinned_array<GroupSizeType, 1>(groupSizesBuffer.size());
 
     copy(q, groupSizesBuffer, groupSizesHostBuffer);
 

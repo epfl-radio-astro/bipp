@@ -16,16 +16,27 @@
 namespace bipp {
 
 namespace impl {
+
+template <std::size_t DIM>
+struct ViewIndexTypeHelper {
+  using type = std::array<std::size_t, DIM>;
+};
+
+template <>
+struct ViewIndexTypeHelper<1> {
+  using type = std::size_t;
+};
+
 template <std::size_t DIM, std::size_t N>
-struct array_index_helper {
+struct ViewIndexHelper {
   inline static constexpr auto eval(const std::array<std::size_t, DIM>& indices,
                                     const std::array<std::size_t, DIM>& strides) -> std::size_t {
-    return indices[N] * strides[N] + array_index_helper<DIM, N - 1>::eval(indices, strides);
+    return indices[N] * strides[N] + ViewIndexHelper<DIM, N - 1>::eval(indices, strides);
   }
 };
 
 template <std::size_t DIM>
-struct array_index_helper<DIM, 0> {
+struct ViewIndexHelper<DIM, 0> {
   inline static constexpr auto eval(const std::array<std::size_t, DIM>& indices,
                                     const std::array<std::size_t, DIM>&) -> std::size_t {
     static_assert(DIM >= 1);
@@ -34,7 +45,7 @@ struct array_index_helper<DIM, 0> {
 };
 
 template <std::size_t DIM>
-struct array_index_helper<DIM, 1> {
+struct ViewIndexHelper<DIM, 1> {
   inline static constexpr auto eval(const std::array<std::size_t, DIM>& indices,
                                     const std::array<std::size_t, DIM>& strides) -> std::size_t {
     static_assert(DIM >= 2);
@@ -42,45 +53,52 @@ struct array_index_helper<DIM, 1> {
   }
 };
 
-template <std::size_t DIM>
-struct array_index_helper<DIM, 2> {
-  inline static constexpr auto eval(const std::array<std::size_t, DIM>& indices,
-                                    const std::array<std::size_t, DIM>& strides) -> std::size_t {
-    static_assert(DIM >= 3);
-    return indices[0] + indices[1] * strides[1] + indices[2] * strides[2];
-  }
-};
+
 
 }  // namespace impl
 
 template <std::size_t DIM>
-inline constexpr auto array_index(const std::array<std::size_t, DIM>& indices,
+using ViewIndexType = typename impl::ViewIndexTypeHelper<DIM>::type;
+
+template <std::size_t DIM>
+inline constexpr auto view_index(const std::array<std::size_t, DIM>& indices,
                                   const std::array<std::size_t, DIM>& strides) -> std::size_t {
-  return impl::array_index_helper<DIM, DIM - 1>::eval(indices, strides);
+  return impl::ViewIndexHelper<DIM, DIM - 1>::eval(indices, strides);
+}
+
+inline constexpr auto view_index(std::size_t index, std::size_t) -> std::size_t { return index; }
+
+inline constexpr auto view_size(std::size_t shape) -> std::size_t { return shape; }
+
+template <std::size_t DIM>
+inline constexpr auto view_size(const std::array<std::size_t, DIM>& shape) -> std::size_t {
+  return std::reduce(shape.begin(), shape.end(), std::size_t(1), std::multiplies{});
 }
 
 template <typename T, std::size_t DIM>
 class ViewBase {
 public:
-  using IndexType = std::array<std::size_t, DIM>;
+  using IndexType = ViewIndexType<DIM>;
 
   ViewBase() {
-    shape_.fill(0);
-    strides_.fill(0);
-  }
-
-  ViewBase(const T* ptr, const IndexType& shape, const IndexType& strides)
-      : shape_(shape),
-        strides_(strides),
-        totalSize_(std::reduce(shape_.begin(), shape_.end(), std::size_t(1), std::multiplies{})),
-        constPtr_(ptr) {
-    if (strides_[0] != 1) throw InternalError("View: First stride entry must be 1.");
-    for (std::size_t i = 1; i < DIM; ++i) {
-      if (strides_[i] < shape_[i - 1] * strides_[i - 1])
-        throw InternalError("View: Invalid strides.");
+    if constexpr(DIM==1) {
+      shape_ = 0;
+      strides_ = 1;
+    } else {
+      shape_.fill(0);
+      strides_.fill(1);
     }
   }
 
+  ViewBase(const T* ptr, const IndexType& shape, const IndexType& strides)
+      : shape_(shape), strides_(strides), totalSize_(view_size(shape)), constPtr_(ptr) {
+#ifndef NDEBUG
+    assert(stride(0) == 1);
+    for (std::size_t i = 1; i < DIM; ++i) {
+      // assert(stride(i) >= shape(i - 1) * stride(i - 1));
+    }
+#endif
+  }
 
   virtual ~ViewBase() = default;
 
@@ -90,10 +108,23 @@ public:
 
   inline auto size_in_bytes() const noexcept -> std::size_t { return totalSize_ * sizeof(T); }
 
-  inline auto shape() const noexcept -> const std::array<std::size_t, DIM> { return shape_; }
+  inline auto shape() const noexcept -> const IndexType& { return shape_; }
 
-  inline auto strides() const noexcept -> const std::array<std::size_t, DIM> { return strides_; }
+  inline auto shape(std::size_t i) const noexcept -> std::size_t {
+    if constexpr (DIM == 1)
+      return shape_;
+    else
+      return shape_[i];
+  }
 
+  inline auto strides() const noexcept -> const IndexType& { return strides_; }
+
+  inline auto stride(std::size_t i) const noexcept -> std::size_t {
+    if constexpr (DIM == 1)
+      return strides_;
+    else
+      return strides_[i];
+  }
 
 protected:
   friend ViewBase<T, DIM + 1>;
@@ -101,19 +132,29 @@ protected:
   template <typename UnaryTransformOp>
   inline auto compare_elements(const IndexType& left, const IndexType& right,
                                UnaryTransformOp&& op) const -> bool {
-    return std::transform_reduce(left.begin(), left.end(), right.begin(), true, std::logical_and{},
-                                 std::forward<UnaryTransformOp>(op));
+    if constexpr (DIM == 1) {
+      return op(left, right);
+    } else {
+      return std::transform_reduce(left.begin(), left.end(), right.begin(), true,
+                                   std::logical_and{}, std::forward<UnaryTransformOp>(op));
+    }
   }
 
   template <typename SLICE_TYPE>
   auto slice_view_impl(std::size_t outer_index) const -> SLICE_TYPE {
-    if (outer_index >= shape_[DIM - 1]) throw InternalError("View slice index out of range.");
+    assert(outer_index < this->shape(DIM - 1));
 
     typename SLICE_TYPE::IndexType sliceShape, sliceStrides;
-    std::copy(this->shape_.begin(), this->shape_.end() - 1, sliceShape.begin());
-    std::copy(this->strides_.begin(), this->strides_.end() - 1, sliceStrides.begin());
-    return SLICE_TYPE{ViewBase<T, DIM - 1>{
-        this->constPtr_ + outer_index * this->strides_[DIM - 1], sliceShape, sliceStrides}};
+    if constexpr(DIM == 2) {
+      sliceShape = shape_[0];
+      sliceStrides = strides_[0];
+    } else {
+      std::copy(this->shape_.begin(), this->shape_.end() - 1, sliceShape.begin());
+      std::copy(this->strides_.begin(), this->strides_.end() - 1, sliceStrides.begin());
+    }
+
+    return SLICE_TYPE{ViewBase<T, DIM - 1>{this->constPtr_ + outer_index * this->stride(DIM - 1),
+                                           sliceShape, sliceStrides}};
   }
 
   template <typename VIEW_TYPE>
@@ -121,7 +162,7 @@ protected:
     if (!compare_elements(offset, shape_, std::less{}) ||
         !compare_elements(shape, shape_, std::less_equal{}))
       throw InternalError("Sub view offset or shape out of range.");
-    return VIEW_TYPE{ViewBase{constPtr_ + array_index(offset, strides_), shape, strides_}};
+    return VIEW_TYPE{ViewBase{constPtr_ + view_index(offset, strides_), shape, strides_}};
   }
 
   IndexType shape_;
@@ -130,13 +171,12 @@ protected:
   const T* constPtr_ = nullptr;
 };
 
-
 template <typename T, std::size_t DIM>
 class ConstHostView : public ViewBase<T, DIM> {
 public:
   using ValueType = T;
   using BaseType = ViewBase<T, DIM>;
-  using IndexType = typename BaseType::IndexType;
+  using IndexType = ViewIndexType<DIM>;
   using SliceType = ConstHostView<T, DIM - 1>;
 
   ConstHostView() : BaseType(){};
@@ -149,7 +189,7 @@ public:
 
   inline auto operator[](const IndexType& index) const -> const T& {
     assert(this->template compare_elements(index, this->shape_, std::less{}));
-    return this->constPtr_[array_index(index, this->strides_)];
+    return this->constPtr_[view_index(index, this->strides_)];
   }
 
   auto slice_view(std::size_t outer_index) const -> SliceType {
@@ -184,12 +224,12 @@ public:
 
   inline auto operator[](const IndexType& index) const -> const T& {
     assert(this->template compare_elements(index, this->shape_, std::less{}));
-    return this->constPtr_[array_index(index, this->strides_)];
+    return this->constPtr_[view_index(index, this->strides_)];
   }
 
   inline auto operator[](const IndexType& index) -> T& {
     assert(this->template compare_elements(index, this->shape_, std::less{}));
-    return const_cast<T*>(this->constPtr_)[array_index(index, this->strides_)];
+    return const_cast<T*>(this->constPtr_)[view_index(index, this->strides_)];
   }
 
   auto slice_view(std::size_t outer_index) const -> SliceType {
@@ -203,7 +243,7 @@ public:
   auto zero() -> void {
     if (this->totalSize_) {
       if constexpr (DIM <= 1) {
-        std::memset(this->data(), 0, this->shape_[0] * sizeof(T));
+        std::memset(this->data(), 0, this->shape_ * sizeof(T));
       } else {
         for (std::size_t i = 0; i < this->shape_[DIM - 1]; ++i) this->slice_view(i).zero();
       }
@@ -224,7 +264,7 @@ class ConstDeviceView : public ViewBase<T, DIM> {
 public:
   using ValueType = T;
   using BaseType = ViewBase<T, DIM>;
-  using IndexType = typename BaseType::IndexType;
+  using IndexType = ViewIndexType<DIM>;
   using SliceType = ConstDeviceView<T, DIM - 1>;
 
   ConstDeviceView() : BaseType(){};
@@ -255,7 +295,7 @@ class DeviceView : public ConstDeviceView<T, DIM> {
 public:
   using ValueType = T;
   using BaseType = ConstDeviceView<T, DIM>;
-  using IndexType = typename BaseType::IndexType;
+  using IndexType = ViewIndexType<DIM>;
   using SliceType = DeviceView<T, DIM - 1>;
 
   DeviceView() : BaseType(){};
@@ -279,7 +319,6 @@ protected:
 
   DeviceView(BaseType&& b) : BaseType(std::move(b)){};
 };
-
 
 #endif
 

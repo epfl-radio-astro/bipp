@@ -46,7 +46,7 @@ BIPP_EXPORT auto eigh(Context& ctx, std::size_t m, std::size_t nEig, const std::
         {1, ldb});
     DeviceAccessor<gpu::api::ComplexType<T>, 2> vDevice(
         queue, reinterpret_cast<gpu::api::ComplexType<T>*>(v), {m, nEig}, {1, ldv});
-    DeviceAccessor<T, 1> dDevice(queue, d, {nEig}, {1});
+    DeviceAccessor<T, 1> dDevice(queue, d, nEig, 1);
 
     // call eigh on GPU
     gpu::eigh<T>(ctxInternal, nEig, aHost.view(), aDevice.view(), bDevice.view(), dDevice.view(),
@@ -60,7 +60,7 @@ BIPP_EXPORT auto eigh(Context& ctx, std::size_t m, std::size_t nEig, const std::
   } else {
     host::eigh<T>(ctxInternal, nEig, ConstHostView<std::complex<T>, 2>(a, {m, m}, {1, lda}),
                   ConstHostView<std::complex<T>, 2>(b, {m, m}, {1, ldb}),
-                  HostView<T, 1>(d, {nEig}, {1}),
+                  HostView<T, 1>(d, nEig, 1),
                   HostView<std::complex<T>, 2>(v, {m, nEig}, {1, ldv}));
   }
   *nEigOut = nEig;

@@ -303,7 +303,7 @@ auto axpy(std::complex<double> a, ConstHostView<std::complex<double>,1> x,
                   HostView<std::complex<double>,1> y) {
   assert(x.size() == y.size());
 
-  axpy(x.size(), a, x.data(), x.strides()[0], y.data(), y.strides()[0]);
+  axpy(x.size(), a, x.data(), x.strides(), y.data(), y.strides());
 }
 
 

@@ -79,8 +79,8 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
 
   auto unlayeredStats = HostArray<T, 2>(ctx_->host_alloc(), {nPixel_, nEig});
 
-  auto d = HostArray<T, 1>(ctx_->host_alloc(), {nEig});
-  auto dFiltered = HostArray<T, 1>(ctx_->host_alloc(), {nEig});
+  auto d = HostArray<T, 1>(ctx_->host_alloc(), nEig);
+  auto dFiltered = HostArray<T, 1>(ctx_->host_alloc(), nEig);
 
   // Center coordinates for much better performance of cos / sin
   auto xyzCentered = HostArray<T, 2>(ctx_->host_alloc(), {nAntenna_, 3});
@@ -151,7 +151,7 @@ auto StandardSynthesis<T>::get(BippFilter f, HostView<T, 2> out) -> void {
   for (std::size_t i = 0; i < nIntervals_; ++i) {
     const T* __restrict__ localImg = &img_[{0, i, index}];
     T* __restrict__ outputImg = &out[{0, i}];
-    const T scale = count_ ?  static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
+    const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
 
     for (std::size_t j = 0; j < nPixel_; ++j) {
       outputImg[j] = scale * localImg[j];

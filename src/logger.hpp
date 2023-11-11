@@ -55,7 +55,7 @@ public:
    template <typename T>
    inline auto log_matrix(BippLogLevel level, const std::string_view& s,
                           ConstHostView<T, 1> array) {
-     this->log_matrix(level, s, array.shape()[0], 1, array.data(), array.shape()[0]);
+     this->log_matrix(level, s, array.shape(), 1, array.data(), array.shape());
    }
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
@@ -77,7 +77,7 @@ public:
    template <typename T>
    inline auto log_matrix(BippLogLevel level, const std::string_view& s,
                           ConstDeviceView<T, 1> array) {
-     this->log_matrix(level, s, array.shape()[0], 1, array.data(), array.shape()[0]);
+     this->log_matrix(level, s, array.shape(), 1, array.data(), array.shape());
    }
 #endif
 
