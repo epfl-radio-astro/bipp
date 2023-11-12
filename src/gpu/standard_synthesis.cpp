@@ -110,7 +110,7 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
   gemmexp<T>(queue, nEig, nPixel_, nAntenna_, alpha, vUnbeam.data(), vUnbeam.strides(1),
              xyzCentered.data(), xyzCentered.strides(1), pixel_.slice_view(0).data(),
              pixel_.slice_view(1).data(), pixel_.slice_view(2).data(), unlayeredStats.data(),
-             nPixel_);
+             unlayeredStats.strides(1));
   ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gemmexp", nPixel_, nEig, unlayeredStats.data(),
                             nPixel_);
 

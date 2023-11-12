@@ -105,8 +105,9 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
 
   T alpha = 2.0 * M_PI / wl;
 
-  gemmexp(nEig, nPixel_, nAntenna_, alpha, vUnbeam.data(), nAntenna_, xyzCentered.data(), nAntenna_,
-          &pixel_[{0, 0}], &pixel_[{0, 1}], &pixel_[{0, 2}], unlayeredStats.data(), nPixel_);
+  gemmexp(nEig, nPixel_, nAntenna_, alpha, vUnbeam.data(), vUnbeam.strides(1), xyzCentered.data(),
+          xyzCentered.strides(1), &pixel_[{0, 0}], &pixel_[{0, 1}], &pixel_[{0, 2}],
+          unlayeredStats.data(), unlayeredStats.strides(1));
   ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gemmexp", nPixel_, nEig, unlayeredStats.data(),
                             nPixel_);
 
