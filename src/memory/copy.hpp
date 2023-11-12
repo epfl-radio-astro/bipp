@@ -31,7 +31,7 @@ inline auto copy(const ConstHostView<T, DIM>& source, HostView<T, DIM> dest) {
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 template <typename T, std::size_t DIM>
-inline auto copy(gpu::Queue& queue, const ViewBase<T, DIM>& source, DeviceView<T, DIM> dest) {
+inline auto copy(gpu::Queue& queue, const View<T, DIM>& source, DeviceView<T, DIM> dest) {
   if (source.shape() != dest.shape())
     throw InternalError("Device to device view copy: shapes do not match.");
 
@@ -53,7 +53,7 @@ inline auto copy(gpu::Queue& queue, const ViewBase<T, DIM>& source, DeviceView<T
 }
 
 template <typename T, std::size_t DIM>
-inline auto copy(gpu::Queue& queue, const ViewBase<T, DIM>& source, HostView<T, DIM> dest) {
+inline auto copy(gpu::Queue& queue, const View<T, DIM>& source, HostView<T, DIM> dest) {
   if (source.shape() != dest.shape())
     throw InternalError("Device to device view copy: shapes do not match.");
 

@@ -22,7 +22,7 @@ public:
 
   using ValueType = T;
   using BaseType = HostView<T, DIM>;
-  using IndexType = ViewIndexType<DIM>;
+  using IndexType = typename View<T, DIM>::IndexType;
   using SliceType = HostArray<T, DIM - 1>;
 
   HostArray() : BaseType(){};
@@ -82,7 +82,7 @@ public:
 
   using ValueType = T;
   using BaseType = DeviceView<T, DIM>;
-  using IndexType = ViewIndexType<DIM>;
+  using IndexType = typename View<T, DIM>::IndexType;
   using SliceType = DeviceArray<T, DIM - 1>;
 
   DeviceArray() : BaseType(){};

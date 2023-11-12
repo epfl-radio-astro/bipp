@@ -16,17 +16,7 @@
 namespace bipp {
 
 namespace impl {
-
-template <std::size_t DIM>
-struct ViewIndexTypeHelper {
-  using type = std::array<std::size_t, DIM>;
-};
-
-template <>
-struct ViewIndexTypeHelper<1> {
-  using type = std::size_t;
-};
-
+// Use specialized structs to compute index, since some compiler do not properly optimize otherwise
 template <std::size_t DIM, std::size_t N>
 struct ViewIndexHelper {
   inline static constexpr auto eval(const std::array<std::size_t, DIM>& indices,
@@ -53,12 +43,7 @@ struct ViewIndexHelper<DIM, 1> {
   }
 };
 
-
-
 }  // namespace impl
-
-template <std::size_t DIM>
-using ViewIndexType = typename impl::ViewIndexTypeHelper<DIM>::type;
 
 template <std::size_t DIM>
 inline constexpr auto view_index(const std::array<std::size_t, DIM>& indices,
@@ -76,11 +61,11 @@ inline constexpr auto view_size(const std::array<std::size_t, DIM>& shape) -> st
 }
 
 template <typename T, std::size_t DIM>
-class ViewBase {
+class View {
 public:
-  using IndexType = ViewIndexType<DIM>;
+  using IndexType = std::conditional_t<DIM == 1, std::size_t, std::array<std::size_t, DIM>>;
 
-  ViewBase() {
+  View() {
     if constexpr(DIM==1) {
       shape_ = 0;
       strides_ = 1;
@@ -90,7 +75,7 @@ public:
     }
   }
 
-  ViewBase(const T* ptr, const IndexType& shape, const IndexType& strides)
+  View(const T* ptr, const IndexType& shape, const IndexType& strides)
       : shape_(shape), strides_(strides), totalSize_(view_size(shape)), constPtr_(ptr) {
 #ifndef NDEBUG
     assert(this->strides(0) == 1);
@@ -100,7 +85,7 @@ public:
 #endif
   }
 
-  virtual ~ViewBase() = default;
+  virtual ~View() = default;
 
   inline auto data() const -> const T* { return constPtr_; }
 
@@ -129,7 +114,7 @@ public:
   }
 
 protected:
-  friend ViewBase<T, DIM + 1>;
+  friend View<T, DIM + 1>;
 
   template <typename UnaryTransformOp>
   inline auto compare_elements(const IndexType& left, const IndexType& right,
@@ -155,7 +140,7 @@ protected:
       std::copy(this->strides_.begin(), this->strides_.end() - 1, sliceStrides.begin());
     }
 
-    return SLICE_TYPE{ViewBase<T, DIM - 1>{this->constPtr_ + outer_index * this->strides(DIM - 1),
+    return SLICE_TYPE{View<T, DIM - 1>{this->constPtr_ + outer_index * this->strides(DIM - 1),
                                            sliceShape, sliceStrides}};
   }
 
@@ -164,7 +149,7 @@ protected:
     if (!compare_elements(offset, shape_, std::less{}) ||
         !compare_elements(shape, shape_, std::less_equal{}))
       throw InternalError("Sub view offset or shape out of range.");
-    return VIEW_TYPE{ViewBase{constPtr_ + view_index(offset, strides_), shape, strides_}};
+    return VIEW_TYPE{View{constPtr_ + view_index(offset, strides_), shape, strides_}};
   }
 
   IndexType shape_;
@@ -174,11 +159,11 @@ protected:
 };
 
 template <typename T, std::size_t DIM>
-class ConstHostView : public ViewBase<T, DIM> {
+class ConstHostView : public View<T, DIM> {
 public:
   using ValueType = T;
-  using BaseType = ViewBase<T, DIM>;
-  using IndexType = ViewIndexType<DIM>;
+  using BaseType = View<T, DIM>;
+  using IndexType = typename View<T, DIM>::IndexType;
   using SliceType = ConstHostView<T, DIM - 1>;
 
   ConstHostView() : BaseType(){};
@@ -203,8 +188,8 @@ public:
   }
 
 protected:
-  friend ViewBase<T, DIM>;
-  friend ViewBase<T, DIM + 1>;
+  friend View<T, DIM>;
+  friend View<T, DIM + 1>;
 
   ConstHostView(BaseType&& b) : BaseType(std::move(b)){};
 };
@@ -214,7 +199,7 @@ class HostView : public ConstHostView<T, DIM> {
 public:
   using ValueType = T;
   using BaseType = ConstHostView<T, DIM>;
-  using IndexType = typename BaseType::IndexType;
+  using IndexType = typename View<T, DIM>::IndexType;
   using SliceType = HostView<T, DIM - 1>;
 
   HostView() : BaseType(){};
@@ -253,8 +238,8 @@ public:
   }
 
 protected:
-  friend ViewBase<T, DIM>;
-  friend ViewBase<T, DIM + 1>;
+  friend View<T, DIM>;
+  friend View<T, DIM + 1>;
 
   HostView(BaseType&& b) : BaseType(std::move(b)){};
 };
@@ -262,11 +247,11 @@ protected:
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 
 template <typename T, std::size_t DIM>
-class ConstDeviceView : public ViewBase<T, DIM> {
+class ConstDeviceView : public View<T, DIM> {
 public:
   using ValueType = T;
-  using BaseType = ViewBase<T, DIM>;
-  using IndexType = ViewIndexType<DIM>;
+  using BaseType = View<T, DIM>;
+  using IndexType = typename View<T, DIM>::IndexType;
   using SliceType = ConstDeviceView<T, DIM - 1>;
 
   ConstDeviceView() : BaseType(){};
@@ -286,8 +271,8 @@ public:
   }
 
 protected:
-  friend ViewBase<T, DIM>;
-  friend ViewBase<T, DIM + 1>;
+  friend View<T, DIM>;
+  friend View<T, DIM + 1>;
 
   ConstDeviceView(BaseType&& b) : BaseType(std::move(b)){};
 };
@@ -297,7 +282,7 @@ class DeviceView : public ConstDeviceView<T, DIM> {
 public:
   using ValueType = T;
   using BaseType = ConstDeviceView<T, DIM>;
-  using IndexType = ViewIndexType<DIM>;
+  using IndexType = typename View<T, DIM>::IndexType;
   using SliceType = DeviceView<T, DIM - 1>;
 
   DeviceView() : BaseType(){};
@@ -316,8 +301,8 @@ public:
   }
 
 protected:
-  friend ViewBase<T, DIM>;
-  friend ViewBase<T, DIM + 1>;
+  friend View<T, DIM>;
+  friend View<T, DIM + 1>;
 
   DeviceView(BaseType&& b) : BaseType(std::move(b)){};
 };

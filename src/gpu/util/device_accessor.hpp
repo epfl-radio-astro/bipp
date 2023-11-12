@@ -19,7 +19,7 @@ namespace bipp {
 template <typename T, std::size_t DIM>
 class DeviceAccessor {
 public:
-  using IndexType = typename ViewBase<T, DIM>::IndexType;
+  using IndexType = typename View<T, DIM>::IndexType;
 
   DeviceAccessor(gpu::Queue& q, HostView<T, DIM> v) : sourceView_(v) {
     if(v.size()){
@@ -54,7 +54,7 @@ private:
 template <typename T, std::size_t DIM>
 class ConstDeviceAccessor {
 public:
-  using IndexType = typename ViewBase<T, DIM>::IndexType;
+  using IndexType = typename View<T, DIM>::IndexType;
 
   ConstDeviceAccessor(gpu::Queue& q, ConstHostView<T, DIM> v) {
     if(v.size()) {
@@ -84,7 +84,7 @@ private:
 template <typename T, std::size_t DIM>
 class HostAccessor {
 public:
-  using IndexType = typename ViewBase<T, DIM>::IndexType;
+  using IndexType = typename View<T, DIM>::IndexType;
 
   HostAccessor(gpu::Queue& q, DeviceView<T, DIM> v) : sourceView_(v) {
     if (v.size()) {
@@ -119,7 +119,7 @@ private:
 template <typename T, std::size_t DIM>
 class ConstHostAccessor {
 public:
-  using IndexType = typename ViewBase<T, DIM>::IndexType;
+  using IndexType = typename View<T, DIM>::IndexType;
 
   ConstHostAccessor(gpu::Queue& q, ConstDeviceView<T, DIM> v) {
     if(v.size()) {

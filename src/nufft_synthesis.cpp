@@ -51,13 +51,13 @@ struct NufftSynthesisInternal {
       auto syncGuard = queue.sync_guard();
 
       auto filterArray = queue.create_host_array<BippFilter, 1>(nFilter);
-      copy(queue, ViewBase<BippFilter, 1>(filter, nFilter, 1), filterArray);
+      copy(queue, View<BippFilter, 1>(filter, nFilter, 1), filterArray);
       queue.sync();  // make sure filters are available
 
       auto pixelArray = queue.create_device_array<T, 2>({nPixel_, 3});
-      copy(queue, ViewBase<T, 1>(lmnX, nPixel_, 1), pixelArray.slice_view(0));
-      copy(queue, ViewBase<T, 1>(lmnY, nPixel_, 1), pixelArray.slice_view(1));
-      copy(queue, ViewBase<T, 1>(lmnZ, nPixel_, 1), pixelArray.slice_view(2));
+      copy(queue, View<T, 1>(lmnX, nPixel_, 1), pixelArray.slice_view(0));
+      copy(queue, View<T, 1>(lmnY, nPixel_, 1), pixelArray.slice_view(1));
+      copy(queue, View<T, 1>(lmnZ, nPixel_, 1), pixelArray.slice_view(2));
 
       planGPU_.emplace(ctx_, std::move(opt), nAntenna, nBeam, nIntervals, std::move(filterArray),
                        std::move(pixelArray));
@@ -112,7 +112,7 @@ struct NufftSynthesisInternal {
       // syncronize with stream to be synchronous with host before exiting
       auto syncGuard = queue.sync_guard();
 
-      typename ViewBase<T, 2>::IndexType sShape = {0, 0};
+      typename View<T, 2>::IndexType sShape = {0, 0};
       if (s) sShape = {nBeam_, nBeam_};
 
       ConstHostAccessor<T, 2> hostIntervals(queue, intervals, {2, nIntervals_}, {1, ldIntervals});
