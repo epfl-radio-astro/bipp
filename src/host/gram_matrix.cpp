@@ -50,8 +50,8 @@ auto gram_matrix(ContextInternal& ctx, ConstHostView<std::complex<T>, 2> w, Cons
 
   auto bufferC = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nAntenna, nBeam});
 
-  blas::symm(CblasLeft, CblasLower, {1, 0}, buffer, w, {0, 0}, bufferC);
-  blas::gemm(CblasConjTrans, CblasNoTrans, {1, 0}, w, bufferC, {0, 0}, g);
+  blas::symm<std::complex<T>>(CblasLeft, CblasLower, {1, 0}, buffer, w, {0, 0}, bufferC);
+  blas::gemm<std::complex<T>>(CblasConjTrans, CblasNoTrans, {1, 0}, w, bufferC, {0, 0}, g);
 
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gram", g);
 }

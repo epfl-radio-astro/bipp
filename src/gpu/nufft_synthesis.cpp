@@ -138,7 +138,7 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
                            {nAntenna_ * nAntenna_, virtualVis_.shape(1), virtualVis_.shape(2)});
 
   // compute virtual visibilities
-  virtual_vis(*ctx_, filter_, intervals, d, vUnbeam, virtVisCurrent);
+  virtual_vis<T>(*ctx_, filter_, intervals, d, vUnbeam, virtVisCurrent);
 
   ++collectCount_;
   ++totalCollectCount_;
@@ -315,7 +315,7 @@ auto NufftSynthesis<T>::get(BippFilter f, DeviceView<T, 2> out) -> void {
     auto intervalImage = filterImg.slice_view(i);
     auto intervalOut = out.slice_view(i);
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image permuted", intervalImage);
-    imgPartition_.reverse(intervalImage, intervalOut);
+    imgPartition_.reverse<T>(intervalImage, intervalOut);
 
     scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale, intervalOut.data());
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", intervalOut);

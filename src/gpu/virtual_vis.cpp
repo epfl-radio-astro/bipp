@@ -60,11 +60,11 @@ auto virtual_vis(ContextInternal& ctx, ConstHostView<BippFilter, 1> filter,
 
         // Matrix multiplication of the previously scaled V and the original V
         // with the selected eigenvalues
-        api::blas::gemm(queue.blas_handle(), api::blas::operation::None,
-                        api::blas::operation::ConjugateTranspose, one, vScaledCurrent, vCurrent,
-                        zero,
-                        DeviceView<api::ComplexType<T>, 2>(virtVisCurrent.data(),
-                                                           {nAntenna, nAntenna}, {1, nAntenna}));
+        api::blas::gemm<api::ComplexType<T>>(
+            queue.blas_handle(), api::blas::operation::None,
+            api::blas::operation::ConjugateTranspose, one, vScaledCurrent, vCurrent, zero,
+            DeviceView<api::ComplexType<T>, 2>(virtVisCurrent.data(), {nAntenna, nAntenna},
+                                               {1, nAntenna}));
 
       } else {
         api::memset_async(virtVisCurrent.data(), 0,

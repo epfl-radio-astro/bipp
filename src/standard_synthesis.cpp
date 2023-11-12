@@ -49,13 +49,13 @@ struct StandardSynthesisInternal {
       auto syncGuard = queue.sync_guard();
 
       auto filterArray = queue.create_host_array<BippFilter, 1>(nFilter);
-      copy(queue, View<BippFilter, 1>(filter, nFilter, 1), filterArray);
+      copy(queue, ConstView<BippFilter, 1>(filter, nFilter, 1), filterArray);
       queue.sync();  // make sure filters are available
 
       auto pixelArray = queue.create_device_array<T, 2>({nPixel_, 3});
-      copy(queue, View<T, 1>(pixelX, nPixel_, 1), pixelArray.slice_view(0));
-      copy(queue, View<T, 1>(pixelY, nPixel_, 1), pixelArray.slice_view(1));
-      copy(queue, View<T, 1>(pixelZ, nPixel_, 1), pixelArray.slice_view(2));
+      copy(queue, ConstView<T, 1>(pixelX, nPixel_, 1), pixelArray.slice_view(0));
+      copy(queue, ConstView<T, 1>(pixelY, nPixel_, 1), pixelArray.slice_view(1));
+      copy(queue, ConstView<T, 1>(pixelZ, nPixel_, 1), pixelArray.slice_view(2));
 
       planGPU_.emplace(ctx_, nAntenna, nBeam, nIntervals, std::move(filterArray),
                        std::move(pixelArray));
@@ -106,7 +106,7 @@ struct StandardSynthesisInternal {
       // syncronize with stream to be synchronous with host before exiting
       auto syncGuard = queue.sync_guard();
 
-      typename View<T, 2>::IndexType sShape = {0, 0};
+      typename ConstView<T, 2>::IndexType sShape = {0, 0};
       if (s) sShape = {nBeam_, nBeam_};
 
       ConstHostAccessor<T, 2> hostIntervals(queue, intervals, {2, nIntervals_}, {1, ldIntervals});

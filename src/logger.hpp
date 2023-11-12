@@ -46,15 +46,13 @@ public:
                    const std::complex<double>* array, std::size_t ld) -> void;
 
    template <typename T>
-   inline auto log_matrix(BippLogLevel level, const std::string_view& s,
-                          ConstHostView<T, 2> array) {
+   inline auto log_matrix(BippLogLevel level, const std::string_view& s, ConstView<T, 2> array) {
      this->log_matrix(level, s, array.shape(0), array.shape(1), array.data(),
                       array.strides(1));
    }
 
    template <typename T>
-   inline auto log_matrix(BippLogLevel level, const std::string_view& s,
-                          ConstHostView<T, 1> array) {
+   inline auto log_matrix(BippLogLevel level, const std::string_view& s, ConstView<T, 1> array) {
      this->log_matrix(level, s, array.shape(), 1, array.data(), array.shape());
    }
 
@@ -67,18 +65,18 @@ public:
                    const gpu::api::ComplexType<double>* array, std::size_t ld) -> void {
      log_matrix(level, s, m, n, reinterpret_cast<const std::complex<double>*>(array), ld);
    }
-   template <typename T>
-   inline auto log_matrix(BippLogLevel level, const std::string_view& s,
-                          ConstDeviceView<T, 2> array) {
-     this->log_matrix(level, s, array.shape(0), array.shape(1), array.data(),
-                      array.strides(1));
-   }
+   // template <typename T>
+   // inline auto log_matrix(BippLogLevel level, const std::string_view& s,
+   //                        ConstDeviceView<T, 2> array) {
+   //   this->log_matrix(level, s, array.shape(0), array.shape(1), array.data(),
+   //                    array.strides(1));
+   // }
 
-   template <typename T>
-   inline auto log_matrix(BippLogLevel level, const std::string_view& s,
-                          ConstDeviceView<T, 1> array) {
-     this->log_matrix(level, s, array.shape(), 1, array.data(), array.shape());
-   }
+   // template <typename T>
+   // inline auto log_matrix(BippLogLevel level, const std::string_view& s,
+   //                        ConstDeviceView<T, 1> array) {
+   //   this->log_matrix(level, s, array.shape(), 1, array.data(), array.shape());
+   // }
 #endif
 
 

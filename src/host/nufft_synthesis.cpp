@@ -127,7 +127,7 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
 
   // Reverse beamforming
   HostArray<std::complex<T>, 2> vUnbeam(ctx_->host_alloc(), {nAntenna_, v.shape(1)});
-  blas::gemm(CblasNoTrans, CblasNoTrans, {1, 0}, w, v, {0, 0}, vUnbeam);
+  blas::gemm<std::complex<T>>(CblasNoTrans, CblasNoTrans, {1, 0}, w, v, {0, 0}, vUnbeam);
 
   // slice virtual visibility for current step
   auto virtVisCurrent =
@@ -135,7 +135,7 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
                            {nAntenna_ * nAntenna_, virtualVis_.shape(1), virtualVis_.shape(2)});
 
   // compute virtual visibilities
-  virtual_vis(*ctx_, filter_, intervals, d, vUnbeam, virtVisCurrent);
+  virtual_vis<T>(*ctx_, filter_, intervals, d, vUnbeam, virtVisCurrent);
 
   ++collectCount_;
   ++totalCollectCount_;
@@ -286,7 +286,7 @@ auto NufftSynthesis<T>::get(BippFilter f, HostView<T, 2> out) -> void {
 
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image permuted", currentImg);
 
-    imgPartition_.reverse(currentImg.slice_view(i), out.slice_view(i));
+    imgPartition_.reverse<T>(currentImg.slice_view(i), out.slice_view(i));
 
     T* __restrict__ outPtr = &out[{0, i}];
     for(std::size_t j = 0; j < nPixel_; ++j) {

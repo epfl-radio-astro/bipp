@@ -246,9 +246,8 @@ inline auto symm(const CBLAS_LAYOUT layout, const CBLAS_SIDE side, const CBLAS_U
 }
 
 template <typename T>
-auto symm(const CBLAS_SIDE side, const CBLAS_UPLO uplo, std::complex<T> alpha,
-          ConstHostView<std::complex<T>, 2> A, ConstHostView<std::complex<T>, 2> B,
-          std::complex<T> beta, HostView<std::complex<T>, 2> C) {
+auto symm(const CBLAS_SIDE side, const CBLAS_UPLO uplo, T alpha, ConstHostView<T, 2> A,
+          ConstHostView<T, 2> B, T beta, HostView<T, 2> C) {
   const auto m = C.shape(0);
   const auto n = C.shape(1);
 

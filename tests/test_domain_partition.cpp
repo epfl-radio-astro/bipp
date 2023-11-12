@@ -96,8 +96,8 @@ public:
 
             // apply in place and out of place
             if constexpr (std::is_same_v<variantType, bipp::host::DomainPartition>) {
-              arg.apply(dataInPlace, dataOutOfPlace);
-              arg.apply(dataInPlace);
+              arg.template apply<T>(dataInPlace, dataOutOfPlace);
+              arg.template apply<T>(dataInPlace);
             } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
               auto dataInPlaceDevice =
@@ -107,9 +107,8 @@ public:
 
               copy(ctx_->gpu_queue(), dataInPlace, dataInPlaceDevice);
 
-              arg.apply(dataInPlaceDevice, dataOutOfPlaceDevice);
-              arg.apply(dataInPlaceDevice);
-
+              arg.template apply<T>(dataInPlaceDevice, dataOutOfPlaceDevice);
+              arg.template apply<T>(dataInPlaceDevice);
 
               copy(ctx_->gpu_queue(), dataInPlaceDevice, dataInPlace);
               copy(ctx_->gpu_queue(), dataOutOfPlaceDevice, dataOutOfPlace);
@@ -136,8 +135,8 @@ public:
 
             // reverse in place and out of place
             if constexpr (std::is_same_v<variantType, bipp::host::DomainPartition>) {
-              arg.reverse(dataInPlace, dataOutOfPlace);
-              arg.reverse(dataInPlace);
+              arg.template reverse<T>(dataInPlace, dataOutOfPlace);
+              arg.template reverse<T>(dataInPlace);
             } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 
@@ -148,8 +147,8 @@ public:
 
               copy(ctx_->gpu_queue(), dataInPlace, dataInPlaceDevice);
 
-              arg.reverse(dataInPlaceDevice, dataOutOfPlaceDevice);
-              arg.reverse(dataInPlaceDevice);
+              arg.template reverse<T>(dataInPlaceDevice, dataOutOfPlaceDevice);
+              arg.template reverse<T>(dataInPlaceDevice);
 
               copy(ctx_->gpu_queue(), dataInPlaceDevice, dataInPlace);
               copy(ctx_->gpu_queue(), dataOutOfPlaceDevice, dataOutOfPlace);
