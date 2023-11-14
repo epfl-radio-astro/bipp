@@ -1,6 +1,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <pybind11/functional.h>
 
 #include <array>
 #include <limits>
@@ -11,6 +12,9 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include <chrono>
+#include <functional>
+#include <cstring>
 
 #include "bipp/bipp.hpp"
 
@@ -169,7 +173,7 @@ struct StandardSynthesisDispatcher {
 
   StandardSynthesisDispatcher& operator=(const StandardSynthesisDispatcher&) = delete;
 
-  auto collect(std::size_t nEig, double wl, pybind11::array intervals, pybind11::array w,
+  auto collect(double wl, const std::function<pybind11::array(std::size_t, pybind11::array)>& eigMaskFunc, pybind11::array w,
                pybind11::array xyz, std::optional<pybind11::array> s) -> void {
     std::visit(
         [&](auto&& arg) -> void {
@@ -177,8 +181,6 @@ struct StandardSynthesisDispatcher {
           if constexpr (std::is_same_v<variantType, StandardSynthesis<float>> ||
                         std::is_same_v<variantType, StandardSynthesis<double>>) {
             using T = typename variantType::valueType;
-            py::array_t<T, py::array::c_style | py::array::forcecast> intervalsArray(intervals);
-            check_2d_array(intervalsArray, {static_cast<long>(nIntervals_), 2});
             py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast> wArray(w);
             check_2d_array(wArray);
             auto nAntenna = wArray.shape(0);
@@ -192,12 +194,26 @@ struct StandardSynthesisDispatcher {
                   s.value());
               check_2d_array(sArray.value(), {nBeam, nBeam});
             }
+
+            auto eigMaskFuncLambda = [&](std::size_t nBins, std::size_t nEig, const T* d, int* maskOut) {
+              py::array_t<T> dArray(nEig);
+              std::memcpy(dArray.mutable_data(0), d, nEig * sizeof(T));
+
+              py::array_t<int, py::array::f_style | py::array::forcecast> mask(
+                  eigMaskFunc(nBins, dArray));
+              check_2d_array(mask, {long(nEig), long(nBins)});
+
+              const auto* maskPtr = mask.data(0);
+              const auto ldmask = safe_cast<std::size_t>(mask.strides(1) / mask.itemsize());
+
+              for (std::size_t i = 0; i < nBins; ++i) {
+                std::memcpy(maskOut + i * nEig, maskPtr + i * ldmask, nEig * sizeof(int));
+              }
+            };
+
             std::get<StandardSynthesis<T>>(plan_).collect(
-                nEig, wl, intervalsArray.data(0),
-                safe_cast<std::size_t>(intervals.strides(0) / intervals.itemsize()),
-                s ? sArray.value().data(0) : nullptr,
-                s ? safe_cast<std::size_t>(sArray.value().strides(1) / sArray.value().itemsize())
-                  : 0,
+                wl, eigMaskFuncLambda, s ? sArray.value().data(0) : nullptr,
+                safe_cast<std::size_t>(sArray.value().strides(1) / sArray.value().itemsize()),
                 wArray.data(0), safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()),
                 xyzArray.data(0),
                 safe_cast<std::size_t>(xyzArray.strides(1) / xyzArray.itemsize()));
@@ -416,9 +432,9 @@ PYBIND11_MODULE(pybipp, m) {
            pybind11::arg("ctx"), pybind11::arg("n_antenna"), pybind11::arg("n_beam"),
            pybind11::arg("n_intervals"), pybind11::arg("filter"), pybind11::arg("lmn_x"),
            pybind11::arg("lmn_y"), pybind11::arg("lmn_y"), pybind11::arg("precision"))
-      .def("collect", &StandardSynthesisDispatcher::collect, pybind11::arg("n_eig"),
-           pybind11::arg("wl"), pybind11::arg("intervals"), pybind11::arg("w"),
-           pybind11::arg("xyz"), pybind11::arg("s") = std::optional<pybind11::array>())
+      .def("collect", &StandardSynthesisDispatcher::collect, pybind11::arg("wl"),
+           pybind11::arg("mask"), pybind11::arg("w"), pybind11::arg("xyz"),
+           pybind11::arg("s") = std::optional<pybind11::array>())
       .def("get", &StandardSynthesisDispatcher::get, pybind11::arg("f"));
 
   m.def(
@@ -453,4 +469,17 @@ PYBIND11_MODULE(pybipp, m) {
           },
           pybind11::arg("ctx"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),
           pybind11::arg("xyz"));
+
+  // m.def(
+  //     "test",
+  //     [](const std::function<py::array_t<int, py::array::f_style>(
+  //            std::size_t, py::array_t<float, py::array::f_style>)>& func) {
+  //       py::array_t<float, pybind11::array::f_style | py::array::forcecast> d(15);
+  //       auto start = std::chrono::high_resolution_clock::now();
+  //       func(5, d);
+  //       auto end = std::chrono::high_resolution_clock::now();
+  //       const std::chrono::duration<double> elapsed_seconds{end - start};
+  //       printf("time; %f\n", elapsed_seconds.count());
+  //     },
+  //     pybind11::arg("func"));
 }

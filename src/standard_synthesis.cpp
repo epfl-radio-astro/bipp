@@ -75,16 +75,16 @@ struct StandardSynthesisInternal {
     }
   }
 
-  void collect(std::size_t nEig, T wl, const T* intervals, std::size_t ldIntervals,
+  void collect(T wl, std::function<void(std::size_t, std::size_t, const T*, int*)> eigMaskFunc,
                const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
                const T* xyz, std::size_t ldxyz) {
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "------------");
-    ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
-                       "{} StandardSynthesis.collect({}, {}, {}, {}, {} ,{} ,{} {}, {}, {})",
-                       (const void*)this, nEig, wl, (const void*)intervals, ldIntervals,
-                       (const void*)s, lds, (const void*)w, ldw, (const void*)xyz, ldxyz);
-    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "intervals", 2, nIntervals_, intervals,
-                              ldIntervals);
+    // ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
+    //                    "{} StandardSynthesis.collect({}, {}, {}, {}, {} ,{} ,{} {}, {}, {})",
+    //                    (const void*)this, nEig, wl, (const void*)intervals, ldIntervals,
+    //                    (const void*)s, lds, (const void*)w, ldw, (const void*)xyz, ldxyz);
+    // ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "intervals", 2, nIntervals_, intervals,
+    //                           ldIntervals);
     if (s) ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "S", nBeam_, nBeam_, s, lds);
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "W", nAntenna_, nBeam_, w, ldw);
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "XYZ", nAntenna_, 3, xyz, ldxyz);
@@ -93,9 +93,8 @@ struct StandardSynthesisInternal {
 
     if (planHost_) {
       auto& p = planHost_.value();
-      p.collect(nEig, wl, ConstHostView<T, 2>(intervals, {2, p.num_intervals()}, {1, ldIntervals}),
-                s ? ConstHostView<std::complex<T>, 2>(s, {p.num_beam(), p.num_beam()}, {1, lds})
-                  : ConstHostView<std::complex<T>, 2>{},
+      p.collect(wl, eigMaskFunc,
+                ConstHostView<std::complex<T>, 2>(s, {p.num_beam(), p.num_beam()}, {1, lds}),
                 ConstHostView<std::complex<T>, 2>(w, {p.num_antenna(), p.num_beam()}, {1, ldw}),
                 ConstHostView<T, 2>(xyz, {p.num_antenna(), 3}, {1, ldxyz}));
     } else {
@@ -109,7 +108,7 @@ struct StandardSynthesisInternal {
       typename ConstView<T, 2>::IndexType sShape = {0, 0};
       if (s) sShape = {nBeam_, nBeam_};
 
-      ConstHostAccessor<T, 2> hostIntervals(queue, intervals, {2, nIntervals_}, {1, ldIntervals});
+      // ConstHostAccessor<T, 2> hostIntervals(queue, intervals, {2, nIntervals_}, {1, ldIntervals});
       ConstHostAccessor<gpu::api::ComplexType<T>, 2> sHost(
           queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(s), sShape, {1, lds});
       queue.sync();  // make sure it's accessible on host
@@ -121,8 +120,8 @@ struct StandardSynthesisInternal {
           {1, ldw});
       ConstDeviceAccessor<T, 2> xyzDevice(queue, xyz, {nAntenna_, 3}, {1, ldxyz});
 
-      planGPU_->collect(nEig, wl, hostIntervals.view(), sHost.view(), sDevice.view(),
-                        wDevice.view(), xyzDevice.view());
+      // planGPU_->collect(nEig, wl, hostIntervals.view(), sHost.view(), sDevice.view(),
+                        // wDevice.view(), xyzDevice.view());
 #else
       throw GPUSupportError();
 #endif
@@ -196,13 +195,13 @@ StandardSynthesis<T>::StandardSynthesis(Context& ctx, std::size_t nAntenna, std:
 }
 
 template <typename T>
-auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals,
-                                   std::size_t ldIntervals, const std::complex<T>* s,
-                                   std::size_t lds, const std::complex<T>* w, std::size_t ldw,
-                                   const T* xyz, std::size_t ldxyz) -> void {
+auto StandardSynthesis<T>::collect(
+    T wl, std::function<void(std::size_t, std::size_t, const T*, int*)> eigMaskFunc,
+    const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
+    const T* xyz, std::size_t ldxyz) -> void {
   try {
     reinterpret_cast<StandardSynthesisInternal<T>*>(plan_.get())
-        ->collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz);
+        ->collect(wl, eigMaskFunc, s, lds, w, ldw, xyz, ldxyz);
   } catch (const std::exception& e) {
     try {
       reinterpret_cast<StandardSynthesisInternal<T>*>(plan_.get())
@@ -270,9 +269,9 @@ BIPP_EXPORT BippError bipp_standard_synthesis_collect_f(BippStandardSynthesisF p
     return BIPP_INVALID_HANDLE_ERROR;
   }
   try {
-    reinterpret_cast<StandardSynthesis<float>*>(plan)->collect(
-        nEig, wl, intervals, ldIntervals, reinterpret_cast<const std::complex<float>*>(s), lds,
-        reinterpret_cast<const std::complex<float>*>(w), ldw, xyz, ldxyz);
+    // reinterpret_cast<StandardSynthesis<float>*>(plan)->collect(
+    //     nEig, wl, intervals, ldIntervals, reinterpret_cast<const std::complex<float>*>(s), lds,
+    //     reinterpret_cast<const std::complex<float>*>(w), ldw, xyz, ldxyz);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -341,9 +340,9 @@ BIPP_EXPORT BippError bipp_standard_synthesis_collect(BippStandardSynthesis plan
     return BIPP_INVALID_HANDLE_ERROR;
   }
   try {
-    reinterpret_cast<StandardSynthesis<double>*>(plan)->collect(
-        nEig, wl, intervals, ldIntervals, reinterpret_cast<const std::complex<double>*>(s), lds,
-        reinterpret_cast<const std::complex<double>*>(w), ldw, xyz, ldxyz);
+    // reinterpret_cast<StandardSynthesis<double>*>(plan)->collect(
+    //     nEig, wl, intervals, ldIntervals, reinterpret_cast<const std::complex<double>*>(s), lds,
+    //     reinterpret_cast<const std::complex<double>*>(w), ldw, xyz, ldxyz);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {

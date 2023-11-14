@@ -61,7 +61,7 @@ StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, st
 }
 
 template <typename T>
-auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> intervals,
+auto StandardSynthesis<T>::collect(T wl, std::function<void(std::size_t, std::size_t, const T*, int*)> eigMaskFunc,
                                    ConstHostView<std::complex<T>, 2> s,
                                    ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz)
     -> void {
@@ -74,9 +74,9 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
   assert(!s.size() || s.shape(0) == nBeam_);
   assert(!s.size() || s.shape(1) == nBeam_);
 
+  const auto nEig = nBeam_; // TODO remove
 
   auto vUnbeamArray = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nAntenna_, nBeam_});
-  auto unlayeredStats = HostArray<T, 2>(ctx_->host_alloc(), {nPixel_, nEig});
 
   auto dArray = HostArray<T, 1>(ctx_->host_alloc(), nBeam_);
   auto dFiltered = HostArray<T, 1>(ctx_->host_alloc(), nEig);
@@ -95,6 +95,14 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
 
   ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "vUnbeam", vUnbeam);
 
+  auto eigMask = HostArray<int, 2>(ctx_->host_alloc(), {nBeam_, nIntervals_});
+  eigMask.zero();
+  eigMaskFunc(nIntervals_, nBeam_, d.data(), eigMask.data());
+
+  // TODO: gather only selected eigenvalues to reduce amount of calc in gemmexp
+
+  auto unlayeredStats = HostArray<T, 2>(ctx_->host_alloc(), {nPixel_, nEig});
+
   T alpha = 2.0 * M_PI / wl;
 
   gemmexp(nEig, nPixel_, nAntenna_, alpha, vUnbeam.data(), vUnbeam.strides(1), xyzCentered.data(),
@@ -107,19 +115,18 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
   for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
     apply_filter(filter_[{idxFilter}], nEig, d.data(), dFiltered.data());
     for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
-      std::size_t start, size;
-      std::tie(start, size) =
-          find_interval_indices<T>(nEig, d.data(), intervals[{0, idxInt}], intervals[{1, idxInt}]);
 
       auto imgCurrent = img_.slice_view(idxFilter).slice_view(idxInt);
-      for (std::size_t idxEig = start; idxEig < start + size; ++idxEig) {
-        const auto scale = dFiltered[{idxEig}];
+      for (std::size_t idxEig = 0; idxEig < nBeam_; ++idxEig) {
+        if (eigMask[{idxEig, idxInt}]) {
+          const auto scale = dFiltered[{idxEig}];
 
-        ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
-                           "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
-                           d[{idxEig}], scale, intervals[{0, idxInt}], intervals[{1, idxInt}]);
+          ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
+                             "Assigning eigenvalue {} (filtered {}) to bin {}", d[{idxEig}], scale,
+                             idxInt);
 
-        blas::axpy(nPixel_, scale, &unlayeredStats[{0, idxEig}], 1, imgCurrent.data(), 1);
+          blas::axpy(nPixel_, scale, &unlayeredStats[{0, idxEig}], 1, imgCurrent.data(), 1);
+        }
       }
     }
   }

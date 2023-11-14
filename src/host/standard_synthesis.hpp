@@ -20,7 +20,7 @@ public:
                     ConstHostView<T, 1> pixelX, ConstHostView<T, 1> pixelY,
                     ConstHostView<T, 1> pixelZ);
 
-  auto collect(std::size_t nEig, T wl, ConstHostView<T, 2> intervals,
+  auto collect(T wl, std::function<void(std::size_t, std::size_t, const T*, int*)> eigMaskFunc,
                ConstHostView<std::complex<T>, 2> s, ConstHostView<std::complex<T>, 2> w,
                ConstHostView<T, 2> xyz) -> void;
 
