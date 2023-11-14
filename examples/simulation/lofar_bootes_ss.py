@@ -80,9 +80,7 @@ for t in ProgressBar(time[::200]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    G = gram(XYZ, W, wl)
-
-    I_est.collect(S, G)
+    I_est.collect(wl, S.data, W.data, XYZ.data)
 N_eig, intensity_intervals = I_est.infer_parameters()
 
 # Imaging

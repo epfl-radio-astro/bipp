@@ -44,7 +44,7 @@ BIPP_EXPORT auto eigh(Context& ctx, T wl, std::size_t nAntenna, std::size_t nBea
     DeviceAccessor<T, 1> dDevice(queue, d, nBeam, 1);
 
     // call eigh on GPU
-    gpu::eigh<T>(ctxInternal, wl, sDevice.view(), wDevice.view(), xyzDevice.view(), dDevice.view());
+    nEig = gpu::eigh<T>(ctxInternal, wl, sDevice.view(), wDevice.view(), xyzDevice.view(), dDevice.view());
 
     dDevice.copy_back(queue);
 #else

@@ -445,9 +445,10 @@ PYBIND11_MODULE(pybipp, m) {
        pybind11::arg("xyz"))
       .def(
           "eigh",
-          [](Context& ctx, float wl, const py::array_t<std::complex<float>, py::array::f_style>& s,
-             const py::array_t<std::complex<float>, py::array::f_style>& w,
-             const py::array_t<float, py::array::f_style>& xyz) {
+          [](Context& ctx, double wl,
+             const py::array_t<std::complex<double>, py::array::f_style>& s,
+             const py::array_t<std::complex<double>, py::array::f_style>& w,
+             const py::array_t<double, py::array::f_style>& xyz) {
             return call_eigh(ctx, wl, s, w, xyz);
           },
           pybind11::arg("ctx"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),

@@ -117,11 +117,10 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         self._sigma = sigma
 
         # Collected data.
-        self._visibilities = []
-        self._grams = []
+        self._d_all = []
         self._ctx = ctx
 
-    def collect(self, S, G):
+    def collect(self, wl, S, W, XYZ):
         """
         Ingest data to internal queue for inference.
 
@@ -131,11 +130,12 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
             G : :py:class:`~bipp.phased_array.bipp.gram.GramMatrix`
                 (N_beam, N_beam) gram matrix.
         """
-        if not S.is_consistent_with(G, axes=[0, 0]):
-            raise ValueError("Parameters[S, G] are inconsistent.")
 
-        self._visibilities.append(S)
-        self._grams.append(G)
+        D =  bipp.pybipp.eigh(self._ctx, wl,S, W, XYZ)
+        D = D[D > 0.0]
+        idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
+        D = D[idx]
+        self._d_all.append(D)
 
     def infer_parameters(self):
         """
@@ -148,34 +148,34 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         cluster_intervals : :py:class:`~numpy.ndarray`
             (N_level,2) intensity field cluster intervals.
         """
-        N_data = len(self._visibilities)
-        N_beam = N_eig_max = self._visibilities[0].shape[0]
+        #  N_data = len(self._visibilities)
+        #  N_beam = N_eig_max = self._visibilities[0].shape[0]
 
-        if self._N_level > N_beam:
-            raise ValueError(
-                f"Initialization parameter N_level (set to {self._N_level}) cannot exceed the number of beams ({N_beam})."
-            )
+        #  if self._N_level > N_beam:
+        #      raise ValueError(
+        #          f"Initialization parameter N_level (set to {self._N_level}) cannot exceed the number of beams ({N_beam})."
+        #      )
 
-        D_all = np.zeros((N_data, N_eig_max))
-        for i, (S, G) in enumerate(zip(self._visibilities, self._grams)):
-            # Remove broken BEAM_IDs
-            broken_row_id = np.flatnonzero(
-                np.isclose(np.sum(S.data, axis=0), np.sum(S.data, axis=1))
-            )
-            working_row_id = list(set(np.arange(N_beam)) - set(broken_row_id))
-            idx = np.ix_(working_row_id, working_row_id)
-            S, G = S.data[idx], G.data[idx]
+        #  D_all = np.zeros((N_data, N_eig_max))
+        #  for i, (S, G) in enumerate(zip(self._visibilities, self._grams)):
+        #      # Remove broken BEAM_IDs
+        #      broken_row_id = np.flatnonzero(
+        #          np.isclose(np.sum(S.data, axis=0), np.sum(S.data, axis=1))
+        #      )
+        #      working_row_id = list(set(np.arange(N_beam)) - set(broken_row_id))
+        #      idx = np.ix_(working_row_id, working_row_id)
+        #      S, G = S.data[idx], G.data[idx]
 
-            # Functional PCA
-            if not np.allclose(S, 0):
-                _, D, _ = bipp.pybipp.eigh(self._ctx, S.data.shape[0], S.data, G.data)
-                # only consider positive eigenvalues, since we apply the log function for clustering
-                D = D[D > 0.0]
-                idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
-                D = D[idx]
-                D_all[i, : len(D)] = D
+        #      # Functional PCA
+        #      if not np.allclose(S, 0):
+        #          _, D, _ = bipp.pybipp.eigh(self._ctx, S.data.shape[0], S.data, G.data)
+        #          # only consider positive eigenvalues, since we apply the log function for clustering
+        #          D = D[D > 0.0]
+        #          idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
+        #          D = D[idx]
+        #          D_all[i, : len(D)] = D
 
-        D_all = D_all[D_all.nonzero()]
+        D_all = np.concatenate(self._d_all)
         kmeans = skcl.KMeans(n_clusters=self._N_level).fit(np.log(D_all).reshape(-1, 1))
 
         # For extremely small telescopes or datasets that are mostly 'broken', we can have (N_eig < N_level).
@@ -185,7 +185,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         # This has the disadvantage of increasing the computational load of Bipp, but as the N_eig energy levels
         # are clustered together anyway, the trailing energy levels will be (close to) all-0 and can be discarded
         # on inspection.
-        N_eig = max(int(np.ceil(len(D_all) / N_data)), self._N_level)
+        N_eig = max(int(np.ceil(len(D_all) / len(self._d_all))), self._N_level)
         cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1]
 
         return N_eig, centroid_to_intervals(cluster_centroid)
