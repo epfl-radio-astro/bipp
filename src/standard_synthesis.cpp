@@ -75,7 +75,7 @@ struct StandardSynthesisInternal {
     }
   }
 
-  void collect(T wl, std::function<void(std::size_t, std::size_t, const T*, int*)> eigMaskFunc,
+  void collect(T wl, std::function<void(std::size_t, std::size_t, T*)> eigMaskFunc,
                const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
                const T* xyz, std::size_t ldxyz) {
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "------------");
@@ -195,10 +195,11 @@ StandardSynthesis<T>::StandardSynthesis(Context& ctx, std::size_t nAntenna, std:
 }
 
 template <typename T>
-auto StandardSynthesis<T>::collect(
-    T wl, std::function<void(std::size_t, std::size_t, const T*, int*)> eigMaskFunc,
-    const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
-    const T* xyz, std::size_t ldxyz) -> void {
+auto StandardSynthesis<T>::collect(T wl,
+                                   std::function<void(std::size_t, std::size_t, T*)> eigMaskFunc,
+                                   const std::complex<T>* s, std::size_t lds,
+                                   const std::complex<T>* w, std::size_t ldw, const T* xyz,
+                                   std::size_t ldxyz) -> void {
   try {
     reinterpret_cast<StandardSynthesisInternal<T>*>(plan_.get())
         ->collect(wl, eigMaskFunc, s, lds, w, ldw, xyz, ldxyz);

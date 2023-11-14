@@ -195,20 +195,15 @@ struct StandardSynthesisDispatcher {
               check_2d_array(sArray.value(), {nBeam, nBeam});
             }
 
-            auto eigMaskFuncLambda = [&](std::size_t nBins, std::size_t nEig, const T* d, int* maskOut) {
+            auto eigMaskFuncLambda = [&](std::size_t idxBin, std::size_t nEig, T* d) {
               py::array_t<T> dArray(nEig);
               std::memcpy(dArray.mutable_data(0), d, nEig * sizeof(T));
 
-              py::array_t<int, py::array::f_style | py::array::forcecast> mask(
-                  eigMaskFunc(nBins, dArray));
-              check_2d_array(mask, {long(nEig), long(nBins)});
+              py::array_t<T, py::array::f_style | py::array::forcecast> dNew(
+                  eigMaskFunc(idxBin, dArray));
+              check_1d_array(dNew, nEig);
 
-              const auto* maskPtr = mask.data(0);
-              const auto ldmask = safe_cast<std::size_t>(mask.strides(1) / mask.itemsize());
-
-              for (std::size_t i = 0; i < nBins; ++i) {
-                std::memcpy(maskOut + i * nEig, maskPtr + i * ldmask, nEig * sizeof(int));
-              }
+              std::memcpy(d, dNew.data(0), nEig * sizeof(T));
             };
 
             std::get<StandardSynthesis<T>>(plan_).collect(

@@ -61,7 +61,7 @@ StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, st
 }
 
 template <typename T>
-auto StandardSynthesis<T>::collect(T wl, std::function<void(std::size_t, std::size_t, const T*, int*)> eigMaskFunc,
+auto StandardSynthesis<T>::collect(T wl, std::function<void(std::size_t, std::size_t, T*)> eigMaskFunc,
                                    ConstHostView<std::complex<T>, 2> s,
                                    ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz)
     -> void {
@@ -95,9 +95,19 @@ auto StandardSynthesis<T>::collect(T wl, std::function<void(std::size_t, std::si
 
   ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "vUnbeam", vUnbeam);
 
-  auto eigMask = HostArray<int, 2>(ctx_->host_alloc(), {nBeam_, nIntervals_});
-  eigMask.zero();
-  eigMaskFunc(nIntervals_, nBeam_, d.data(), eigMask.data());
+  auto dMasked = HostArray<T, 2>(ctx_->host_alloc(), {d.size(), nIntervals_});
+
+  auto start = std::chrono::high_resolution_clock::now();
+  for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
+    copy(d, dMasked.slice_view(idxInt));
+    eigMaskFunc(idxInt, nBeam_, dMasked.slice_view(idxInt).data());
+  }
+
+  auto end = std::chrono::high_resolution_clock::now();
+  // const auto time = std::chrono::duration_cast<std::chrono::milliseconds>(
+  //     std::chrono::high_resolution_clock::now() - start);
+  const std::chrono::duration<double> elapsed_seconds{end - start};
+  printf("callback time [s]: %f\n", elapsed_seconds.count());
 
   // TODO: gather only selected eigenvalues to reduce amount of calc in gemmexp
 
@@ -113,17 +123,19 @@ auto StandardSynthesis<T>::collect(T wl, std::function<void(std::size_t, std::si
 
   // cluster eigenvalues / vectors based on invervals
   for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
-    apply_filter(filter_[{idxFilter}], nEig, d.data(), dFiltered.data());
     for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
+      auto dMaskedSlice = dMasked.slice_view(idxInt);
+
+      apply_filter(filter_[{idxFilter}], nEig, dMaskedSlice.data(), dFiltered.data());
 
       auto imgCurrent = img_.slice_view(idxFilter).slice_view(idxInt);
       for (std::size_t idxEig = 0; idxEig < nBeam_; ++idxEig) {
-        if (eigMask[{idxEig, idxInt}]) {
+        if (dMaskedSlice[idxEig]) {
           const auto scale = dFiltered[{idxEig}];
 
           ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
-                             "Assigning eigenvalue {} (filtered {}) to bin {}", d[{idxEig}], scale,
-                             idxInt);
+                             "Assigning eigenvalue {} (filtered {}) to bin {}",
+                             dMaskedSlice[{idxEig}], scale, idxInt);
 
           blas::axpy(nPixel_, scale, &unlayeredStats[{0, idxEig}], 1, imgCurrent.data(), 1);
         }

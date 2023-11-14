@@ -10,27 +10,6 @@
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
 
-// Compute the location of the interval [a, b] within the ascending or descending array D.
-// Returns the first index and size. Assuming n is small -> linear search should
-// suffice
-template <typename T>
-static auto find_interval_indices(std::size_t n, const T* D, T a, T b)
-    -> std::tuple<std::size_t, std::size_t> {
-  if (!n) return {0, 0};
-  std::size_t l = n;
-  std::size_t r = 0;
-
-  for (std::size_t i = 0; i < n; ++i) {
-    const auto value = D[i];
-    if (value <= b && value >= a) {
-      if (i < l) l = i;
-      if (i > r) r = i;
-    }
-  }
-
-  return {l, l <= r ? r - l + 1 : 0};
-}
-
 static auto get_lofar_input_json() -> const nlohmann::json& {
   static nlohmann::json data = []() {
     std::ifstream file(std::string(BIPP_TEST_DATA_DIR) + "/lofar_input.json");
@@ -128,16 +107,17 @@ protected:
                                       pixelX.data(), pixelY.data(), pixelZ.data());
 
     // map intervals to mask
-    auto eigMaskFunc = [&](std::size_t nBins, std::size_t nEigOut, const T* d, int* mask) -> void {
-      const T* dSlice = d + (nEigOut - nEig);
-      for (std::size_t idxBin = 0; idxBin < nBins; ++idxBin) {
-        std::size_t start, size;
-        std::tie(start, size) =
-            find_interval_indices(nEig, dSlice, intervals[idxBin * 2], intervals[idxBin * 2 + 1]);
-        for (std::size_t idxEig = start + (nEigOut - nEig);
-             idxEig < start + size + (nEigOut - nEig); ++idxEig) {
-          mask[idxBin * nEigOut + idxEig] = 1;
-        }
+    auto eigMaskFunc = [&](std::size_t idxBin, std::size_t nEigOut, T* d) -> void {
+      const T dMin = intervals[idxBin * 2];
+      const T dMax = intervals[idxBin * 2 + 1];
+
+      std::size_t idxEig = 0;
+      for(; idxEig < nEigOut - nEig; ++idxEig) {
+        d[idxEig] = 0;
+      }
+      for(; idxEig < nEigOut; ++idxEig) {
+        const auto val = d[idxEig];
+        d[idxEig] *= (val >= dMin && val <= dMax);
       }
     };
 
