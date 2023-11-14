@@ -6,6 +6,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <cstddef>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
@@ -62,11 +63,11 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
 
   auto& queue = ctx_->gpu_queue();
   auto v = queue.create_device_array<api::ComplexType<T>, 2>({nBeam_, nEig});
-  auto vUnbeam = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna_, nEig});
+  auto vUnbeamArray = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna_, nBeam_});
 
   auto unlayeredStats = queue.create_device_array<T, 2>({nPixel_, nEig});
 
-  auto d = queue.create_device_array<T, 1>(nEig);
+  auto dArray = queue.create_device_array<T, 1>(nBeam_);
   auto dFiltered = queue.create_device_array<T, 1>(nEig);
 
   // Center coordinates for much better performance of cos / sin
@@ -77,34 +78,18 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
     center_vector<T>(queue, nAntenna_, xyzCentered.slice_view(i).data());
   }
 
-  {
-    auto g = queue.create_device_array<api::ComplexType<T>, 2>({nBeam_, nBeam_});
+  eigh<T>(*ctx_, wl, s, w, xyzCentered, dArray, vUnbeamArray);
 
-    gram_matrix<T>(*ctx_, w, xyzCentered, wl, g);
-
-    std::size_t nEigOut = 0;
-    // Note different order of s and g input
-    if (s.size())
-      eigh<T>(*ctx_, nEig, sHost, s, g, d, v);
-    else {
-      auto gHost = queue.create_pinned_array<api::ComplexType<T>, 2>(g.shape());
-      copy(queue, g, gHost);
-      queue.sync();  // finish copy
-      eigh<T>(*ctx_, nEig, gHost, g, s, d, v);
-    }
-  }
-
+  auto vUnbeam = vUnbeamArray.sub_view({0, nBeam_ - nEig}, {nAntenna_, nEig});
   auto dHost = queue.create_pinned_array<T, 1>(nEig);
   auto dFilteredHost = queue.create_host_array<T, 1>(nEig);
 
-  copy(queue, d, dHost);
+  ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "vUnbeam", vUnbeam);
+
+  copy(queue, dArray.sub_view(nBeam_ - nEig, nEig), dHost);
+
   // Make sure D is available on host
   queue.sync();
-
-  api::ComplexType<T> one{1, 0};
-  api::ComplexType<T> zero{0, 0};
-  api::blas::gemm<api::ComplexType<T>>(queue.blas_handle(), api::blas::operation::None,
-                                       api::blas::operation::None, one, w, v, zero, vUnbeam);
 
   T alpha = 2.0 * M_PI / wl;
   gemmexp<T>(queue, nEig, nPixel_, nAntenna_, alpha, vUnbeam.data(), vUnbeam.strides(1),

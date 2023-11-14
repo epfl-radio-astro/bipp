@@ -11,8 +11,8 @@
 namespace bipp {
 namespace gpu {
 template <typename T>
-auto eigh(ContextInternal& ctx, std::size_t nEig, ConstHostView<api::ComplexType<T>, 2> aHost,
-          ConstDeviceView<api::ComplexType<T>, 2> a, ConstDeviceView<api::ComplexType<T>, 2> b,
-          DeviceView<T, 1> d, DeviceView<api::ComplexType<T>, 2> v) -> void;
-}
+auto eigh(ContextInternal& ctx, T wl, ConstDeviceView<api::ComplexType<T>, 2> s,
+          ConstDeviceView<api::ComplexType<T>, 2> w, ConstDeviceView<T, 2> xyz, DeviceView<T, 1> d,
+          DeviceView<api::ComplexType<T>, 2> vUnbeam) -> std::size_t;
+}  // namespace gpu
 }  // namespace bipp

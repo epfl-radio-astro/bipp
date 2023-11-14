@@ -1,7 +1,5 @@
 #pragma once
 
-#include <complex>
-
 #include "bipp/bipp.h"
 #include "bipp/config.h"
 #include "context_internal.hpp"

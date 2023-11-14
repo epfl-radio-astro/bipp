@@ -108,29 +108,17 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
        uvw_.sub_view({collectCount_ * nAntenna_ * nAntenna_, 0}, {nAntenna_ * nAntenna_, 3}));
 
   auto v = queue.create_device_array<api::ComplexType<T>, 2>({nBeam_, nEig});
-  auto d = queue.create_device_array<T, 1>(nEig);
+  auto vUnbeamArray = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna_, nBeam_});
+  auto dArray = queue.create_device_array<T, 1>(nBeam_);
 
-  {
-    auto g = queue.create_device_array<api::ComplexType<T>, 2>({nBeam_, nBeam_});
+  eigh<T>(*ctx_, wl, s, w, xyz, dArray, vUnbeamArray);
 
-    gram_matrix<T>(*ctx_, w, xyz, wl, g);
 
-    std::size_t nEigOut = 0;
-    // Note different order of s and g input
-    if (s.size())
-      eigh<T>(*ctx_, nEig, sHost, s, g, d, v);
-    else {
-      auto gHost = queue.create_pinned_array<api::ComplexType<T>, 2>(g.shape());
-      copy(queue, g, gHost);
-      queue.sync();  // finish copy
-      eigh<T>(*ctx_, nEig, gHost, g, s, d, v);
-    }
-  }
+  auto vUnbeam = vUnbeamArray.sub_view({0, nBeam_ - nEig}, {nAntenna_, nEig});
 
-  // Reverse beamforming
-  auto vUnbeam = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna_, v.shape(1)});
-  api::blas::gemm<api::ComplexType<T>>(queue.blas_handle(), api::blas::operation::None,
-                                       api::blas::operation::None, {1, 0}, w, v, {0, 0}, vUnbeam);
+  auto d = dArray.sub_view(nBeam_ - nEig, nEig);
+
+  ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "vUnbeam", vUnbeam);
 
   // slice virtual visibility for current step
   auto virtVisCurrent =

@@ -244,7 +244,7 @@ unset(BIPP_BLAS_C CACHE) # Result is cached, so change of library will not lead 
 CHECK_FUNCTION_EXISTS(cblas_zgemm BIPP_BLAS_C)
 
 unset(BIPP_LAPACK_C CACHE) # Result is cached, so change of library will not lead to a new check automatically
-CHECK_FUNCTION_EXISTS(LAPACKE_zheevx BIPP_LAPACK_C)
+CHECK_FUNCTION_EXISTS(LAPACKE_chegv BIPP_LAPACK_C)
 
 # generate config.h
 configure_file(include/bipp/config.h.in ${PROJECT_BINARY_DIR}/bipp/config.h)

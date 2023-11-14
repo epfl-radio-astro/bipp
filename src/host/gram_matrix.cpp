@@ -8,6 +8,7 @@
 #include <limits>
 #include <memory>
 #include <utility>
+#include <cassert>
 
 #include "bipp/bipp.h"
 #include "bipp/config.h"
@@ -30,6 +31,11 @@ auto gram_matrix(ContextInternal& ctx, ConstHostView<std::complex<T>, 2> w, Cons
                  T wl, HostView<std::complex<T>, 2> g) -> void {
   const auto nAntenna= w.shape(0);
   const auto nBeam= w.shape(1);
+
+  assert(xyz.shape(0) == nAntenna);
+  assert(xyz.shape(1) == 3);
+  assert(g.shape(0) == nBeam);
+  assert(g.shape(1) == nBeam);
 
   auto buffer = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nAntenna, nAntenna});
 

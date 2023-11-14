@@ -109,25 +109,15 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
   // store coordinates
   copy(uvw, uvw_.sub_view({collectCount_ * nAntenna_ * nAntenna_, 0}, {nAntenna_ * nAntenna_, 3}));
 
-  auto v = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nBeam_, nEig});
-  auto d = HostArray<T, 1>(ctx_->host_alloc(), nEig);
+  auto vUnbeamArray = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nAntenna_, nBeam_});
+  auto dArray = HostArray<T, 1>(ctx_->host_alloc(), nBeam_);
 
-  {
-    auto g = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nBeam_, nBeam_});
+  eigh<T>(*ctx_, wl, s, w, xyz, dArray, vUnbeamArray);
 
-    gram_matrix<T>(*ctx_, w, xyz, wl, g);
+  auto vUnbeam = vUnbeamArray.sub_view({0, nBeam_ - nEig}, {nAntenna_, nEig});
+  auto d = dArray.sub_view(nBeam_ - nEig, nEig);
 
-    // Note different order of s and g input
-    if (s.size())
-      eigh<T>(*ctx_, nEig, s, g, d, v);
-    else {
-      eigh<T>(*ctx_, nEig, g, s, d, v);
-    }
-  }
-
-  // Reverse beamforming
-  HostArray<std::complex<T>, 2> vUnbeam(ctx_->host_alloc(), {nAntenna_, v.shape(1)});
-  blas::gemm<std::complex<T>>(CblasNoTrans, CblasNoTrans, {1, 0}, w, v, {0, 0}, vUnbeam);
+  ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "vUnbeam", vUnbeam);
 
   // slice virtual visibility for current step
   auto virtVisCurrent =

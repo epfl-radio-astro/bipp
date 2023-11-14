@@ -104,26 +104,26 @@ auto call_gram_matrix(Context& ctx, const py::array_t<T, py::array::f_style>& xy
 }
 
 template <typename T>
-auto call_eigh(Context& ctx, std::size_t nEig,
-               const py::array_t<std::complex<T>, py::array::f_style>& a,
-               std::optional<py::array_t<std::complex<T>, py::array::f_style>> b) {
-  check_2d_array(a);
-  const auto m = a.shape(0);
-  check_2d_array(a, {m, m});
-  if (b) check_2d_array(b.value(), {m, m});
+auto call_eigh(Context& ctx, T wl, const py::array_t<std::complex<T>, py::array::f_style>& s,
+               const py::array_t<std::complex<T>, py::array::f_style>& w,
+               const py::array_t<T, py::array::f_style>& xyz) {
+  check_2d_array(w);
+  auto nAntenna = w.shape(0);
+  auto nBeam = w.shape(1);
+  check_2d_array(xyz, {nAntenna, 3});
+  check_2d_array(s, {nBeam, nBeam});
 
-  auto v = py::array_t<std::complex<T>, py::array::f_style>({m, py::ssize_t(nEig)});
-
-  auto d = py::array_t<T, py::array::f_style>({py::ssize_t(nEig)});
+  auto d = py::array_t<T, py::array::f_style>({py::ssize_t(nBeam)});
   std::size_t nEigOut = 0;
 
-  eigh<T>(ctx, safe_cast<std::size_t>(m), safe_cast<std::size_t>(nEig), a.data(0),
-          safe_cast<std::size_t>(a.strides(1) / a.itemsize()), b ? b.value().data(0) : nullptr,
-          b ? safe_cast<std::size_t>(b.value().strides(1) / b.value().itemsize()) : 0, &nEigOut,
-          d.mutable_data(0), v.mutable_data(0),
-          safe_cast<std::size_t>(v.strides(1) / v.itemsize()));
+  nEigOut = eigh<T>(ctx, wl, nAntenna, nBeam, s.data(0),
+                    safe_cast<std::size_t>(s.strides(1) / s.itemsize()), w.data(0),
+                    safe_cast<std::size_t>(w.strides(1) / w.itemsize()), xyz.data(0),
+                    safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()), d.mutable_data(0));
 
-  return std::make_tuple(nEigOut, std::move(d), std::move(v));
+  d.resize({nEigOut});
+
+  return d;
 }
 
 struct StandardSynthesisDispatcher {
@@ -436,21 +436,20 @@ PYBIND11_MODULE(pybipp, m) {
 
   m.def(
        "eigh",
-       [](Context& ctx, std::size_t nEig,
-          const py::array_t<std::complex<float>, py::array::f_style>& a,
-          std::optional<py::array_t<std::complex<float>, py::array::f_style>> b) {
-         return call_eigh(ctx, nEig, a, b);
+       [](Context& ctx, float wl, const py::array_t<std::complex<float>, py::array::f_style>& s,
+          const py::array_t<std::complex<float>, py::array::f_style>& w,
+          const py::array_t<float, py::array::f_style>& xyz) {
+         return call_eigh(ctx, wl, s, w, xyz);
        },
-       pybind11::arg("ctx"), pybind11::arg("n_eig"), pybind11::arg("a"),
-       pybind11::arg("b") = std::optional<py::array_t<std::complex<float>, py::array::f_style>>())
+       pybind11::arg("ctx"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),
+       pybind11::arg("xyz"))
       .def(
           "eigh",
-          [](Context& ctx, std::size_t nEig,
-             const py::array_t<std::complex<double>, py::array::f_style>& a,
-             std::optional<py::array_t<std::complex<double>, py::array::f_style>> b) {
-            return call_eigh(ctx, nEig, a, b);
+          [](Context& ctx, float wl, const py::array_t<std::complex<float>, py::array::f_style>& s,
+             const py::array_t<std::complex<float>, py::array::f_style>& w,
+             const py::array_t<float, py::array::f_style>& xyz) {
+            return call_eigh(ctx, wl, s, w, xyz);
           },
-          pybind11::arg("ctx"), pybind11::arg("n_eig"), pybind11::arg("a"),
-          pybind11::arg("b") =
-              std::optional<py::array_t<std::complex<double>, py::array::f_style>>());
+          pybind11::arg("ctx"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),
+          pybind11::arg("xyz"));
 }

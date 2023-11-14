@@ -74,12 +74,11 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
   assert(!s.size() || s.shape(0) == nBeam_);
   assert(!s.size() || s.shape(1) == nBeam_);
 
-  auto v = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nBeam_, nEig});
-  auto vUnbeam = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nAntenna_, nEig});
 
+  auto vUnbeamArray = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nAntenna_, nBeam_});
   auto unlayeredStats = HostArray<T, 2>(ctx_->host_alloc(), {nPixel_, nEig});
 
-  auto d = HostArray<T, 1>(ctx_->host_alloc(), nEig);
+  auto dArray = HostArray<T, 1>(ctx_->host_alloc(), nBeam_);
   auto dFiltered = HostArray<T, 1>(ctx_->host_alloc(), nEig);
 
   // Center coordinates for much better performance of cos / sin
@@ -88,20 +87,13 @@ auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> i
   center_vector(nAntenna_, xyz.slice_view(1).data(), xyzCentered.slice_view(1).data());
   center_vector(nAntenna_, xyz.slice_view(2).data(), xyzCentered.slice_view(2).data());
 
-  {
-    auto g = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nBeam_, nBeam_});
 
-    gram_matrix<T>(*ctx_, w, xyzCentered, wl, g);
+  eigh<T>(*ctx_, wl, s, w, xyzCentered, dArray, vUnbeamArray);
 
-    // Note different order of s and g input
-    if (s.size())
-      eigh<T>(*ctx_, nEig, s, g, d, v);
-    else {
-      eigh<T>(*ctx_, nEig, g, s, d, v);
-    }
-  }
+  auto vUnbeam = vUnbeamArray.sub_view({0, nBeam_ - nEig}, {nAntenna_, nEig});
+  auto d = dArray.sub_view(nBeam_ - nEig, nEig);
 
-  blas::gemm<std::complex<T>>(CblasNoTrans, CblasNoTrans, {1, 0}, w, v, {0, 0}, vUnbeam);
+  ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "vUnbeam", vUnbeam);
 
   T alpha = 2.0 * M_PI / wl;
 

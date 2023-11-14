@@ -395,48 +395,46 @@ BIPP_EXPORT BippError bipp_standard_synthesis_get(BippStandardSynthesisF plan, B
                                                   double* img, size_t ld);
 
 /**
- * Compute the positive eigenvalues and eigenvectors of a hermitian matrix in
- * single precision. Optionally solves a general eigenvalue problem.
+ * Compute eigenvalues.
  *
  * @param[in] ctx Context handle.
- * @param[in] m Order of matrix A.
- * @param[in] nEig Maximum number of eigenvalues to compute.
- * @param[in] a Hermitian matrix A. Only the lower triangle is read.
- * @param[in] lda Leading dimension of A.
- * @param[in] b Matrix B. Optional. When not null, a general eigenvalue problem
- * is solved.
- * @param[in] ldb Leading dimension of B.
- * @param[out] nEigOut Number of positive eigenvalues found.
- * @param[out] d Eigenvalues.
- * @param[out] v Eigenvectors stored as Matrix coloumns.
- * @param[out] ldv Leading of V.
- * @return Error code or BIPP_SUCCESS.
+ * @param[in] wl Wavelength.
+ * @param[in] nAntenna Number of antenna.
+ * @param[in] nBeam Number of beam.
+ * @param[in] s Optional 2D sensitivity array of size (nBeam, nBeam). May be null.
+ * @param[in] lds Leading dimension of s.
+ * @param[in] w 2D beamforming array of size (nAntenna, nBeam).
+ * @param[in] ldw Leading dimension of w.
+ * @param[in] xyz 2D antenna position array of size (nAntenna, 3).
+ * @param[in] ldxyz Leading dimension of xyz.
+ * @param[out] d Eigenvalues. Size nBeam. Zero padded if number of computed eigenvalues < nBeam.
+ * @param[out] nEig Number of computed eigenvalues.
+ * @return Number of computed eigenvalues.
  */
-BIPP_EXPORT BippError bipp_eigh_f(BippContext ctx, size_t m, size_t nEig, const void* a, size_t lda,
-                                  const void* b, size_t ldb, size_t* nEigOut, float* d, void* v,
-                                  size_t ldv);
+BIPP_EXPORT BippError bipp_eigh_f(BippContext ctx, float wl, size_t nAntenna, size_t nBeam,
+                                  const void* s, size_t lds, const void* w, size_t ldw,
+                                  const float* xyz, size_t ldxyz, float* d, size_t* nEig);
 
 /**
- * Compute the positive eigenvalues and eigenvectors of a hermitian matrix in
- * double precision. Optionally solves a general eigenvalue problem.
+ * Compute eigenvalues.
  *
  * @param[in] ctx Context handle.
- * @param[in] m Order of matrix A.
- * @param[in] nEig Maximum number of eigenvalues to compute.
- * @param[in] a Matrix A.
- * @param[in] lda Leading dimension of A.
- * @param[in] b Matrix B. Optional. When not null, a general eigenvalue problem
- * is solved.
- * @param[in] ldb Leading dimension of B.
- * @param[out] nEigOut Number of positive eigenvalues found.
- * @param[out] d Eigenvalues.
- * @param[out] v Eigenvectors stored as Matrix coloumns.
- * @param[out] ldv Leading of V.
- * @return Error code or BIPP_SUCCESS.
+ * @param[in] wl Wavelength.
+ * @param[in] nAntenna Number of antenna.
+ * @param[in] nBeam Number of beam.
+ * @param[in] s Optional 2D sensitivity array of size (nBeam, nBeam). May be null.
+ * @param[in] lds Leading dimension of s.
+ * @param[in] w 2D beamforming array of size (nAntenna, nBeam).
+ * @param[in] ldw Leading dimension of w.
+ * @param[in] xyz 2D antenna position array of size (nAntenna, 3).
+ * @param[in] ldxyz Leading dimension of xyz.
+ * @param[out] d Eigenvalues. Size nBeam. Zero padded if number of computed eigenvalues < nBeam.
+ * @param[out] nEig Number of computed eigenvalues.
+ * @return Number of computed eigenvalues.
  */
-BIPP_EXPORT BippError bipp_eigh(BippContext ctx, size_t m, size_t nEig, const void* a, size_t lda,
-                                const void* b, size_t ldb, size_t* nEigOut, double* d, void* v,
-                                size_t ldv);
+BIPP_EXPORT BippError bipp_eigh(BippContext ctx, double wl, size_t nAntenna, size_t nBeam,
+                                const void* s, size_t lds, const void* w, size_t ldw,
+                                const double* xyz, size_t ldxyz, double* d, size_t* nEig);
 
 /**
  * Data processor for the gram matrix in single precision.

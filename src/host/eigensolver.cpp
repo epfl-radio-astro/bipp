@@ -1,6 +1,7 @@
 #include "host/eigensolver.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <complex>
 #include <cstddef>
 #include <cstring>
@@ -13,6 +14,7 @@
 #include "bipp/config.h"
 #include "context_internal.hpp"
 #include "host/blas_api.hpp"
+#include "host/gram_matrix.hpp"
 #include "host/lapack_api.hpp"
 #include "memory/allocator.hpp"
 #include "memory/array.hpp"
@@ -41,17 +43,26 @@ static auto copy_lower_triangle_at_indices(const std::vector<std::size_t>& indic
 }
 
 template <typename T>
-auto eigh(ContextInternal& ctx, std::size_t nEig, const ConstHostView<std::complex<T>, 2>& a,
-          const ConstHostView<std::complex<T>, 2>& b, HostView<T, 1> d,
-          HostView<std::complex<T>, 2> v) -> void {
-  const auto m = a.shape(0);
+auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
+          ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz, HostView<T, 1> d,
+          HostView<std::complex<T>, 2> vUnbeam) -> std::size_t {
+  const auto nAntenna = w.shape(0);
+  const auto nBeam = w.shape(1);
 
-  std::vector<short> nonZeroIndexFlag(m, 0);
+  assert(xyz.shape(0) == nAntenna);
+  assert(xyz.shape(1) == 3);
+  assert(s.shape(0) == nBeam);
+  assert(s.shape(1) == nBeam);
+  assert(!vUnbeam.size() || vUnbeam.shape(0) == nAntenna);
+  assert(!vUnbeam.size() || vUnbeam.shape(1) == nBeam);
+
+  HostArray<short, 1> nonZeroIndexFlag(ctx.host_alloc(), nBeam);
+  nonZeroIndexFlag.zero();
 
   // flag working coloumns / rows
-  for (std::size_t col = 0; col < a.shape(1); ++col) {
-    for (std::size_t row = col; row < a.shape(0); ++row) {
-      const auto val = a[{row, col}];
+  for (std::size_t col = 0; col < s.shape(1); ++col) {
+    for (std::size_t row = col; row < s.shape(0); ++row) {
+      const auto val = s[{row, col}];
       if (val.real() != 0 || val.imag() != 0) {
         nonZeroIndexFlag[col] |= 1;
         nonZeroIndexFlag[row] |= 1;
@@ -60,76 +71,71 @@ auto eigh(ContextInternal& ctx, std::size_t nEig, const ConstHostView<std::compl
   }
 
   std::vector<std::size_t> indices;
-  indices.reserve(m);
-  for (std::size_t i = 0; i < m; ++i) {
+  indices.reserve(nBeam);
+  for (std::size_t i = 0; i < nBeam; ++i) {
     if (nonZeroIndexFlag[i]) indices.push_back(i);
   }
 
-  const std::size_t mReduced = indices.size();
+  const std::size_t nBeamReduced = indices.size();
 
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} coloumns / rows", m - mReduced);
-
-  HostArray<std::complex<T>, 2> aReduced(ctx.host_alloc(), {mReduced, mReduced});
-  HostArray<std::complex<T>, 2> vBuffer(ctx.host_alloc(), {mReduced, mReduced});
-  HostArray<T, 1> dBuffer(ctx.host_alloc(), {mReduced});
-  HostArray<int, 1> bufferIfail(ctx.host_alloc(), {mReduced});
-
-  // copy lower triangle into buffer
-  copy_lower_triangle_at_indices(indices, a, aReduced);
-
-  const auto firstEigIndexFortran = mReduced - std::min(mReduced, nEig) + 1;
-
-  int hMeig = 0;
-  if (b.size()) {
-    HostArray<std::complex<T>, 2> bReduced(ctx.host_alloc(), {mReduced, mReduced});
-    copy_lower_triangle_at_indices(indices, b, bReduced);
-
-    if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, 'V', 'I', 'L', mReduced, aReduced.data(),
-                           aReduced.strides(1), bReduced.data(), bReduced.strides(1), 0, 0,
-                           firstEigIndexFortran, mReduced, &hMeig, dBuffer.data(), vBuffer.data(),
-                           vBuffer.strides(1), bufferIfail.data())) {
-      throw EigensolverError();
-    }
-  } else {
-    if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 'V', 'I', 'L', mReduced, aReduced.data(),
-                           aReduced.strides(1), 0, 0, firstEigIndexFortran, mReduced, &hMeig,
-                           dBuffer.data(), vBuffer.data(), vBuffer.strides(1),
-                           bufferIfail.data())) {
-      throw EigensolverError();
-    }
-  }
-
-  const auto nEigOut = std::min<std::size_t>(hMeig, nEig);
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} coloumns / rows", nBeam - nBeamReduced);
 
   d.zero();
-  v.zero();
+  vUnbeam.zero();
 
-  copy(dBuffer.sub_view({hMeig - nEigOut}, {nEigOut}), d.sub_view({0}, {nEigOut}));
+  HostArray<std::complex<T>, 2> v(ctx.host_alloc(), {nBeamReduced, nBeamReduced});
 
-  if (mReduced == m) {
-    copy(vBuffer.sub_view({0, hMeig - nEigOut}, {m, nEigOut}), v.sub_view({0, 0}, {m, nEigOut}));
+  const char mode = vUnbeam.size() ? 'V' : 'N';
+  if(nBeamReduced == nBeam) {
+    copy(s,v);
+
+    // Compute gram matrix
+    auto g = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nBeam, nBeam});
+    gram_matrix<T>(ctx, w, xyz, wl, g);
+
+    lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, mode, 'L', nBeam, v.data(), v.strides(1),
+                       g.data(), g.strides(1), d.data());
+
+    if (vUnbeam.size())
+      blas::gemm<std::complex<T>>(CblasNoTrans, CblasNoTrans, {1, 0}, w, v, {0, 0}, vUnbeam);
   } else {
-    for (std::size_t col = 0; col < nEigOut; ++col) {
-      auto sourceCol = vBuffer.slice_view(col + hMeig - nEigOut);
-      for (std::size_t row = 0; row < mReduced; ++row) {
-        v[{col, indices[row]}] = sourceCol[{row}];
-      }
+    // Remove broken beams from w and s
+    HostArray<std::complex<T>, 2> wReduced(ctx.host_alloc(), {nAntenna, nBeamReduced});
+
+    copy_lower_triangle_at_indices(indices, s, v);
+
+    for(std::size_t i =0; i < nBeamReduced; ++i) {
+      copy(w.slice_view(indices[i]), wReduced.slice_view(i));
     }
+
+    // Compute gram matrix
+    auto gReduced = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nBeamReduced, nBeamReduced});
+    gram_matrix<T>(ctx, wReduced, xyz, wl, gReduced);
+
+    lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, mode, 'L', nBeam, v.data(), v.strides(1),
+                       gReduced.data(), gReduced.strides(1), d.data());
+
+    if (vUnbeam.size())
+      blas::gemm<std::complex<T>>(CblasNoTrans, CblasNoTrans, {1, 0}, wReduced, v, {0, 0},
+                                  vUnbeam.sub_view({0, 0}, {nAntenna, nBeamReduced}));
   }
 
-  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", d);
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", d.sub_view(0, nBeamReduced));
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", v);
+
+  return nBeamReduced;
 }
 
-template auto eigh<float>(ContextInternal& ctx, std::size_t nEig,
-                          const ConstHostView<std::complex<float>, 2>& a,
-                          const ConstHostView<std::complex<float>, 2>& b, HostView<float, 1> d,
-                          HostView<std::complex<float>, 2> v) -> void;
+template auto eigh<float>(ContextInternal& ctx, float wl, ConstHostView<std::complex<float>, 2> s,
+                          ConstHostView<std::complex<float>, 2> w, ConstHostView<float, 2> xyz,
+                          HostView<float, 1> d, HostView<std::complex<float>, 2> vUnbeam)
+    -> std::size_t;
 
-template auto eigh<double>(ContextInternal& ctx, std::size_t nEig,
-                           const ConstHostView<std::complex<double>, 2>& a,
-                           const ConstHostView<std::complex<double>, 2>& b, HostView<double, 1> d,
-                           HostView<std::complex<double>, 2> v) -> void;
+template auto eigh<double>(ContextInternal& ctx, double wl,
+                           ConstHostView<std::complex<double>, 2> s,
+                           ConstHostView<std::complex<double>, 2> w, ConstHostView<double, 2> xyz,
+                           HostView<double, 1> d, HostView<std::complex<double>, 2> vUnbeam)
+    -> std::size_t;
 
 }  // namespace host
 }  // namespace bipp

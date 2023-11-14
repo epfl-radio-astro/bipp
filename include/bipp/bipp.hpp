@@ -28,7 +28,7 @@ namespace bipp {
  * @param[in] ldxyz Leading dimension of xyz.
  * @param[in] wl Wavelength for which to compute the gram matrix.
  * @param[out] g Gram matrix.
- * @param[out] ldg Leading of G.
+ * @param[in] ldg Leading of G.
  */
 template <typename T,
           typename = std::enable_if_t<std::is_same_v<T, double> || std::is_same_v<T, float>>>
@@ -37,28 +37,26 @@ BIPP_EXPORT auto gram_matrix(Context& ctx, std::size_t nAntenna, std::size_t nBe
                              std::size_t ldxyz, T wl, std::complex<T>* g, std::size_t ldg) -> void;
 
 /**
- * Compute the positive eigenvalues and eigenvectors of a hermitian matrix in
- * single precision. Optionally solves a general eigenvalue problem.
+ * Compute eigenvalues.
  *
  * @param[in] ctx Context handle.
- * @param[in] nAntenna Order of matrix A.
- * @param[in] nEig Maximum number of eigenvalues to compute.
- * @param[in] a Hermitian matrix A. Only the lower triangle is read.
- * @param[in] lda Leading dimension of A.
- * @param[in] b Matrix B. Optional. When not null, a general eigenvalue problem
- * is solved.
- * @param[in] ldb Leading dimension of B.
- * @param[out] nEigOut Number of positive eigenvalues found.
- * @param[out] d Eigenvalues.
- * @param[out] v Eigenvectors stored as Matrix coloumns.
- * @param[out] ldv Leading of V.
+ * @param[in] wl Wavelength.
+ * @param[in] nAntenna Number of antenna.
+ * @param[in] nBeam Number of beam.
+ * @param[in] s Optional 2D sensitivity array of size (nBeam, nBeam). May be null.
+ * @param[in] lds Leading dimension of s.
+ * @param[in] w 2D beamforming array of size (nAntenna, nBeam).
+ * @param[in] ldw Leading dimension of w.
+ * @param[in] xyz 2D antenna position array of size (nAntenna, 3).
+ * @param[in] ldxyz Leading dimension of xyz.
+ * @param[out] d Eigenvalues. Size nBeam. Zero padded if number of computed eigenvalues < nBeam.
+ * @return Number of computed eigenvalues.
  */
 template <typename T,
           typename = std::enable_if_t<std::is_same_v<T, double> || std::is_same_v<T, float>>>
-BIPP_EXPORT auto eigh(Context& ctx, std::size_t nAntenna, std::size_t nEig,
-                      const std::complex<T>* a, std::size_t lda, const std::complex<T>* b,
-                      std::size_t ldb, std::size_t* nEigOut, T* d, std::complex<T>* v,
-                      std::size_t ldv) -> void;
+BIPP_EXPORT auto eigh(Context& ctx, T wl, std::size_t nAntenna, std::size_t nBeam,
+                      const std::complex<T>* s, std::size_t lds, const std::complex<T>* w,
+                      std::size_t ldw, const T* xyz, std::size_t ldxyz, T* d) -> std::size_t;
 
 /*! \cond PRIVATE */
 }  // namespace bipp
