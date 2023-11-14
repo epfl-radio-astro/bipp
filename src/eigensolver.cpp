@@ -44,19 +44,17 @@ BIPP_EXPORT auto eigh(Context& ctx, T wl, std::size_t nAntenna, std::size_t nBea
     DeviceAccessor<T, 1> dDevice(queue, d, nBeam, 1);
 
     // call eigh on GPU
-    gpu::eigh<T>(ctxInternal, wl, sDevice.view(), wDevice.view(), xyzDevice.view(), dDevice.view(),
-                 DeviceView<gpu::api::ComplexType<T>, 2>());
+    gpu::eigh<T>(ctxInternal, wl, sDevice.view(), wDevice.view(), xyzDevice.view(), dDevice.view());
 
     dDevice.copy_back(queue);
 #else
     throw GPUSupportError();
 #endif
   } else {
-    nEig = host::eigh<T>(ctxInternal, wl,
-                         ConstHostView<std::complex<T>, 2>(s, {nBeam, nBeam}, {1, lds}),
-                         ConstHostView<std::complex<T>, 2>(w, {nAntenna, nBeam}, {1, ldw}),
-                         ConstHostView<T, 2>(xyz, {nAntenna, 3}, {1, ldxyz}),
-                         HostView<T, 1>(d, nBeam, 1), HostView<std::complex<T>, 2>());
+    nEig = host::eigh<T>(
+        ctxInternal, wl, ConstHostView<std::complex<T>, 2>(s, {nBeam, nBeam}, {1, lds}),
+        ConstHostView<std::complex<T>, 2>(w, {nAntenna, nBeam}, {1, ldw}),
+        ConstHostView<T, 2>(xyz, {nAntenna, 3}, {1, ldxyz}), HostView<T, 1>(d, nBeam, 1));
   }
   return nEig;
 }

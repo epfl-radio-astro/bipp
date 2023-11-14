@@ -14,5 +14,13 @@ template <typename T>
 auto eigh(ContextInternal& ctx, T wl, ConstDeviceView<api::ComplexType<T>, 2> s,
           ConstDeviceView<api::ComplexType<T>, 2> w, ConstDeviceView<T, 2> xyz, DeviceView<T, 1> d,
           DeviceView<api::ComplexType<T>, 2> vUnbeam) -> std::size_t;
+
+template <typename T>
+auto eigh(ContextInternal& ctx, T wl, ConstDeviceView<api::ComplexType<T>, 2> s,
+          ConstDeviceView<api::ComplexType<T>, 2> w, ConstDeviceView<T, 2> xyz, DeviceView<T, 1> d)
+    -> std::size_t {
+  return eigh<T>(ctx, wl, s, w, xyz, d, DeviceView<api::ComplexType<T>, 2>());
+}
+
 }  // namespace gpu
 }  // namespace bipp
