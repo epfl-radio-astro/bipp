@@ -262,6 +262,7 @@ auto DomainPartition::apply(DeviceView<F, 1> inOut) -> void {
   if (permut_.size()) {
     assert(permut_.size() == inOut.size());
     auto& q = ctx_->gpu_queue();
+    auto guard = q.sync_guard(); // reduce memory usage by freeing memory before exit
     constexpr int blockSize = 256;
     const dim3 block(std::min<int>(blockSize, q.device_prop().maxThreadsDim[0]), 1, 1);
     const auto grid = kernel_launch_grid(q.device_prop(), {permut_.size(), 1, 1}, block);
@@ -300,6 +301,7 @@ auto DomainPartition::reverse(DeviceView<F, 1> inOut) -> void {
   if (permut_.size()) {
     assert(permut_.size() == inOut.size());
     auto& q = ctx_->gpu_queue();
+    auto guard = q.sync_guard(); // reduce memory usage by freeing memory before exit
     constexpr int blockSize = 256;
     const dim3 block(std::min<int>(blockSize, q.device_prop().maxThreadsDim[0]), 1, 1);
     const auto grid = kernel_launch_grid(q.device_prop(), {permut_.size(), 1, 1}, block);
