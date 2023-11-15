@@ -28,15 +28,13 @@ namespace bipp {
 namespace gpu {
 
 template <typename T>
-StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nAntenna,
-                                        std::size_t nBeam, std::size_t nIntervals,
-                                        HostArray<BippFilter, 1> filter, DeviceArray<T, 2> pixel)
+StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx,
+                                        std::size_t nIntervals, HostArray<BippFilter, 1> filter,
+                                        DeviceArray<T, 2> pixel)
     : ctx_(std::move(ctx)),
       nIntervals_(nIntervals),
       nFilter_(filter.size()),
       nPixel_(pixel.shape(0)),
-      nAntenna_(nAntenna),
-      nBeam_(nBeam),
       count_(0),
       filter_(std::move(filter)),
       pixel_(std::move(pixel)),
@@ -50,29 +48,32 @@ auto StandardSynthesis<T>::collect(
     T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
     ConstHostView<api::ComplexType<T>, 2> sHost, ConstDeviceView<api::ComplexType<T>, 2> s,
     ConstDeviceView<api::ComplexType<T>, 2> w, ConstDeviceView<T, 2> xyz) -> void {
-  assert(xyz.shape(0) == nAntenna_);
+
+  const auto nAntenna = w.shape(0);
+  const auto nBeam = w.shape(1);
+
+  assert(xyz.shape(0) == nAntenna);
   assert(xyz.shape(1) == 3);
-  assert(w.shape(0) == nAntenna_);
-  assert(w.shape(1) == nBeam_);
-  assert(!s.size() || s.shape(0) == nBeam_);
-  assert(!s.size() || s.shape(1) == nBeam_);
+  assert(s.shape(0) == nBeam);
+  assert(s.shape(1) == nBeam);
+
 
   auto& queue = ctx_->gpu_queue();
-  auto vUnbeamArray = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna_, nBeam_});
-  auto dArray = queue.create_device_array<T, 1>(nBeam_);
+  auto vUnbeamArray = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna, nBeam});
+  auto dArray = queue.create_device_array<T, 1>(nBeam);
 
   // Center coordinates for much better performance of cos / sin
   auto xyzCentered = queue.create_device_array<T, 2>(xyz.shape());
   copy(queue, xyz, xyzCentered);
 
   for (std::size_t i = 0; i < xyzCentered.shape(1); ++i) {
-    center_vector<T>(queue, nAntenna_, xyzCentered.slice_view(i).data());
+    center_vector<T>(queue, nAntenna, xyzCentered.slice_view(i).data());
   }
 
   const auto nEig = eigh<T>(*ctx_, wl, s, w, xyzCentered, dArray, vUnbeamArray);
 
   auto d = dArray.sub_view(0, nEig);
-  auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna_, nEig});
+  auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna, nEig});
 
   auto dHostArray = queue.create_pinned_array<T, 1>(nEig);
 
@@ -90,7 +91,7 @@ auto StandardSynthesis<T>::collect(
 
   for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
     copy(dHostArray, dMaskedArray.slice_view(idxInt));
-    eigMaskFunc(idxInt, nBeam_, dMaskedArray.slice_view(idxInt).data());
+    eigMaskFunc(idxInt, nBeam, dMaskedArray.slice_view(idxInt).data());
   }
 
   auto dCount = queue.create_host_array<short, 1>(d.size());
@@ -125,7 +126,7 @@ auto StandardSynthesis<T>::collect(
 
 
   T alpha = 2.0 * M_PI / wl;
-  gemmexp<T>(queue, nEig, nPixel_, nAntenna_, alpha, vUnbeam.data(), vUnbeam.strides(1),
+  gemmexp<T>(queue, nEig, nPixel_, nAntenna, alpha, vUnbeam.data(), vUnbeam.strides(1),
              xyzCentered.data(), xyzCentered.strides(1), pixel_.slice_view(0).data(),
              pixel_.slice_view(1).data(), pixel_.slice_view(2).data(), unlayeredStats.data(),
              unlayeredStats.strides(1));

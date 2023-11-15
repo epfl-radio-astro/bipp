@@ -23,8 +23,6 @@ public:
    * Create a standard synthesis plan.
    *
    * @param[in] ctx Context handle.
-   * @param[in] nAntenna Number of antenna.
-   * @param[in] nBeam Number of beam.
    * @param[in] nIntervals Number of intervals.
    * @param[in] nFilter Number of filter.
    * @param[in] filter Array of filters of size nFilter.
@@ -33,13 +31,15 @@ public:
    * @param[in] lmnY Array of image y coordinates of size nPixel.
    * @param[in] lmnZ Array of image z coordinates of size nPixel.
    */
-  StandardSynthesis(Context& ctx, std::size_t nAntenna, std::size_t nBeam, std::size_t nIntervals,
+  StandardSynthesis(Context& ctx, std::size_t nIntervals,
                     std::size_t nFilter, const BippFilter* filter, std::size_t nPixel,
                     const T* lmnX, const T* lmnY, const T* lmnZ);
 
   /**
    * Collect radio data.
    *
+   * @param[in] nAntenna Number of antenna.
+   * @param[in] nBeam Number of beam.
    * @param[in] wl The wavelength.
    * @param[in] eigMaskFunc Function, that allows mutable access to the computed eigenvalues. Will
    * be called with the level index, number of eigenvalues and a pointer to the eigenvalue array.
@@ -50,7 +50,8 @@ public:
    * @param[in] xyz 2D antenna position array of size (nAntenna, 3).
    * @param[in] ldxyz Leading dimension of xyz.
    */
-  auto collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
+  auto collect(std::size_t nAntenna, std::size_t nBeam, T wl,
+               const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
                const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
                const T* xyz, std::size_t ldxyz) -> void;
 

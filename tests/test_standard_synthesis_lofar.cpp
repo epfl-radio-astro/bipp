@@ -103,7 +103,7 @@ protected:
     const auto pixelZ = read_json_scalar_1d<T>(output_data["pixel_z"]);
     const std::size_t nPixel = imgRef.size() / nIntervals;
 
-    bipp::StandardSynthesis<T> imager(ctx_, nAntenna, nBeam, nIntervals, 1, &filter, nPixel,
+    bipp::StandardSynthesis<T> imager(ctx_, nIntervals, 1, &filter, nPixel,
                                       pixelX.data(), pixelY.data(), pixelZ.data());
 
     // map intervals to mask
@@ -127,7 +127,8 @@ protected:
       auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
       auto s = read_json_complex_2d<ValueType>(itData["s_real"], itData["s_imag"]);
 
-      imager.collect(wl, eigMaskFunc, s.data(), nBeam, w.data(), nAntenna, xyz.data(), nAntenna);
+      imager.collect(nAntenna, nBeam, wl, eigMaskFunc, s.data(), nBeam, w.data(), nAntenna,
+                     xyz.data(), nAntenna);
       ++nEpochs;
       }
 

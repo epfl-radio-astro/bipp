@@ -33,22 +33,18 @@ static auto center_vector(std::size_t n, const T* __restrict__ in, T* __restrict
 }
 
 template <typename T>
-StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nAntenna,
-                                        std::size_t nBeam, std::size_t nIntervals,
-                                        ConstHostView<BippFilter, 1> filter,
+StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx,
+                                        std::size_t nIntervals, ConstHostView<BippFilter, 1> filter,
                                         ConstHostView<T, 1> pixelX, ConstHostView<T, 1> pixelY,
                                         ConstHostView<T, 1> pixelZ)
     : ctx_(std::move(ctx)),
       nIntervals_(nIntervals),
       nFilter_(filter.size()),
       nPixel_(pixelX.size()),
-      nAntenna_(nAntenna),
-      nBeam_(nBeam),
       count_(0),
       filter_(ctx_->host_alloc(), filter.shape()),
       pixel_(ctx_->host_alloc(), {pixelX.size(), 3}),
       img_(ctx_->host_alloc(), {nPixel_, nIntervals_, nFilter_}) {
-
   assert(pixelX.size() == pixelY.size());
   assert(pixelX.size() == pixelZ.size());
 
@@ -64,29 +60,31 @@ auto StandardSynthesis<T>::collect(
     T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
     ConstHostView<std::complex<T>, 2> s, ConstHostView<std::complex<T>, 2> w,
     ConstHostView<T, 2> xyz) -> void {
-  assert(xyz.shape(0) == nAntenna_);
+
+  const auto nAntenna = w.shape(0);
+  const auto nBeam = w.shape(1);
+
+  assert(xyz.shape(0) == nAntenna);
   assert(xyz.shape(1) == 3);
-  assert(w.shape(0) == nAntenna_);
-  assert(w.shape(1) == nBeam_);
-  assert(!s.size() || s.shape(0) == nBeam_);
-  assert(!s.size() || s.shape(1) == nBeam_);
+  assert(s.shape(0) == nBeam);
+  assert(s.shape(1) == nBeam);
 
 
-  auto vUnbeamArray = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nAntenna_, nBeam_});
+  auto vUnbeamArray = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nAntenna, nBeam});
 
-  auto dArray = HostArray<T, 1>(ctx_->host_alloc(), nBeam_);
+  auto dArray = HostArray<T, 1>(ctx_->host_alloc(), nBeam);
 
   // Center coordinates for much better performance of cos / sin
-  auto xyzCentered = HostArray<T, 2>(ctx_->host_alloc(), {nAntenna_, 3});
-  center_vector(nAntenna_, xyz.slice_view(0).data(), xyzCentered.data());
-  center_vector(nAntenna_, xyz.slice_view(1).data(), xyzCentered.slice_view(1).data());
-  center_vector(nAntenna_, xyz.slice_view(2).data(), xyzCentered.slice_view(2).data());
+  auto xyzCentered = HostArray<T, 2>(ctx_->host_alloc(), {nAntenna, 3});
+  center_vector(nAntenna, xyz.slice_view(0).data(), xyzCentered.data());
+  center_vector(nAntenna, xyz.slice_view(1).data(), xyzCentered.slice_view(1).data());
+  center_vector(nAntenna, xyz.slice_view(2).data(), xyzCentered.slice_view(2).data());
 
 
   const auto nEig = eigh<T>(*ctx_, wl, s, w, xyzCentered, dArray, vUnbeamArray);
 
   auto d = dArray.sub_view(0, nEig);
-  auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna_, nEig});
+  auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna, nEig});
 
   ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "vUnbeam", vUnbeam);
 
@@ -96,7 +94,7 @@ auto StandardSynthesis<T>::collect(
 
   for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
     copy(d, dMaskedArray.slice_view(idxInt));
-    eigMaskFunc(idxInt, nBeam_, dMaskedArray.slice_view(idxInt).data());
+    eigMaskFunc(idxInt, nBeam, dMaskedArray.slice_view(idxInt).data());
   }
 
   auto dCount = HostArray<short, 1>(ctx_->host_alloc(), d.size());
@@ -131,7 +129,7 @@ auto StandardSynthesis<T>::collect(
 
   T alpha = 2.0 * M_PI / wl;
 
-  gemmexp(nEigMasked, nPixel_, nAntenna_, alpha, vUnbeam.data(), vUnbeam.strides(1), xyzCentered.data(),
+  gemmexp(nEigMasked, nPixel_, nAntenna, alpha, vUnbeam.data(), vUnbeam.strides(1), xyzCentered.data(),
           xyzCentered.strides(1), &pixel_[{0, 0}], &pixel_[{0, 1}], &pixel_[{0, 2}],
           unlayeredStats.data(), unlayeredStats.strides(1));
   ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gemmexp", unlayeredStats);

@@ -266,8 +266,6 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_get(BippNufftSynthesisF plan, BippFil
  * Create a standard synthesis plan.
  *
  * @param[in] ctx Context handle.
- * @param[in] nAntenna Number of antenna.
- * @param[in] nBeam Number of beam.
  * @param[in] nIntervals Number of intervals.
  * @param[in] nFilter Number of filter.
  * @param[in] filter Array of filters of size nFilter.
@@ -278,8 +276,7 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_get(BippNufftSynthesisF plan, BippFil
  * @param[out] plan The output handle.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t nAntenna,
-                                                       size_t nBeam, size_t nIntervals,
+BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t nIntervals,
                                                        size_t nFilter, const BippFilter* filter,
                                                        size_t nPixel, const float* lmnX,
                                                        const float* lmnY, const float* lmnZ,
@@ -301,11 +298,10 @@ BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t n
  * @param[out] plan The output handle.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_standard_synthesis_create(BippContext ctx, size_t nAntenna, size_t nBeam,
-                                                     size_t nIntervals, size_t nFilter,
-                                                     const BippFilter* filter, size_t nPixel,
-                                                     const double* lmnX, const double* lmnY,
-                                                     const double* lmnZ,
+BIPP_EXPORT BippError bipp_standard_synthesis_create(BippContext ctx, size_t nIntervals,
+                                                     size_t nFilter, const BippFilter* filter,
+                                                     size_t nPixel, const double* lmnX,
+                                                     const double* lmnY, const double* lmnZ,
                                                      BippStandardSynthesis* plan);
 
 /**
@@ -328,6 +324,8 @@ BIPP_EXPORT BippError bipp_standard_synthesis_destroy(BippStandardSynthesis* pla
  * Collect radio data.
  *
  * @param[in] plan Plan handle.
+ * @param[in] nAntenna Number of antenna.
+ * @param[in] nBeam Number of beam.
  * @param[in] wl The wavelength.
  * @param[in] eigMaskFunc Function, that allows mutable access to the computed eigenvalues. Will
  * be called with the level index, number of eigenvalues and a pointer to the eigenvalue array.
@@ -339,7 +337,8 @@ BIPP_EXPORT BippError bipp_standard_synthesis_destroy(BippStandardSynthesis* pla
  * @param[in] ldxyz Leading dimension of xyz.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_standard_synthesis_collect_f(BippStandardSynthesisF plan, float wl,
+BIPP_EXPORT BippError bipp_standard_synthesis_collect_f(BippStandardSynthesisF plan,
+                                                        size_t nAntenna, size_t nBeam, float wl,
                                                         void (*eigMaskFunc)(size_t, size_t, float*),
                                                         const void* s, size_t lds, const void* w,
                                                         size_t ldw, const float* xyz, size_t ldxyz);
@@ -348,6 +347,8 @@ BIPP_EXPORT BippError bipp_standard_synthesis_collect_f(BippStandardSynthesisF p
  * Collect radio data.
  *
  * @param[in] plan Plan handle.
+ * @param[in] nAntenna Number of antenna.
+ * @param[in] nBeam Number of beam.
  * @param[in] wl The wavelength.
  * @param[in] eigMaskFunc Function, that allows mutable access to the computed eigenvalues. Will
  * be called with the level index, number of eigenvalues and a pointer to the eigenvalue array.
@@ -359,7 +360,8 @@ BIPP_EXPORT BippError bipp_standard_synthesis_collect_f(BippStandardSynthesisF p
  * @param[in] ldxyz Leading dimension of xyz.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_standard_synthesis_collect(BippStandardSynthesis plan, double wl,
+BIPP_EXPORT BippError bipp_standard_synthesis_collect(BippStandardSynthesis plan, size_t nAntenna,
+                                                      size_t nBeam, double wl,
                                                       void (*eigMaskFunc)(size_t, size_t, double*),
                                                       const void* s, size_t lds, const void* w,
                                                       size_t ldw, const double* xyz, size_t ldxyz);

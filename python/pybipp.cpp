@@ -131,10 +131,10 @@ auto call_eigh(Context& ctx, T wl, const py::array_t<std::complex<T>, py::array:
 }
 
 struct StandardSynthesisDispatcher {
-  StandardSynthesisDispatcher(Context& ctx, std::size_t nAntenna, std::size_t nBeam,
-                              std::size_t nIntervals, const std::vector<std::string>& filter,
-                              const py::array& pixelX, const py::array& pixelY,
-                              const py::array& pixelZ, const std::string& precision)
+  StandardSynthesisDispatcher(Context& ctx, std::size_t nIntervals,
+                              const std::vector<std::string>& filter, const py::array& pixelX,
+                              const py::array& pixelY, const py::array& pixelZ,
+                              const std::string& precision)
       : nIntervals_(nIntervals), nPixel_(pixelX.shape(0)) {
     std::vector<BippFilter> filterEnums;
     for (const auto& f : filter) {
@@ -148,7 +148,7 @@ struct StandardSynthesisDispatcher {
       check_1d_array(pixelYArray, pixelXArray.shape(0));
       check_1d_array(pixelZArray, pixelXArray.shape(0));
       plan_ = StandardSynthesis<float>(
-          ctx, nAntenna, nBeam, nIntervals, filterEnums.size(), filterEnums.data(),
+          ctx, nIntervals, filterEnums.size(), filterEnums.data(),
           pixelXArray.shape(0), pixelXArray.data(0), pixelYArray.data(0), pixelZArray.data(0));
     } else if (precision == "double" || precision == "DOUBLE") {
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> pixelXArray(pixelX);
@@ -157,9 +157,9 @@ struct StandardSynthesisDispatcher {
       check_1d_array(pixelXArray);
       check_1d_array(pixelYArray, pixelXArray.shape(0));
       check_1d_array(pixelZArray, pixelXArray.shape(0));
-      plan_ = StandardSynthesis<double>(
-          ctx, nAntenna, nBeam, nIntervals, filterEnums.size(), filterEnums.data(),
-          pixelXArray.shape(0), pixelXArray.data(0), pixelYArray.data(0), pixelZArray.data(0));
+      plan_ = StandardSynthesis<double>(ctx, nIntervals, filterEnums.size(), filterEnums.data(),
+                                        pixelXArray.shape(0), pixelXArray.data(0),
+                                        pixelYArray.data(0), pixelZArray.data(0));
     } else {
       throw InvalidParameterError();
     }
@@ -207,7 +207,7 @@ struct StandardSynthesisDispatcher {
             };
 
             std::get<StandardSynthesis<T>>(plan_).collect(
-                wl, eigMaskFuncLambda, s ? sArray.value().data(0) : nullptr,
+                nAntenna, nBeam, wl, eigMaskFuncLambda, s ? sArray.value().data(0) : nullptr,
                 safe_cast<std::size_t>(sArray.value().strides(1) / sArray.value().itemsize()),
                 wArray.data(0), safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()),
                 xyzArray.data(0),
@@ -424,12 +424,11 @@ PYBIND11_MODULE(pybipp, m) {
       .def("get", &NufftSynthesisDispatcher::get, pybind11::arg("f"));
 
   pybind11::class_<StandardSynthesisDispatcher>(m, "StandardSynthesis")
-      .def(pybind11::init<Context&, std::size_t, std::size_t, std::size_t,
-                          const std::vector<std::string>&, const py::array&, const py::array&,
-                          const py::array&, const std::string&>(),
-           pybind11::arg("ctx"), pybind11::arg("n_antenna"), pybind11::arg("n_beam"),
-           pybind11::arg("n_intervals"), pybind11::arg("filter"), pybind11::arg("lmn_x"),
-           pybind11::arg("lmn_y"), pybind11::arg("lmn_y"), pybind11::arg("precision"))
+      .def(pybind11::init<Context&, std::size_t, const std::vector<std::string>&, const py::array&,
+                          const py::array&, const py::array&, const std::string&>(),
+           pybind11::arg("ctx"), pybind11::arg("n_intervals"), pybind11::arg("filter"),
+           pybind11::arg("lmn_x"), pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
+           pybind11::arg("precision"))
       .def("collect", &StandardSynthesisDispatcher::collect, pybind11::arg("wl"),
            pybind11::arg("mask"), pybind11::arg("w"), pybind11::arg("xyz"),
            pybind11::arg("s") = std::optional<pybind11::array>())
