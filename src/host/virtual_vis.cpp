@@ -11,8 +11,8 @@
 #include "bipp/config.h"
 #include "host/blas_api.hpp"
 #include "host/kernels/apply_filter.hpp"
-#include "host/kernels/interval_indices.hpp"
 #include "memory/array.hpp"
+#include "memory/copy.hpp"
 #include "memory/view.hpp"
 
 namespace bipp {
@@ -20,51 +20,60 @@ namespace host {
 
 template <typename T>
 auto virtual_vis(ContextInternal& ctx, ConstHostView<BippFilter, 1> filter,
-                 ConstHostView<T, 2> intervals, ConstHostView<T, 1> d,
-                 ConstHostView<std::complex<T>, 2> v, HostView<std::complex<T>, 3> virtVis)
-    -> void {
+                 ConstHostView<T, 2> dMasked, ConstHostView<std::complex<T>, 2> vAll,
+                 HostView<std::complex<T>, 3> virtVis) -> void {
   assert(filter.size() == virtVis.shape(2));
-  assert(intervals.shape(1) == virtVis.shape(1));
-  assert(v.shape(0) * v.shape(0) == virtVis.shape(0));
-  assert(v.shape(1) == d.size());
+  assert(dMasked.shape(1) == virtVis.shape(1));
+  assert(vAll.shape(0) * vAll.shape(0) == virtVis.shape(0));
+  assert(vAll.shape(1) == dMasked.shape(0));
 
-  const auto nAntenna = v.shape(0);
+  const auto nAntenna = vAll.shape(0);
 
-  auto vScaled = HostArray<std::complex<T>, 2>(ctx.host_alloc(), v.shape());
-  auto dFiltered = HostArray<T, 1>(ctx.host_alloc(), d.shape());
+  auto vArray = HostArray<std::complex<T>, 2>(ctx.host_alloc(), vAll.shape());
+  auto vScaledArray = HostArray<std::complex<T>, 2>(ctx.host_alloc(), vAll.shape());
+  auto dFilteredArray = HostArray<T, 1>(ctx.host_alloc(), dMasked.shape(0));
+  auto dArray = HostArray<T, 1>(ctx.host_alloc(), dMasked.shape(0));
 
-  for (std::size_t i = 0; i < virtVis.shape(2); ++i) {
-    apply_filter(filter[{i}], d.size(), d.data(), dFiltered.data());
+  for (std::size_t idxLevel = 0; idxLevel < virtVis.shape(1); ++idxLevel) {
+    // only consider non-zero eigenvalues
+    std::size_t nEig = 0;
+    for (std::size_t idxEig = 0; idxEig < dMasked.shape(0); ++idxEig) {
+      if (dMasked[{idxEig, idxLevel}]) {
+        copy(vAll.slice_view(idxEig), vArray.slice_view(nEig));
+        dArray[nEig] = dMasked[{idxEig, idxLevel}];
+        ++nEig;
+      }
+    }
 
-    for (std::size_t j = 0; j < virtVis.shape(1); ++j) {
-      std::size_t start, size;
-      std::tie(start, size) =
-          find_interval_indices(d.size(), d.data(), intervals[{0, j}], intervals[{1, j}]);
+    auto v = vArray.sub_view({0, 0}, {vArray.shape(0), nEig});
+    auto vScaled = vScaledArray.sub_view({0, 0}, {vArray.shape(0), nEig});
+    auto d = dArray.sub_view(0, nEig);
+    auto dFiltered = dFilteredArray.sub_view(0, nEig);
 
-      auto virtVisCurrent = virtVis.slice_view(i).slice_view(j);
-      if (size) {
-        // Multiply each col of v with the selected eigenvalue
-        auto vScaledCurrent = vScaled.sub_view({0, 0}, {vScaled.shape(0), size});
-        auto vCurrent = v.sub_view({0, start}, {v.shape(0), size});
-        for (std::size_t k = 0; k < size; ++k) {
-          const auto dVal = dFiltered[{start + k}];
-          auto* __restrict__ vScaledPtr = &vScaledCurrent[{0, k}];
-          const auto* __restrict__ vPtr = &vCurrent[{0,k}];
+    for (std::size_t idxFilter = 0; idxFilter < virtVis.shape(2); ++idxFilter) {
+      auto virtVisCurrent = virtVis.slice_view(idxFilter).slice_view(idxLevel);
+      if (nEig) {
+        apply_filter(filter[idxFilter], nEig, d.data(), dFiltered.data());
+
+        for (std::size_t idxEig = 0; idxEig < nEig; ++idxEig) {
+          const auto dVal = dFiltered[idxEig];
+          auto* __restrict__ vScaledPtr = &vScaled[{0, idxEig}];
+          const auto* __restrict__ vPtr = &v[{0, idxEig}];
 
           ctx.logger().log(BIPP_LOG_LEVEL_DEBUG,
-                           "Assigning eigenvalue {} (filtered {}) to inverval [{}, {}]",
-                           d[{start + k}], dVal, intervals[{0, j}], intervals[{1, j}]);
+                           "Assigning eigenvalue {} (filtered {}) to level {}", d[idxEig], dVal,
+                           idxLevel);
           for (std::size_t l = 0; l < v.shape(0); ++l) {
             vScaledPtr[l] = vPtr[l] * dVal;
           }
         }
 
-        // Matrix multiplication of the previously scaled v and the original v
+        // Matrix multiplication of the previously scaled vAll and the original vAll
         // with the selected eigenvalues
         // Also reshape virtualVis to nAntenna x nAntenna matrix
         assert(virtVisCurrent.size() == nAntenna * nAntenna);
         blas::gemm<std::complex<T>>(
-            CblasNoTrans, CblasConjTrans, {1, 0}, vScaledCurrent, vCurrent, {0, 0},
+            CblasNoTrans, CblasConjTrans, {1, 0}, vScaled, v, {0, 0},
             HostView<std::complex<T>, 2>(virtVisCurrent.data(), {nAntenna, nAntenna},
                                          {1, nAntenna}));
 
@@ -76,12 +85,12 @@ auto virtual_vis(ContextInternal& ctx, ConstHostView<BippFilter, 1> filter,
 }
 
 template auto virtual_vis<float>(ContextInternal& ctx, ConstHostView<BippFilter, 1> filter,
-                                 ConstHostView<float, 2> intervals, ConstHostView<float, 1> d,
+                                 ConstHostView<float, 2> dMasked,
                                  ConstHostView<std::complex<float>, 2> v,
                                  HostView<std::complex<float>, 3> virtVis) -> void;
 
 template auto virtual_vis<double>(ContextInternal& ctx, ConstHostView<BippFilter, 1> filter,
-                                  ConstHostView<double, 2> intervals, ConstHostView<double, 1> d,
+                                  ConstHostView<double, 2> dMasked,
                                   ConstHostView<std::complex<double>, 2> v,
                                   HostView<std::complex<double>, 3> virtVis) -> void;
 

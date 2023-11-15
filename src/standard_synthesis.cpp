@@ -75,7 +75,7 @@ struct StandardSynthesisInternal {
     }
   }
 
-  void collect(T wl, std::function<void(std::size_t, std::size_t, T*)> eigMaskFunc,
+  void collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
                const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
                const T* xyz, std::size_t ldxyz) {
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "------------");
@@ -120,8 +120,8 @@ struct StandardSynthesisInternal {
           {1, ldw});
       ConstDeviceAccessor<T, 2> xyzDevice(queue, xyz, {nAntenna_, 3}, {1, ldxyz});
 
-      // planGPU_->collect(nEig, wl, hostIntervals.view(), sHost.view(), sDevice.view(),
-                        // wDevice.view(), xyzDevice.view());
+      planGPU_->collect(wl, eigMaskFunc, sHost.view(), sDevice.view(), wDevice.view(),
+                        xyzDevice.view());
 #else
       throw GPUSupportError();
 #endif
@@ -195,11 +195,10 @@ StandardSynthesis<T>::StandardSynthesis(Context& ctx, std::size_t nAntenna, std:
 }
 
 template <typename T>
-auto StandardSynthesis<T>::collect(T wl,
-                                   std::function<void(std::size_t, std::size_t, T*)> eigMaskFunc,
-                                   const std::complex<T>* s, std::size_t lds,
-                                   const std::complex<T>* w, std::size_t ldw, const T* xyz,
-                                   std::size_t ldxyz) -> void {
+auto StandardSynthesis<T>::collect(
+    T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
+    const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
+    const T* xyz, std::size_t ldxyz) -> void {
   try {
     reinterpret_cast<StandardSynthesisInternal<T>*>(plan_.get())
         ->collect(wl, eigMaskFunc, s, lds, w, ldw, xyz, ldxyz);

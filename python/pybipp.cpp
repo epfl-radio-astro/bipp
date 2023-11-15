@@ -291,16 +291,16 @@ struct NufftSynthesisDispatcher {
 
   NufftSynthesisDispatcher& operator=(const NufftSynthesisDispatcher&) = delete;
 
-  auto collect(std::size_t nEig, double wl, pybind11::array intervals, pybind11::array w,
-               pybind11::array xyz, pybind11::array uvw, std::optional<pybind11::array> s) -> void {
+  auto collect(double wl,
+               const std::function<pybind11::array(std::size_t, pybind11::array)>& eigMaskFunc,
+               pybind11::array w, pybind11::array xyz, pybind11::array uvw, pybind11::array s)
+      -> void {
     std::visit(
         [&](auto&& arg) -> void {
           using variantType = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<variantType, NufftSynthesis<float>> ||
                         std::is_same_v<variantType, NufftSynthesis<double>>) {
             using T = typename variantType::valueType;
-            py::array_t<T, py::array::c_style | py::array::forcecast> intervalsArray(intervals);
-            check_2d_array(intervalsArray, {static_cast<long>(nIntervals_), 2});
             py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast> wArray(w);
             check_2d_array(wArray);
             auto nAntenna = wArray.shape(0);
@@ -310,22 +310,26 @@ struct NufftSynthesisDispatcher {
             py::array_t<T, py::array::f_style | py::array::forcecast> uvwArray(uvw);
             check_2d_array(uvwArray, {nAntenna * nAntenna, 3});
 
-            std::optional<py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast>>
-                sArray;
-            if (s) {
-              sArray = py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast>(
-                  s.value());
-              check_2d_array(sArray.value(), {nBeam, nBeam});
-            }
+            auto sArray =
+                py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast>(s);
+            check_2d_array(sArray, {nBeam, nBeam});
+
+            auto eigMaskFuncLambda = [&](std::size_t idxBin, std::size_t nEig, T* d) {
+              py::array_t<T> dArray(nEig);
+              std::memcpy(dArray.mutable_data(0), d, nEig * sizeof(T));
+
+              py::array_t<T, py::array::f_style | py::array::forcecast> dNew(
+                  eigMaskFunc(idxBin, dArray));
+              check_1d_array(dNew, nEig);
+
+              std::memcpy(d, dNew.data(0), nEig * sizeof(T));
+            };
+
             std::get<NufftSynthesis<T>>(plan_).collect(
-                nEig, wl, intervalsArray.data(0),
-                safe_cast<std::size_t>(intervals.strides(0) / intervals.itemsize()),
-                s ? sArray.value().data(0) : nullptr,
-                s ? safe_cast<std::size_t>(sArray.value().strides(1) / sArray.value().itemsize())
-                  : 0,
-                wArray.data(0), safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()),
-                xyzArray.data(0), safe_cast<std::size_t>(xyzArray.strides(1) / xyzArray.itemsize()),
-                uvwArray.data(0),
+                wl, eigMaskFuncLambda, sArray.data(0),
+                safe_cast<std::size_t>(sArray.strides(1) / sArray.itemsize()), wArray.data(0),
+                safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()), xyzArray.data(0),
+                safe_cast<std::size_t>(xyzArray.strides(1) / xyzArray.itemsize()), uvwArray.data(0),
                 safe_cast<std::size_t>(uvwArray.strides(1) / uvwArray.itemsize()));
 
           } else {
@@ -414,9 +418,8 @@ PYBIND11_MODULE(pybipp, m) {
            pybind11::arg("n_beam"), pybind11::arg("n_intervals"), pybind11::arg("filter"),
            pybind11::arg("lmn_x"), pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
            pybind11::arg("precision"))
-      .def("collect", &NufftSynthesisDispatcher::collect, pybind11::arg("n_eig"),
-           pybind11::arg("wl"), pybind11::arg("intervals"), pybind11::arg("w"),
-           pybind11::arg("xyz"), pybind11::arg("uvw"),
+      .def("collect", &NufftSynthesisDispatcher::collect, pybind11::arg("wl"),
+           pybind11::arg("mask"), pybind11::arg("w"), pybind11::arg("xyz"), pybind11::arg("uvw"),
            pybind11::arg("s") = std::optional<pybind11::array>())
       .def("get", &NufftSynthesisDispatcher::get, pybind11::arg("f"));
 

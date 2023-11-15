@@ -51,7 +51,7 @@ public:
    * @param[in] xyz 2D antenna position array of size (nAntenna, 3).
    * @param[in] ldxyz Leading dimension of xyz.
    */
-  auto collect(T wl, std::function<void(std::size_t, std::size_t, T*)> eigMaskFunc,
+  auto collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
                const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
                const T* xyz, std::size_t ldxyz) -> void;
 

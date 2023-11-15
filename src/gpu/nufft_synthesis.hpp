@@ -17,7 +17,7 @@ public:
                  std::size_t nAntenna, std::size_t nBeam, std::size_t nIntervals,
                  HostArray<BippFilter, 1> filter, DeviceArray<T, 2> pixel);
 
-  auto collect(std::size_t nEig, T wl, ConstHostView<T, 2> intervals,
+  auto collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
                ConstHostView<api::ComplexType<T>, 2> sHost,
                ConstDeviceView<api::ComplexType<T>, 2> s, ConstDeviceView<api::ComplexType<T>, 2> w,
                ConstDeviceView<T, 2> xyz, ConstDeviceView<T, 2> uvw) -> void;

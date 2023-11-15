@@ -22,7 +22,7 @@ public:
                  ConstHostView<BippFilter, 1> filter, ConstHostView<T, 1> pixelX,
                  ConstHostView<T, 1> pixelY, ConstHostView<T, 1> pixelZ);
 
-  auto collect(std::size_t nEig, T wl, ConstHostView<T, 2> intervals,
+  auto collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
                ConstHostView<std::complex<T>, 2> s, ConstHostView<std::complex<T>, 2> w,
                ConstHostView<T, 2> xyz, ConstHostView<T, 2> uvw) -> void;
 

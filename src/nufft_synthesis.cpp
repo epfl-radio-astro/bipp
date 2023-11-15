@@ -77,17 +77,15 @@ struct NufftSynthesisInternal {
     }
   }
 
-  void collect(std::size_t nEig, T wl, const T* intervals, std::size_t ldIntervals,
+  void collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
                const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
                const T* xyz, std::size_t ldxyz, const T* uvw, std::size_t lduvw) {
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "------------");
-    ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
-                       "{} NufftSynthesis.collect({}, {}, {}, {}, {} ,{} ,{} {}, {}, {}, {}, {})",
-                       (const void*)this, nEig, wl, (const void*)intervals, ldIntervals,
-                       (const void*)s, lds, (const void*)w, ldw, (const void*)xyz, ldxyz,
-                       (const void*)uvw, lduvw);
-    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "intervals", 2, nIntervals_, intervals,
-                              ldIntervals);
+    // ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
+    //                    "{} NufftSynthesis.collect({}, {}, {}, {}, {} ,{} ,{} {}, {}, {}, {}, {})",
+    //                    (const void*)this, nEig, wl, (const void*)intervals, ldIntervals,
+    //                    (const void*)s, lds, (const void*)w, ldw, (const void*)xyz, ldxyz,
+    //                    (const void*)uvw, lduvw);
     if (s) ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "S", nBeam_, nBeam_, s, lds);
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "W", nAntenna_, nBeam_, w, ldw);
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "XYZ", nAntenna_, 3, xyz, ldxyz);
@@ -98,9 +96,8 @@ struct NufftSynthesisInternal {
     if (planHost_) {
       auto& p = planHost_.value();
       planHost_.value().collect(
-          nEig, wl, ConstHostView<T, 2>(intervals, {2, p.num_intervals()}, {1, ldIntervals}),
-          s ? ConstHostView<std::complex<T>, 2>(s, {p.num_beam(), p.num_beam()}, {1, lds})
-            : ConstHostView<std::complex<T>, 2>{},
+          wl, eigMaskFunc,
+          ConstHostView<std::complex<T>, 2>(s, {p.num_beam(), p.num_beam()}, {1, lds}),
           ConstHostView<std::complex<T>, 2>(w, {p.num_antenna(), p.num_beam()}, {1, ldw}),
           ConstHostView<T, 2>(xyz, {p.num_antenna(), 3}, {1, ldxyz}),
           ConstHostView<T, 2>(uvw, {p.num_antenna() * p.num_antenna(), 3}, {1, lduvw}));
@@ -115,7 +112,6 @@ struct NufftSynthesisInternal {
       typename View<T, 2>::IndexType sShape = {0, 0};
       if (s) sShape = {nBeam_, nBeam_};
 
-      ConstHostAccessor<T, 2> hostIntervals(queue, intervals, {2, nIntervals_}, {1, ldIntervals});
       ConstHostAccessor<gpu::api::ComplexType<T>, 2> sHost(
           queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(s), sShape, {1, lds});
       queue.sync();  // make sure it's accessible after construction
@@ -128,8 +124,8 @@ struct NufftSynthesisInternal {
       ConstDeviceAccessor<T, 2> xyzDevice(queue, xyz, {nAntenna_, 3}, {1, ldxyz});
       ConstDeviceAccessor<T, 2> uvwDevice(queue, uvw, {nAntenna_ * nAntenna_, 3}, {1, lduvw});
 
-      planGPU_->collect(nEig, wl, hostIntervals.view(), sHost.view(), sDevice.view(),
-                        wDevice.view(), xyzDevice.view(), uvwDevice.view());
+      planGPU_->collect(wl, eigMaskFunc, sHost.view(), sDevice.view(), wDevice.view(),
+                        xyzDevice.view(), uvwDevice.view());
 #else
       throw GPUSupportError();
 #endif
@@ -202,13 +198,13 @@ NufftSynthesis<T>::NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::
 }
 
 template <typename T>
-auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, const T* intervals, std::size_t ldIntervals,
+auto NufftSynthesis<T>::collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
                                 const std::complex<T>* s, std::size_t lds, const std::complex<T>* w,
                                 std::size_t ldw, const T* xyz, std::size_t ldxyz, const T* uvw,
                                 std::size_t lduvw) -> void {
   try {
     reinterpret_cast<NufftSynthesisInternal<T>*>(plan_.get())
-        ->collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz, uvw, lduvw);
+        ->collect(wl, eigMaskFunc, s, lds, w, ldw, xyz, ldxyz, uvw, lduvw);
   } catch (const std::exception& e) {
     try {
       reinterpret_cast<NufftSynthesisInternal<T>*>(plan_.get())
@@ -434,9 +430,9 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_collect_f(BippNufftSynthesisF plan, s
     return BIPP_INVALID_HANDLE_ERROR;
   }
   try {
-    reinterpret_cast<NufftSynthesis<float>*>(plan)->collect(
-        nEig, wl, intervals, ldIntervals, reinterpret_cast<const std::complex<float>*>(s), lds,
-        reinterpret_cast<const std::complex<float>*>(w), ldw, xyz, ldxyz, uvw, lduvw);
+    // reinterpret_cast<NufftSynthesis<float>*>(plan)->collect(
+    //     nEig, wl, intervals, ldIntervals, reinterpret_cast<const std::complex<float>*>(s), lds,
+    //     reinterpret_cast<const std::complex<float>*>(w), ldw, xyz, ldxyz, uvw, lduvw);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -506,9 +502,9 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_collect(BippNufftSynthesis plan, size
     return BIPP_INVALID_HANDLE_ERROR;
   }
   try {
-    reinterpret_cast<NufftSynthesis<double>*>(plan)->collect(
-        nEig, wl, intervals, ldIntervals, reinterpret_cast<const std::complex<double>*>(s), lds,
-        reinterpret_cast<const std::complex<double>*>(w), ldw, xyz, ldxyz, uvw, lduvw);
+    // reinterpret_cast<NufftSynthesis<double>*>(plan)->collect(
+    //     nEig, wl, intervals, ldIntervals, reinterpret_cast<const std::complex<double>*>(s), lds,
+    //     reinterpret_cast<const std::complex<double>*>(w), ldw, xyz, ldxyz, uvw, lduvw);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {

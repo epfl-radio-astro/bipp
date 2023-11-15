@@ -85,15 +85,13 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
 }
 
 template <typename T>
-auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> intervals,
-                                ConstHostView<api::ComplexType<T>, 2> sHost,
-                                ConstDeviceView<api::ComplexType<T>, 2> s,
-                                ConstDeviceView<api::ComplexType<T>, 2> w,
-                                ConstDeviceView<T, 2> xyz, ConstDeviceView<T, 2> uvw) -> void {
+auto NufftSynthesis<T>::collect(
+    T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
+    ConstHostView<api::ComplexType<T>, 2> sHost, ConstDeviceView<api::ComplexType<T>, 2> s,
+    ConstDeviceView<api::ComplexType<T>, 2> w, ConstDeviceView<T, 2> xyz, ConstDeviceView<T, 2> uvw)
+    -> void {
   assert(xyz.shape(0) == nAntenna_);
   assert(xyz.shape(1) == 3);
-  assert(intervals.shape(1) == nIntervals_);
-  assert(intervals.shape(0) == 2);
   assert(w.shape(0) == nAntenna_);
   assert(w.shape(1) == nBeam_);
   assert(!s.size() || s.shape(0) == nBeam_);
@@ -107,18 +105,28 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
   copy(queue, uvw,
        uvw_.sub_view({collectCount_ * nAntenna_ * nAntenna_, 0}, {nAntenna_ * nAntenna_, 3}));
 
-  auto v = queue.create_device_array<api::ComplexType<T>, 2>({nBeam_, nEig});
+
   auto vUnbeamArray = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna_, nBeam_});
   auto dArray = queue.create_device_array<T, 1>(nBeam_);
 
-  eigh<T>(*ctx_, wl, s, w, xyz, dArray, vUnbeamArray);
+  const auto nEig = eigh<T>(*ctx_, wl, s, w, xyz, dArray, vUnbeamArray);
 
-
-  auto vUnbeam = vUnbeamArray.sub_view({0, nBeam_ - nEig}, {nAntenna_, nEig});
-
-  auto d = dArray.sub_view(nBeam_ - nEig, nEig);
+  auto d = dArray.sub_view(0, nEig);
+  auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna_, nEig});
 
   ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "vUnbeam", vUnbeam);
+
+  // callback for each level with eigenvalues
+  auto dMaskedArray = queue.create_host_array<T, 2>({d.size(), nIntervals_});
+  auto dHost = queue.create_host_array<T, 1>(d.size());
+  copy(queue, d, dHost);
+
+  queue.sync(); // make sure d is on host
+
+  for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
+    copy(dHost, dMaskedArray.slice_view(idxInt));
+    eigMaskFunc(idxInt, nBeam_, dMaskedArray.slice_view(idxInt).data());
+  }
 
   // slice virtual visibility for current step
   auto virtVisCurrent =
@@ -126,7 +134,7 @@ auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, ConstHostView<T, 2> inte
                            {nAntenna_ * nAntenna_, virtualVis_.shape(1), virtualVis_.shape(2)});
 
   // compute virtual visibilities
-  virtual_vis<T>(*ctx_, filter_, intervals, d, vUnbeam, virtVisCurrent);
+  virtual_vis<T>(*ctx_, filter_, dMaskedArray, vUnbeam, virtVisCurrent);
 
   ++collectCount_;
   ++totalCollectCount_;

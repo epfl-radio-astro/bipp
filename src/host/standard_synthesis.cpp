@@ -13,7 +13,6 @@
 #include "host/gram_matrix.hpp"
 #include "host/kernels/apply_filter.hpp"
 #include "host/kernels/gemmexp.hpp"
-#include "host/kernels/interval_indices.hpp"
 #include "memory/allocator.hpp"
 #include "memory/copy.hpp"
 #include "memory/array.hpp"
@@ -61,25 +60,21 @@ StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, st
 }
 
 template <typename T>
-auto StandardSynthesis<T>::collect(T wl, std::function<void(std::size_t, std::size_t, T*)> eigMaskFunc,
-                                   ConstHostView<std::complex<T>, 2> s,
-                                   ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz)
-    -> void {
+auto StandardSynthesis<T>::collect(
+    T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
+    ConstHostView<std::complex<T>, 2> s, ConstHostView<std::complex<T>, 2> w,
+    ConstHostView<T, 2> xyz) -> void {
   assert(xyz.shape(0) == nAntenna_);
   assert(xyz.shape(1) == 3);
-  assert(intervals.shape(1) == nIntervals_);
-  assert(intervals.shape(0) == 2);
   assert(w.shape(0) == nAntenna_);
   assert(w.shape(1) == nBeam_);
   assert(!s.size() || s.shape(0) == nBeam_);
   assert(!s.size() || s.shape(1) == nBeam_);
 
-  const auto nEig = nBeam_; // TODO remove
 
   auto vUnbeamArray = HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {nAntenna_, nBeam_});
 
   auto dArray = HostArray<T, 1>(ctx_->host_alloc(), nBeam_);
-  auto dFiltered = HostArray<T, 1>(ctx_->host_alloc(), nEig);
 
   // Center coordinates for much better performance of cos / sin
   auto xyzCentered = HostArray<T, 2>(ctx_->host_alloc(), {nAntenna_, 3});
@@ -88,50 +83,72 @@ auto StandardSynthesis<T>::collect(T wl, std::function<void(std::size_t, std::si
   center_vector(nAntenna_, xyz.slice_view(2).data(), xyzCentered.slice_view(2).data());
 
 
-  eigh<T>(*ctx_, wl, s, w, xyzCentered, dArray, vUnbeamArray);
+  const auto nEig = eigh<T>(*ctx_, wl, s, w, xyzCentered, dArray, vUnbeamArray);
 
-  auto vUnbeam = vUnbeamArray.sub_view({0, nBeam_ - nEig}, {nAntenna_, nEig});
-  auto d = dArray.sub_view(nBeam_ - nEig, nEig);
+  auto d = dArray.sub_view(0, nEig);
+  auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna_, nEig});
 
   ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "vUnbeam", vUnbeam);
 
-  auto dMasked = HostArray<T, 2>(ctx_->host_alloc(), {d.size(), nIntervals_});
 
-  auto start = std::chrono::high_resolution_clock::now();
+  // callback for each level with eigenvalues
+  auto dMaskedArray = HostArray<T, 2>(ctx_->host_alloc(), {d.size(), nIntervals_});
+
   for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
-    copy(d, dMasked.slice_view(idxInt));
-    eigMaskFunc(idxInt, nBeam_, dMasked.slice_view(idxInt).data());
+    copy(d, dMaskedArray.slice_view(idxInt));
+    eigMaskFunc(idxInt, nBeam_, dMaskedArray.slice_view(idxInt).data());
   }
 
-  auto end = std::chrono::high_resolution_clock::now();
-  // const auto time = std::chrono::duration_cast<std::chrono::milliseconds>(
-  //     std::chrono::high_resolution_clock::now() - start);
-  const std::chrono::duration<double> elapsed_seconds{end - start};
-  printf("callback time [s]: %f\n", elapsed_seconds.count());
+  auto dCount = HostArray<short, 1>(ctx_->host_alloc(), d.size());
+  dCount.zero();
+  for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
+    auto mask = dMaskedArray.slice_view(idxInt);
+    for(std::size_t i = 0; i < mask.size(); ++i) {
+      dCount[i] |= mask[i] != 0;
+    }
+  }
 
-  // TODO: gather only selected eigenvalues to reduce amount of calc in gemmexp
+  // remove any eigenvalue that is zero for all levels
+  // by copying forward
+  std::size_t nEigRemoved = 0;
+  for (std::size_t i = 0; i < nEig; ++i) {
+    if(dCount[i]) {
+      if(nEigRemoved) {
+        copy(vUnbeam.slice_view(i), vUnbeam.slice_view(i - nEigRemoved));
+        for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
+          dMaskedArray[{i - nEigRemoved, idxInt}] = dMaskedArray[{i, idxInt}];
+        }
+      }
+    } else {
+      ++nEigRemoved;
+    }
+  }
 
-  auto unlayeredStats = HostArray<T, 2>(ctx_->host_alloc(), {nPixel_, nEig});
+  const auto nEigMasked = nEig - nEigRemoved;
+
+  auto unlayeredStats = HostArray<T, 2>(ctx_->host_alloc(), {nPixel_, nEigMasked});
+  auto dMasked = dMaskedArray.sub_view({0, 0}, {nEigMasked, dMaskedArray.shape(1)});
 
   T alpha = 2.0 * M_PI / wl;
 
-  gemmexp(nEig, nPixel_, nAntenna_, alpha, vUnbeam.data(), vUnbeam.strides(1), xyzCentered.data(),
+  gemmexp(nEigMasked, nPixel_, nAntenna_, alpha, vUnbeam.data(), vUnbeam.strides(1), xyzCentered.data(),
           xyzCentered.strides(1), &pixel_[{0, 0}], &pixel_[{0, 1}], &pixel_[{0, 2}],
           unlayeredStats.data(), unlayeredStats.strides(1));
-  ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gemmexp", nPixel_, nEig, unlayeredStats.data(),
-                            nPixel_);
+  ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gemmexp", unlayeredStats);
 
-  // cluster eigenvalues / vectors based on invervals
+  auto dFiltered = HostArray<T, 1>(ctx_->host_alloc(), nEigMasked);
+
+  // cluster eigenvalues / vectors based on mask
   for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
     for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
       auto dMaskedSlice = dMasked.slice_view(idxInt);
 
-      apply_filter(filter_[{idxFilter}], nEig, dMaskedSlice.data(), dFiltered.data());
+      apply_filter(filter_[idxFilter], nEigMasked, dMaskedSlice.data(), dFiltered.data());
 
       auto imgCurrent = img_.slice_view(idxFilter).slice_view(idxInt);
-      for (std::size_t idxEig = 0; idxEig < nBeam_; ++idxEig) {
+      for (std::size_t idxEig = 0; idxEig < dMaskedSlice.size(); ++idxEig) {
         if (dMaskedSlice[idxEig]) {
-          const auto scale = dFiltered[{idxEig}];
+          const auto scale = dFiltered[idxEig];
 
           ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
                              "Assigning eigenvalue {} (filtered {}) to bin {}",

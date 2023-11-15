@@ -150,7 +150,7 @@ public:
    * 3).
    * @param[in] lduvw Leading dimension of uvw.
    */
-  auto collect(std::size_t nEig, T wl, const T* intervals, std::size_t ldIntervals,
+  auto collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
                const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
                const T* xyz, std::size_t ldxyz, const T* uvw, std::size_t lduvw) -> void;
 
