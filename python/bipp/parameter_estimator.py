@@ -119,6 +119,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         # Collected data.
         self._d_all = []
         self._ctx = ctx
+        self._inferred = False
 
     def collect(self, wl, S, W, XYZ):
         """
@@ -136,6 +137,15 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
         D = D[idx]
         self._d_all.append(D)
+        self._inferred = False
+
+    def __call__(self, level, D):
+        if not self._inferred:
+            self.infer_parameters()
+        D *= (D>=self._intervals[level, 0]) * (D<=self._intervals[level,1])
+        if self._N_eig < len(D):
+            D[0:-self._N_eig] = 0
+        return D
 
     def infer_parameters(self):
         """
@@ -148,33 +158,6 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         cluster_intervals : :py:class:`~numpy.ndarray`
             (N_level,2) intensity field cluster intervals.
         """
-        #  N_data = len(self._visibilities)
-        #  N_beam = N_eig_max = self._visibilities[0].shape[0]
-
-        #  if self._N_level > N_beam:
-        #      raise ValueError(
-        #          f"Initialization parameter N_level (set to {self._N_level}) cannot exceed the number of beams ({N_beam})."
-        #      )
-
-        #  D_all = np.zeros((N_data, N_eig_max))
-        #  for i, (S, G) in enumerate(zip(self._visibilities, self._grams)):
-        #      # Remove broken BEAM_IDs
-        #      broken_row_id = np.flatnonzero(
-        #          np.isclose(np.sum(S.data, axis=0), np.sum(S.data, axis=1))
-        #      )
-        #      working_row_id = list(set(np.arange(N_beam)) - set(broken_row_id))
-        #      idx = np.ix_(working_row_id, working_row_id)
-        #      S, G = S.data[idx], G.data[idx]
-
-        #      # Functional PCA
-        #      if not np.allclose(S, 0):
-        #          _, D, _ = bipp.pybipp.eigh(self._ctx, S.data.shape[0], S.data, G.data)
-        #          # only consider positive eigenvalues, since we apply the log function for clustering
-        #          D = D[D > 0.0]
-        #          idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
-        #          D = D[idx]
-        #          D_all[i, : len(D)] = D
-
         D_all = np.concatenate(self._d_all)
         kmeans = skcl.KMeans(n_clusters=self._N_level).fit(np.log(D_all).reshape(-1, 1))
 
@@ -188,7 +171,10 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         N_eig = max(int(np.ceil(len(D_all) / len(self._d_all))), self._N_level)
         cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1]
 
-        return N_eig, centroid_to_intervals(cluster_centroid)
+        self._inferred = True
+        self._N_eig = N_eig
+        self._intervals = centroid_to_intervals(cluster_centroid)
+        return N_eig, self._intervals
 
 
 class SensitivityFieldParameterEstimator(ParameterEstimator):

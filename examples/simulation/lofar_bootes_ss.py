@@ -28,6 +28,14 @@ import bipp.statistics as statistics
 import bipp.instrument as instrument
 import bipp
 
+
+
+def my_test(n, d):
+    return I_est(n,d)
+    #  d *= (d < 10.0) & (d > 2.0)
+    #  return d
+
+
 # Create context with selected processing unit.
 # Options are "AUTO", "CPU" and "GPU".
 ctx = bipp.Context("AUTO")
@@ -81,14 +89,11 @@ for t in ProgressBar(time[::200]):
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
     I_est.collect(wl, S.data, W.data, XYZ.data)
-N_eig, intensity_intervals = I_est.infer_parameters()
 
 # Imaging
 imager = bipp.StandardSynthesis(
     ctx,
-    N_antenna,
-    N_station,
-    intensity_intervals.shape[0],
+    N_level,
     ["LSQ", "STD"],
     px_grid[0],
     px_grid[1],
@@ -100,53 +105,20 @@ for t in ProgressBar(time[::25]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    imager.collect(N_eig, wl, intensity_intervals, W.data, XYZ.data, S.data)
+    imager.collect(wl, my_test, W.data, XYZ.data, S.data)
 
 I_lsq = imager.get("LSQ").reshape((-1, px_w, px_h))
 I_std = imager.get("STD").reshape((-1, px_w, px_h))
 
-### Sensitivity Field =========================================================
-# Parameter Estimation
-S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95, ctx=ctx)
-for t in ProgressBar(time[::200]):
-    XYZ = dev(t)
-    W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
-
-    S_est.collect(G)
-N_eig = S_est.infer_parameters()
-
-# Imaging
-sensitivity_intervals = np.array([[0, np.finfo("f").max]])
-imager = None  # release previous imager first to some additional memory
-imager = bipp.StandardSynthesis(
-    ctx,
-    N_antenna,
-    N_station,
-    sensitivity_intervals.shape[0],
-    ["STD"],
-    px_grid[0],
-    px_grid[1],
-    px_grid[2],
-    precision,
-)
-
-for t in ProgressBar(time[::25]):
-    XYZ = dev(t)
-    W = mb(XYZ, wl)
-    imager.collect(N_eig, wl, sensitivity_intervals, W.data, XYZ.data)
-
-sensitivity_image = imager.get("STD").reshape((-1, px_w, px_h))
-
 # Plot Results ================================================================
 fig, ax = plt.subplots(ncols=2)
-I_std_eq = s2image.Image(I_std / sensitivity_image, px_grid.reshape(3, px_w, px_h))
+I_std_eq = s2image.Image(I_std, px_grid.reshape(3, px_w, px_h))
 I_std_eq.draw(catalog=sky_model.xyz.T, ax=ax[0])
 ax[0].set_title("Bipp Standardized Image")
 
-I_lsq_eq = s2image.Image(I_lsq / sensitivity_image, px_grid.reshape(3, px_w, px_h))
+I_lsq_eq = s2image.Image(I_lsq, px_grid.reshape(3, px_w, px_h))
 I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax[1])
 ax[1].set_title("Bipp Least-Squares Image")
-fig.savefig("test.png")
-fig.show()
+
+fig.savefig("standard_synthesis.png")
 plt.show()

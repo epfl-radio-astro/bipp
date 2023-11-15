@@ -248,8 +248,7 @@ struct StandardSynthesisDispatcher {
 };
 
 struct NufftSynthesisDispatcher {
-  NufftSynthesisDispatcher(Context& ctx, NufftSynthesisOptions opt, std::size_t nAntenna,
-                           std::size_t nBeam, std::size_t nIntervals,
+  NufftSynthesisDispatcher(Context& ctx, NufftSynthesisOptions opt, std::size_t nIntervals,
                            const std::vector<std::string>& filter, const py::array& lmnX,
                            const py::array& lmnY, const py::array& lmnZ,
                            const std::string& precision)
@@ -404,20 +403,19 @@ PYBIND11_MODULE(pybipp, m) {
       .def_readwrite("tolerance", &NufftSynthesisOptions::tolerance)
       .def("set_tolerance", &NufftSynthesisOptions::set_tolerance)
       .def_readwrite("collect_memory", &NufftSynthesisOptions::collectMemory)
-      .def("set_collect_collect_memory", &NufftSynthesisOptions::set_collect_memory)
+      .def("set_collect_memory", &NufftSynthesisOptions::set_collect_memory)
       .def_readwrite("local_image_partition", &NufftSynthesisOptions::localImagePartition)
       .def("set_local_image_partition", &NufftSynthesisOptions::set_local_image_partition)
       .def_readwrite("local_uvw_partition", &NufftSynthesisOptions::localUVWPartition)
       .def("set_local_uvw_partition", &NufftSynthesisOptions::set_local_uvw_partition);
 
   pybind11::class_<NufftSynthesisDispatcher>(m, "NufftSynthesis")
-      .def(pybind11::init<Context&, NufftSynthesisOptions, std::size_t, std::size_t, std::size_t,
+      .def(pybind11::init<Context&, NufftSynthesisOptions, std::size_t,
                           const std::vector<std::string>&, const py::array&, const py::array&,
                           const py::array&, const std::string&>(),
-           pybind11::arg("ctx"), pybind11::arg("opt"), pybind11::arg("n_antenna"),
-           pybind11::arg("n_beam"), pybind11::arg("n_intervals"), pybind11::arg("filter"),
-           pybind11::arg("lmn_x"), pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
-           pybind11::arg("precision"))
+           pybind11::arg("ctx"), pybind11::arg("opt"), pybind11::arg("n_intervals"),
+           pybind11::arg("filter"), pybind11::arg("lmn_x"), pybind11::arg("lmn_y"),
+           pybind11::arg("lmn_y"), pybind11::arg("precision"))
       .def("collect", &NufftSynthesisDispatcher::collect, pybind11::arg("wl"),
            pybind11::arg("mask"), pybind11::arg("w"), pybind11::arg("xyz"), pybind11::arg("uvw"),
            pybind11::arg("s") = std::optional<pybind11::array>())
