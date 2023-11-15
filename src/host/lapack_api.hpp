@@ -11,6 +11,10 @@ extern "C" {
 enum class LapackeLayout { ROW_MAJOR = 101, COL_MAJOR = 102 };
 
 #ifdef BIPP_LAPACK_C
+float LAPACKE_slamch(char cmach);
+
+double LAPACKE_dlamch(char cmach);
+
 int LAPACKE_chegv(int matrix_layout, int itype, char jobz, char uplo, int n, void* a, int lda,
                   void* b, int ldb, float* w);
 
@@ -46,6 +50,22 @@ void zhegv_(int const* itype, char const* jobz, char const* uplo, int const* n, 
 namespace bipp {
 namespace host {
 namespace lapack {
+
+inline auto slamch(char cmach) -> float {
+#ifdef BIPP_LAPACK_C
+  return LAPACKE_slamch(cmach);
+#else
+  return slamch_(&cmach, 1);
+#endif
+}
+
+inline auto dlamch(char cmach) -> double {
+#ifdef BIPP_LAPACK_C
+  return LAPACKE_dlamch(cmach);
+#else
+  return dlamch_(&cmach, 1);
+#endif
+}
 
 inline auto eigh_solve(LapackeLayout matrixLayout, char jobz, char uplo, int n,
                        std::complex<float>* a, int lda, float* w) -> void {
