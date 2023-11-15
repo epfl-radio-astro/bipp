@@ -265,9 +265,9 @@ struct NufftSynthesisDispatcher {
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = NufftSynthesis<float>(ctx, std::move(opt), nAntenna, nBeam, nIntervals,
-                                    filterEnums.size(), filterEnums.data(), lmnXArray.shape(0),
-                                    lmnXArray.data(0), lmnYArray.data(0), lmnZArray.data(0));
+      plan_ = NufftSynthesis<float>(ctx, std::move(opt), nIntervals, filterEnums.size(),
+                                    filterEnums.data(), lmnXArray.shape(0), lmnXArray.data(0),
+                                    lmnYArray.data(0), lmnZArray.data(0));
     } else if (precision == "double" || precision == "DOUBLE") {
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnXArray(lmnX);
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnYArray(lmnY);
@@ -275,9 +275,9 @@ struct NufftSynthesisDispatcher {
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = NufftSynthesis<double>(ctx, std::move(opt), nAntenna, nBeam, nIntervals,
-                                     filterEnums.size(), filterEnums.data(), lmnXArray.shape(0),
-                                     lmnXArray.data(0), lmnYArray.data(0), lmnZArray.data(0));
+      plan_ = NufftSynthesis<double>(ctx, std::move(opt), nIntervals, filterEnums.size(),
+                                     filterEnums.data(), lmnXArray.shape(0), lmnXArray.data(0),
+                                     lmnYArray.data(0), lmnZArray.data(0));
     } else {
       throw InvalidParameterError();
     }
@@ -326,7 +326,7 @@ struct NufftSynthesisDispatcher {
             };
 
             std::get<NufftSynthesis<T>>(plan_).collect(
-                wl, eigMaskFuncLambda, sArray.data(0),
+                nAntenna, nBeam, wl, eigMaskFuncLambda, sArray.data(0),
                 safe_cast<std::size_t>(sArray.strides(1) / sArray.itemsize()), wArray.data(0),
                 safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()), xyzArray.data(0),
                 safe_cast<std::size_t>(xyzArray.strides(1) / xyzArray.itemsize()), uvwArray.data(0),
@@ -403,8 +403,8 @@ PYBIND11_MODULE(pybipp, m) {
       .def(py::init())
       .def_readwrite("tolerance", &NufftSynthesisOptions::tolerance)
       .def("set_tolerance", &NufftSynthesisOptions::set_tolerance)
-      .def_readwrite("collect_group_size", &NufftSynthesisOptions::collectGroupSize)
-      .def("set_collect_group_size", &NufftSynthesisOptions::set_collect_group_size)
+      .def_readwrite("collect_memory", &NufftSynthesisOptions::collectMemory)
+      .def("set_collect_collect_memory", &NufftSynthesisOptions::set_collect_memory)
       .def_readwrite("local_image_partition", &NufftSynthesisOptions::localImagePartition)
       .def("set_local_image_partition", &NufftSynthesisOptions::set_local_image_partition)
       .def_readwrite("local_uvw_partition", &NufftSynthesisOptions::localUVWPartition)

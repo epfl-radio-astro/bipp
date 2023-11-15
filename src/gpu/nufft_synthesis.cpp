@@ -28,21 +28,19 @@ namespace gpu {
 
 template <typename T>
 NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
-                                  std::size_t nAntenna, std::size_t nBeam, std::size_t nIntervals,
-                                  HostArray<BippFilter, 1> filter, DeviceArray<T, 2> pixel)
+                                  std::size_t nIntervals, HostArray<BippFilter, 1> filter,
+                                  DeviceArray<T, 2> pixel)
 
     : ctx_(std::move(ctx)),
       opt_(std::move(opt)),
       nIntervals_(nIntervals),
       nFilter_(filter.shape()),
       nPixel_(pixel.shape(0)),
-      nAntenna_(nAntenna),
-      nBeam_(nBeam),
       filter_(std::move(filter)),
       pixel_(std::move(pixel)),
       img_(ctx_->gpu_queue().create_device_array<T, 3>({nPixel_, nIntervals_, nFilter_})),
       imgPartition_(DomainPartition::none(ctx_, nPixel_)),
-      collectCount_(0),
+      collectPoints_(0),
       totalCollectCount_(0) {
   auto& queue = ctx_->gpu_queue();
   api::memset_async(img_.data(), 0, img_.size() * sizeof(T), queue.stream());
@@ -66,22 +64,6 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
   imgPartition_.apply(pixel_.slice_view(0));
   imgPartition_.apply(pixel_.slice_view(1));
   imgPartition_.apply(pixel_.slice_view(2));
-
-  if (opt_.collectGroupSize && opt_.collectGroupSize.value() > 0) {
-    nMaxInputCount_ = opt_.collectGroupSize.value();
-  } else {
-    // use at most 20% of memory more accumulation, but not more than 200
-    // iterations.
-    std::size_t freeMem, totalMem;
-    api::mem_get_info(&freeMem, &totalMem);
-    nMaxInputCount_ = (totalMem / 5) / (nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ *
-                                        sizeof(api::ComplexType<T>));
-    nMaxInputCount_ = std::min<std::size_t>(std::max<std::size_t>(1, nMaxInputCount_), 200);
-  }
-
-  virtualVis_ = queue.create_device_array<api::ComplexType<T>, 3>(
-      {nAntenna_ * nAntenna_ * nMaxInputCount_, nIntervals_, nFilter_});
-  uvw_ = queue.create_device_array<T, 2>({nAntenna_ * nAntenna_ * nMaxInputCount_, 3});
 }
 
 template <typename T>
@@ -90,29 +72,63 @@ auto NufftSynthesis<T>::collect(
     ConstHostView<api::ComplexType<T>, 2> sHost, ConstDeviceView<api::ComplexType<T>, 2> s,
     ConstDeviceView<api::ComplexType<T>, 2> w, ConstDeviceView<T, 2> xyz, ConstDeviceView<T, 2> uvw)
     -> void {
-  assert(xyz.shape(0) == nAntenna_);
+
+  const auto nAntenna = w.shape(0);
+  const auto nBeam = w.shape(1);
+
+  assert(xyz.shape(0) == nAntenna);
   assert(xyz.shape(1) == 3);
-  assert(w.shape(0) == nAntenna_);
-  assert(w.shape(1) == nBeam_);
-  assert(!s.size() || s.shape(0) == nBeam_);
-  assert(!s.size() || s.shape(1) == nBeam_);
-  assert(uvw.shape(0) == nAntenna_ * nAntenna_);
+  assert(s.shape(0) == nBeam);
+  assert(s.shape(1) == nBeam);
+  assert(uvw.shape(0) == nAntenna * nAntenna);
   assert(uvw.shape(1) == 3);
 
   auto& queue = ctx_->gpu_queue();
 
+  // allocate initial memory if not yet done
+  if (uvw_.shape(0) <= collectPoints_ + nAntenna * nAntenna) {
+    this->computeNufft();
+
+    std::size_t freeMem, totalMem;
+    api::mem_get_info(&freeMem, &totalMem);
+
+    const std::size_t minSizeUvw = 3 * nAntenna * nAntenna;
+    const std::size_t minSizeVirtVis = nIntervals_ * nFilter_ * nAntenna * nAntenna;
+    const double memFracUvw =
+        double(minSizeUvw * sizeof(T)) /
+        double(minSizeUvw * sizeof(T) + minSizeVirtVis * sizeof(std::complex<T>));
+
+    const std::size_t requestedMem =
+        std::max(0.0f, std::min(opt_.collectMemory, 1.0f)) * totalMem;
+
+    const std::size_t requestedMemUvw = std::size_t(memFracUvw * requestedMem);
+
+    const std::size_t requestedSizeMultiplier =
+        std::max<std::size_t>(1, requestedMemUvw / (3 * nAntenna * nAntenna * sizeof(T)));
+
+    const std::size_t maxPoints = requestedSizeMultiplier * nAntenna * nAntenna;
+
+    // free up existing memory first
+    virtualVis_ = decltype(virtualVis_)();
+    uvw_ = decltype(uvw_)();
+    queue.sync();
+
+    virtualVis_ = queue.create_device_array<api::ComplexType<T>, 3>(
+        {maxPoints, nIntervals_, nFilter_});
+    uvw_ = queue.create_device_array<T, 2>({maxPoints, 3});
+  }
+
   // store coordinates
   copy(queue, uvw,
-       uvw_.sub_view({collectCount_ * nAntenna_ * nAntenna_, 0}, {nAntenna_ * nAntenna_, 3}));
+       uvw_.sub_view({collectPoints_, 0}, {nAntenna * nAntenna, 3}));
 
-
-  auto vUnbeamArray = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna_, nBeam_});
-  auto dArray = queue.create_device_array<T, 1>(nBeam_);
+  auto vUnbeamArray = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna, nBeam});
+  auto dArray = queue.create_device_array<T, 1>(nBeam);
 
   const auto nEig = eigh<T>(*ctx_, wl, s, w, xyz, dArray, vUnbeamArray);
 
   auto d = dArray.sub_view(0, nEig);
-  auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna_, nEig});
+  auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna, nEig});
 
   ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "vUnbeam", vUnbeam);
 
@@ -125,42 +141,35 @@ auto NufftSynthesis<T>::collect(
 
   for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
     copy(dHost, dMaskedArray.slice_view(idxInt));
-    eigMaskFunc(idxInt, nBeam_, dMaskedArray.slice_view(idxInt).data());
+    eigMaskFunc(idxInt, nBeam, dMaskedArray.slice_view(idxInt).data());
   }
 
   // slice virtual visibility for current step
   auto virtVisCurrent =
-      virtualVis_.sub_view({collectCount_ * nAntenna_ * nAntenna_, 0, 0},
-                           {nAntenna_ * nAntenna_, virtualVis_.shape(1), virtualVis_.shape(2)});
+      virtualVis_.sub_view({collectPoints_, 0, 0},
+                           {nAntenna * nAntenna, virtualVis_.shape(1), virtualVis_.shape(2)});
 
   // compute virtual visibilities
   virtual_vis<T>(*ctx_, filter_, dMaskedArray, vUnbeam, virtVisCurrent);
 
-  ++collectCount_;
+  collectPoints_ += nAntenna * nAntenna;
   ++totalCollectCount_;
-  ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "collect count: {} / {}", collectCount_, nMaxInputCount_);
-  if (collectCount_ >= nMaxInputCount_) {
-    computeNufft();
-  }
+  ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "collect count: {}", collectPoints_);
 }
 
 template <typename T>
 auto NufftSynthesis<T>::computeNufft() -> void {
   auto& queue = ctx_->gpu_queue();
 
-  if (collectCount_) {
+  if (collectPoints_) {
     auto output = queue.create_device_array<api::ComplexType<T>, 1>(nPixel_);
 
-    const auto nInputPoints = nAntenna_ * nAntenna_ * collectCount_;
-
-    auto uvwX = uvw_.slice_view(0).sub_view({0}, {nInputPoints});
-    auto uvwY = uvw_.slice_view(1).sub_view({0}, {nInputPoints});
-    ;
-    auto uvwZ = uvw_.slice_view(2).sub_view({0}, {nInputPoints});
-    ;
+    auto uvwX = uvw_.slice_view(0).sub_view({0}, {collectPoints_});
+    auto uvwY = uvw_.slice_view(1).sub_view({0}, {collectPoints_});
+    auto uvwZ = uvw_.slice_view(2).sub_view({0}, {collectPoints_});
 
     auto currentVirtualVis = virtualVis_.sub_view(
-        {0, 0, 0}, {nInputPoints, virtualVis_.shape(1), virtualVis_.shape(2)});
+        {0, 0, 0}, {collectPoints_, virtualVis_.shape(1), virtualVis_.shape(2)});
 
     auto pixelX = pixel_.slice_view(0);
     auto pixelY = pixel_.slice_view(1);
@@ -176,18 +185,18 @@ auto NufftSynthesis<T>::computeNufft() -> void {
 
           } else if constexpr (std::is_same_v<ArgType, Partition::None>) {
             ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "uvw partition: none");
-            return DomainPartition::none(ctx_, nInputPoints);
+            return DomainPartition::none(ctx_, collectPoints_);
 
           } else if constexpr (std::is_same_v<ArgType, Partition::Auto>) {
             auto minMaxDevice = queue.create_device_array<T, 1>(12);
-            min_element(queue, nInputPoints, uvwX.data(), minMaxDevice.data());
-            max_element(queue, nInputPoints, uvwX.data(), minMaxDevice.data() + 1);
+            min_element(queue, collectPoints_, uvwX.data(), minMaxDevice.data());
+            max_element(queue, collectPoints_, uvwX.data(), minMaxDevice.data() + 1);
 
-            min_element(queue, nInputPoints, uvwY.data(), minMaxDevice.data() + 2);
-            max_element(queue, nInputPoints, uvwY.data(), minMaxDevice.data() + 3);
+            min_element(queue, collectPoints_, uvwY.data(), minMaxDevice.data() + 2);
+            max_element(queue, collectPoints_, uvwY.data(), minMaxDevice.data() + 3);
 
-            min_element(queue, nInputPoints, uvwZ.data(), minMaxDevice.data() + 4);
-            max_element(queue, nInputPoints, uvwZ.data(), minMaxDevice.data() + 5);
+            min_element(queue, collectPoints_, uvwZ.data(), minMaxDevice.data() + 4);
+            max_element(queue, collectPoints_, uvwZ.data(), minMaxDevice.data() + 5);
 
             min_element(queue, nPixel_, pixelX.data(), minMaxDevice.data() + 6);
             max_element(queue, nPixel_, pixelX.data(), minMaxDevice.data() + 7);
@@ -280,10 +289,11 @@ auto NufftSynthesis<T>::computeNufft() -> void {
         }
       }
     }
+
+    queue.sync_with_stream(nullptr);
   }
 
-  queue.sync_with_stream(nullptr);
-  collectCount_ = 0;
+  collectPoints_ = 0;
 }
 
 template <typename T>

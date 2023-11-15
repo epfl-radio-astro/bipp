@@ -50,10 +50,10 @@ struct NufftSynthesisOptions {
   float tolerance = 0.001f;
 
   /**
-   * The maximum number of collected datasets processed together. Larger number typically improves
-   * performance but requires more memory. Internal heuristic is used if unset.
+   * Fraction of system or device memory used to collect time step data for grouped processing.
+   * Higher value might improve performance but requires more memory.
    */
-  std::optional<std::size_t> collectGroupSize = std::nullopt;
+  float collectMemory = 0.2;
 
   /**
    * The partition method used in the UVW domain. Partitioning decreases memory usage, but may come
@@ -78,12 +78,12 @@ struct NufftSynthesisOptions {
   }
 
   /**
-   * Set the collection group size.
+   * Set the collection memory fraction.
    *
-   * @param[in] size Collection group size.
+   * @param[in] fraction Fraction of system / device memory between 0.0 and 1.0
    */
-  inline auto set_collect_group_size(std::optional<std::size_t> size) -> NufftSynthesisOptions& {
-    collectGroupSize = size;
+  inline auto set_collect_memory(float fraction) -> NufftSynthesisOptions& {
+    collectMemory = fraction;
     return *this;
   }
 
@@ -119,8 +119,6 @@ public:
    *
    * @param[in] ctx Context handle.
    * @param[in] opt Options.
-   * @param[in] nAntenna Number of antenna.
-   * @param[in] nBeam Number of beam.
    * @param[in] nIntervals Number of intervals.
    * @param[in] nFilter Number of filter.
    * @param[in] filter Array of filters of size nFilter.
@@ -129,13 +127,15 @@ public:
    * @param[in] lmnY Array of image y coordinates of size nPixel.
    * @param[in] lmnZ Array of image z coordinates of size nPixel.
    */
-  NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::size_t nAntenna, std::size_t nBeam,
-                 std::size_t nIntervals, std::size_t nFilter, const BippFilter* filter,
-                 std::size_t nPixel, const T* lmnX, const T* lmnY, const T* lmnZ);
+  NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::size_t nIntervals,
+                 std::size_t nFilter, const BippFilter* filter, std::size_t nPixel, const T* lmnX,
+                 const T* lmnY, const T* lmnZ);
 
   /**
    * Collect radio data.
    *
+   * @param[in] nAntenna Number of antenna.
+   * @param[in] nBeam Number of beam.
    * @param[in] wl The wavelength.
    * @param[in] eigMaskFunc Function, that allows mutable access to the computed eigenvalues. Will
    * be called with the level index, number of eigenvalues and a pointer to the eigenvalue array.
@@ -149,7 +149,8 @@ public:
    * 3).
    * @param[in] lduvw Leading dimension of uvw.
    */
-  auto collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
+  auto collect(std::size_t nAntenna, std::size_t nBeam, T wl,
+               const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
                const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
                const T* xyz, std::size_t ldxyz, const T* uvw, std::size_t lduvw) -> void;
 

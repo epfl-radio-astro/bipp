@@ -14,7 +14,7 @@ template <typename T>
 class NufftSynthesis {
 public:
   NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
-                 std::size_t nAntenna, std::size_t nBeam, std::size_t nIntervals,
+                 std::size_t nIntervals,
                  HostArray<BippFilter, 1> filter, DeviceArray<T, 2> pixel);
 
   auto collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
@@ -29,20 +29,18 @@ public:
   inline auto num_filter() const -> std::size_t { return nFilter_; }
   inline auto num_pixel() const -> std::size_t { return nPixel_; }
   inline auto num_intervals() const -> std::size_t { return nIntervals_; }
-  inline auto num_antenna() const -> std::size_t { return nAntenna_; }
-  inline auto num_beam() const -> std::size_t { return nBeam_; }
 
 private:
   auto computeNufft() -> void;
 
   std::shared_ptr<ContextInternal> ctx_;
   NufftSynthesisOptions opt_;
-  const std::size_t nIntervals_, nFilter_, nPixel_, nAntenna_, nBeam_;
+  const std::size_t nIntervals_, nFilter_, nPixel_;
   HostArray<BippFilter, 1> filter_;
   DeviceArray<T, 2> pixel_;
   DomainPartition imgPartition_;
 
-  std::size_t nMaxInputCount_, collectCount_, totalCollectCount_;
+  std::size_t collectPoints_, totalCollectCount_;
   DeviceArray<api::ComplexType<T>, 3> virtualVis_;
   DeviceArray<T, 2> uvw_;
   DeviceArray<T, 3> img_;

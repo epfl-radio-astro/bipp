@@ -60,15 +60,14 @@ BIPP_EXPORT BippError bipp_ns_options_destroy(BippNufftSynthesisOptions* opt);
 BIPP_EXPORT BippError bipp_ns_options_set_tolerance(BippNufftSynthesisOptions opt, float tol);
 
 /**
- * Set number of collected data packages to be processed together. Larger size will increase memory
- * usage but improve performance.
+ * Set the collection memory fraction.
  *
  * @param[in] opt Options handle.
- * @param[in] size Group size.
+ * @param[in] fraction Fraction of system / device memory between 0.0 and 1.0
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_ns_options_set_collect_group_size(BippNufftSynthesisOptions opt,
-                                                             size_t size);
+BIPP_EXPORT BippError bipp_ns_options_set_collect_memory(BippNufftSynthesisOptions opt,
+                                                         float fraction);
 
 /**
  * Set Nufft Synthesis image partition method to "auto".
@@ -133,8 +132,6 @@ BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_grid(BippNufftSynt
  *
  * @param[in] ctx Context handle.
  * @param[in] tol Target precision tolorance.
- * @param[in] nAntenna Number of antenna.
- * @param[in] nBeam Number of beam.
  * @param[in] nIntervals Number of intervals.
  * @param[in] nFilter Number of filter.
  * @param[in] filter Array of filters of size nFilter.
@@ -146,7 +143,6 @@ BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_grid(BippNufftSynt
  * @return Error code or BIPP_SUCCESS.
  */
 BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSynthesisOptions opt,
-                                                    size_t nAntenna, size_t nBeam,
                                                     size_t nIntervals, size_t nFilter,
                                                     const BippFilter* filter, size_t nPixel,
                                                     const float* lmnX, const float* lmnY,
@@ -157,8 +153,6 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSy
  *
  * @param[in] ctx Context handle.
  * @param[in] tol Target precision tolorance.
- * @param[in] nAntenna Number of antenna.
- * @param[in] nBeam Number of beam.
  * @param[in] nIntervals Number of intervals.
  * @param[in] nFilter Number of filter.
  * @param[in] filter Array of filters of size nFilter.
@@ -170,11 +164,10 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSy
  * @return Error code or BIPP_SUCCESS.
  */
 BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, BippNufftSynthesisOptions opt,
-                                                  size_t nAntenna, size_t nBeam, size_t nIntervals,
-                                                  size_t nFilter, const BippFilter* filter,
-                                                  size_t nPixel, const double* lmnX,
-                                                  const double* lmnY, const double* lmnZ,
-                                                  BippNufftSynthesis* plan);
+                                                  size_t nIntervals, size_t nFilter,
+                                                  const BippFilter* filter, size_t nPixel,
+                                                  const double* lmnX, const double* lmnY,
+                                                  const double* lmnZ, BippNufftSynthesis* plan);
 
 /**
  * Destroy a nufft synthesis plan.
@@ -196,6 +189,8 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_destroy(BippNufftSynthesis* plan);
  * Collect radio data.
  *
  * @param[in] plan Plan handle.
+ * @param[in] nAntenna Number of antenna.
+ * @param[in] nBeam Number of beam.
  * @param[in] wl The wavelength.
  * @param[in] eigMaskFunc Function, that allows mutable access to the computed eigenvalues. Will
  * be called with the level index, number of eigenvalues and a pointer to the eigenvalue array.
@@ -209,7 +204,8 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_destroy(BippNufftSynthesis* plan);
  * @param[in] lduvw Leading dimension of uvw.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_nufft_synthesis_collect_f(BippNufftSynthesisF plan, float wl,
+BIPP_EXPORT BippError bipp_nufft_synthesis_collect_f(BippNufftSynthesisF plan, size_t nAntenna,
+                                                     size_t nBeam, float wl,
                                                      void (*eigMaskFunc)(size_t, size_t, float*),
                                                      const void* s, size_t lds, const void* w,
                                                      size_t ldw, const float* xyz, size_t ldxyz,
@@ -219,6 +215,8 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_collect_f(BippNufftSynthesisF plan, f
  * Collect radio data.
  *
  * @param[in] plan Plan handle.
+ * @param[in] nAntenna Number of antenna.
+ * @param[in] nBeam Number of beam.
  * @param[in] wl The wavelength.
  * @param[in] eigMaskFunc Function, that allows mutable access to the computed eigenvalues. Will
  * be called with the level index, number of eigenvalues and a pointer to the eigenvalue array.
@@ -232,7 +230,8 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_collect_f(BippNufftSynthesisF plan, f
  * @param[in] lduvw Leading dimension of uvw.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_nufft_synthesis_collect(BippNufftSynthesis plan, double wl,
+BIPP_EXPORT BippError bipp_nufft_synthesis_collect(BippNufftSynthesis plan, size_t nAntenna,
+                                                   size_t nBeam, double wl,
                                                    void (*eigMaskFunc)(size_t, size_t, double*),
                                                    const void* s, size_t lds, const void* w,
                                                    size_t ldw, const double* xyz, size_t ldxyz,

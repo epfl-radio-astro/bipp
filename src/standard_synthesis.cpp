@@ -78,7 +78,7 @@ struct StandardSynthesisInternal {
                const T* xyz, std::size_t ldxyz) {
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "------------");
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
-                       "{} StandardSynthesis.collect({}, {}, {}, {}, {} ,{} ,{} {}, {}, {})",
+                       "{} StandardSynthesis.collect({}, {}, {}, {}, {} ,{} ,{} {}, {})",
                        (const void*)this, nAntenna, nBeam, wl, (const void*)s, lds, (const void*)w,
                        ldw, (const void*)xyz, ldxyz);
     if (s) ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "S", nBeam, nBeam, s, lds);
