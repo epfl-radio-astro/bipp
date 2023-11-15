@@ -260,18 +260,18 @@ BIPP_EXPORT BippError bipp_standard_synthesis_destroy_f(BippStandardSynthesisF* 
   return BIPP_SUCCESS;
 }
 
-BIPP_EXPORT BippError bipp_standard_synthesis_collect_f(BippStandardSynthesisF plan, size_t nEig,
-                                                        float wl, const float* intervals,
-                                                        size_t ldIntervals, const void* s,
-                                                        size_t lds, const void* w, size_t ldw,
-                                                        const float* xyz, size_t ldxyz) {
+BIPP_EXPORT BippError bipp_standard_synthesis_collect_f(BippStandardSynthesisF plan, float wl,
+                                                        void (*mask)(size_t, size_t, float*),
+                                                        const void* s, size_t lds, const void* w,
+                                                        size_t ldw, const float* xyz,
+                                                        size_t ldxyz) {
   if (!plan) {
     return BIPP_INVALID_HANDLE_ERROR;
   }
   try {
-    // reinterpret_cast<StandardSynthesis<float>*>(plan)->collect(
-    //     nEig, wl, intervals, ldIntervals, reinterpret_cast<const std::complex<float>*>(s), lds,
-    //     reinterpret_cast<const std::complex<float>*>(w), ldw, xyz, ldxyz);
+    reinterpret_cast<StandardSynthesis<float>*>(plan)->collect(
+        wl, mask, reinterpret_cast<const std::complex<float>*>(s), lds,
+        reinterpret_cast<const std::complex<float>*>(w), ldw, xyz, ldxyz);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -331,18 +331,17 @@ BIPP_EXPORT BippError bipp_standard_synthesis_destroy(BippStandardSynthesis* pla
   return BIPP_SUCCESS;
 }
 
-BIPP_EXPORT BippError bipp_standard_synthesis_collect(BippStandardSynthesis plan, size_t nEig,
-                                                      double wl, const double* intervals,
-                                                      size_t ldIntervals, const void* s, size_t lds,
-                                                      const void* w, size_t ldw, const double* xyz,
-                                                      size_t ldxyz) {
+BIPP_EXPORT BippError bipp_standard_synthesis_collect(BippStandardSynthesis plan, double wl,
+                                                      void (*mask)(size_t, size_t, double*),
+                                                      const void* s, size_t lds, const void* w,
+                                                      size_t ldw, const double* xyz, size_t ldxyz) {
   if (!plan) {
     return BIPP_INVALID_HANDLE_ERROR;
   }
   try {
-    // reinterpret_cast<StandardSynthesis<double>*>(plan)->collect(
-    //     nEig, wl, intervals, ldIntervals, reinterpret_cast<const std::complex<double>*>(s), lds,
-    //     reinterpret_cast<const std::complex<double>*>(w), ldw, xyz, ldxyz);
+    reinterpret_cast<StandardSynthesis<double>*>(plan)->collect(
+        wl, mask, reinterpret_cast<const std::complex<double>*>(s), lds,
+        reinterpret_cast<const std::complex<double>*>(w), ldw, xyz, ldxyz);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {

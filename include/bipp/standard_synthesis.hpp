@@ -40,10 +40,9 @@ public:
   /**
    * Collect radio data.
    *
-   * @param[in] nEig Number of eigenvalues.
    * @param[in] wl The wavelength.
-   * @param[in] intervals 2D array of intervals of size (2, nIntervals).
-   * @param[in] ldIntervals Leading dimension of intervals.
+   * @param[in] eigMaskFunc Function, that allows mutable access to the computed eigenvalues. Will
+   * be called with the level index, number of eigenvalues and a pointer to the eigenvalue array.
    * @param[in] s Optional 2D sensitivity array of size (nBeam, nBeam). May be null.
    * @param[in] lds Leading dimension of s.
    * @param[in] w 2D beamforming array of size (nAntenna, nBeam).

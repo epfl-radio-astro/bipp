@@ -196,10 +196,9 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_destroy(BippNufftSynthesis* plan);
  * Collect radio data.
  *
  * @param[in] plan Plan handle.
- * @param[in] nEig Number of eigenvalues.
  * @param[in] wl The wavelength.
- * @param[in] intervals 2D array of intervals of size (2, nIntervals).
- * @param[in] ldIntervals Leading dimension of intervals.
+ * @param[in] eigMaskFunc Function, that allows mutable access to the computed eigenvalues. Will
+ * be called with the level index, number of eigenvalues and a pointer to the eigenvalue array.
  * @param[in] s Optional complex 2D sensitivity array of size (nBeam, nBeam). May be null.
  * @param[in] lds Leading dimension of s.
  * @param[in] w 2D beamforming array of size (nAntenna, nBeam).
@@ -210,20 +209,19 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_destroy(BippNufftSynthesis* plan);
  * @param[in] lduvw Leading dimension of uvw.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_nufft_synthesis_collect_f(BippNufftSynthesisF plan, size_t nEig,
-                                                     float wl, const float* intervals,
-                                                     size_t ldIntervals, const void* s, size_t lds,
-                                                     const void* w, size_t ldw, const float* xyz,
-                                                     size_t ldxyz, const float* uvw, size_t lduvw);
+BIPP_EXPORT BippError bipp_nufft_synthesis_collect_f(BippNufftSynthesisF plan, float wl,
+                                                     void (*eigMaskFunc)(size_t, size_t, float*),
+                                                     const void* s, size_t lds, const void* w,
+                                                     size_t ldw, const float* xyz, size_t ldxyz,
+                                                     const float* uvw, size_t lduvw);
 
 /**
  * Collect radio data.
  *
  * @param[in] plan Plan handle.
- * @param[in] nEig Number of eigenvalues.
  * @param[in] wl The wavelength.
- * @param[in] intervals 2D array of intervals of size (2, nIntervals).
- * @param[in] ldIntervals Leading dimension of intervals.
+ * @param[in] eigMaskFunc Function, that allows mutable access to the computed eigenvalues. Will
+ * be called with the level index, number of eigenvalues and a pointer to the eigenvalue array.
  * @param[in] s Optional complex 2D sensitivity array of size (nBeam, nBeam). May be null.
  * @param[in] lds Leading dimension of s.
  * @param[in] w 2D complex beamforming array of size (nAntenna, nBeam).
@@ -234,8 +232,8 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_collect_f(BippNufftSynthesisF plan, s
  * @param[in] lduvw Leading dimension of uvw.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_nufft_synthesis_collect(BippNufftSynthesis plan, size_t nEig, double wl,
-                                                   const double* intervals, size_t ldIntervals,
+BIPP_EXPORT BippError bipp_nufft_synthesis_collect(BippNufftSynthesis plan, double wl,
+                                                   void (*eigMaskFunc)(size_t, size_t, double*),
                                                    const void* s, size_t lds, const void* w,
                                                    size_t ldw, const double* xyz, size_t ldxyz,
                                                    const double* uvw, size_t lduvw);
@@ -330,10 +328,9 @@ BIPP_EXPORT BippError bipp_standard_synthesis_destroy(BippStandardSynthesis* pla
  * Collect radio data.
  *
  * @param[in] plan Plan handle.
- * @param[in] nEig Number of eigenvalues.
  * @param[in] wl The wavelength.
- * @param[in] intervals 2D array of intervals of size (2, nIntervals).
- * @param[in] ldIntervals Leading dimension of intervals.
+ * @param[in] eigMaskFunc Function, that allows mutable access to the computed eigenvalues. Will
+ * be called with the level index, number of eigenvalues and a pointer to the eigenvalue array.
  * @param[in] s Optional 2D sensitivity array of size (nBeam, nBeam). May be null.
  * @param[in] lds Leading dimension of s.
  * @param[in] w 2D beamforming array of size (nAntenna, nBeam).
@@ -342,20 +339,18 @@ BIPP_EXPORT BippError bipp_standard_synthesis_destroy(BippStandardSynthesis* pla
  * @param[in] ldxyz Leading dimension of xyz.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_standard_synthesis_collect_f(BippStandardSynthesisF plan, size_t nEig,
-                                                        float wl, const float* intervals,
-                                                        size_t ldIntervals, const void* s,
-                                                        size_t lds, const void* w, size_t ldw,
-                                                        const float* xyz, size_t ldxyz);
+BIPP_EXPORT BippError bipp_standard_synthesis_collect_f(BippStandardSynthesisF plan, float wl,
+                                                        void (*eigMaskFunc)(size_t, size_t, float*),
+                                                        const void* s, size_t lds, const void* w,
+                                                        size_t ldw, const float* xyz, size_t ldxyz);
 
 /**
  * Collect radio data.
  *
  * @param[in] plan Plan handle.
- * @param[in] nEig Number of eigenvalues.
  * @param[in] wl The wavelength.
- * @param[in] intervals 2D array of intervals of size (2, nIntervals).
- * @param[in] ldIntervals Leading dimension of intervals.
+ * @param[in] eigMaskFunc Function, that allows mutable access to the computed eigenvalues. Will
+ * be called with the level index, number of eigenvalues and a pointer to the eigenvalue array.
  * @param[in] s Optional 2D sensitivity array of size (nBeam, nBeam). May be null.
  * @param[in] lds Leading dimension of s.
  * @param[in] w 2D beamforming array of size (nAntenna, nBeam).
@@ -364,11 +359,10 @@ BIPP_EXPORT BippError bipp_standard_synthesis_collect_f(BippStandardSynthesisF p
  * @param[in] ldxyz Leading dimension of xyz.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_standard_synthesis_collect(BippStandardSynthesis plan, size_t nEig,
-                                                      double wl, const double* intervals,
-                                                      size_t ldIntervals, const void* s, size_t lds,
-                                                      const void* w, size_t ldw, const double* xyz,
-                                                      size_t ldxyz);
+BIPP_EXPORT BippError bipp_standard_synthesis_collect(BippStandardSynthesis plan, double wl,
+                                                      void (*eigMaskFunc)(size_t, size_t, double*),
+                                                      const void* s, size_t lds, const void* w,
+                                                      size_t ldw, const double* xyz, size_t ldxyz);
 
 /**
  * Get image.
