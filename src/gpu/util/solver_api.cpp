@@ -129,6 +129,7 @@ auto solve(Queue& queue, char jobz, char uplo, int n, api::ComplexType<float>* a
 
   auto z = queue.create_device_array<api::ComplexType<float>, 1>(n * n);
   int ldz = n;
+  int nEigOut = 0;
 
   auto wHost = queue.create_pinned_array<float, 1>(n);
   auto wA = queue.create_host_array<api::ComplexType<float>, 1>(n * n);
@@ -139,7 +140,7 @@ auto solve(Queue& queue, char jobz, char uplo, int n, api::ComplexType<float>* a
   int info = 0;
   api::ComplexType<float> worksize;
   magma_cheevx_gpu(jobzEnum, rangeEnum, uploEnum, n, reinterpret_cast<magmaFloatComplex*>(a), lda,
-                   0, 0, 0, 0, abstol, m, wHost.data(),
+                   0, 0, 0, 0, abstol, &nEigOut, wHost.data(),
                    reinterpret_cast<magmaFloatComplex*>(z.data()), ldz,
                    reinterpret_cast<magmaFloatComplex*>(wA.data()), n,
                    reinterpret_cast<magmaFloatComplex*>(wZ.data()), n,
@@ -149,7 +150,7 @@ auto solve(Queue& queue, char jobz, char uplo, int n, api::ComplexType<float>* a
   if (lwork < 2 * n) lwork = 2 * n;
   auto work = queue.create_host_array<api::ComplexType<float>, 1>(lwork);
   magma_cheevx_gpu(jobzEnum, rangeEnum, uploEnum, n, reinterpret_cast<magmaFloatComplex*>(a), lda,
-                   0, 0, 0, 0, abstol, m, wHost.data(),
+                   0, 0, 0, 0, abstol, &nEigOut, wHost.data(),
                    reinterpret_cast<magmaFloatComplex*>(z.data()), ldz,
                    reinterpret_cast<magmaFloatComplex*>(wA.data()), n,
                    reinterpret_cast<magmaFloatComplex*>(wZ.data()), n,
@@ -158,11 +159,11 @@ auto solve(Queue& queue, char jobz, char uplo, int n, api::ComplexType<float>* a
 
   if (info != 0) throw EigensolverError();
 
-  api::memcpy_async(w, wHost.data(), (*m) * sizeof(float), api::flag::MemcpyHostToDevice,
+  api::memcpy_async(w, wHost.data(), (nEigOut) * sizeof(float), api::flag::MemcpyHostToDevice,
                     queue.stream());
   api::memcpy_2d_async(a, lda * sizeof(api::ComplexType<float>), z.data(),
                        ldz * sizeof(api::ComplexType<float>), n * sizeof(api::ComplexType<float>),
-                       *m, api::flag::MemcpyDeviceToDevice, queue.stream());
+                       nEigOut, api::flag::MemcpyDeviceToDevice, queue.stream());
   queue.sync();
 
 #else
@@ -201,6 +202,7 @@ auto solve(Queue& queue, char jobz, char uplo, int n, api::ComplexType<double>* 
 
   auto z = queue.create_device_array<api::ComplexType<double>, 1>(n * n);
   int ldz = n;
+  int nEigOut = 0;
 
   auto wHost = queue.create_pinned_array<double, 1>(n);
   auto wA = queue.create_host_array<api::ComplexType<double>, 1>(n * n);
@@ -211,7 +213,7 @@ auto solve(Queue& queue, char jobz, char uplo, int n, api::ComplexType<double>* 
   int info = 0;
   api::ComplexType<double> worksize;
   magma_zheevx_gpu(jobzEnum, rangeEnum, uploEnum, n, reinterpret_cast<magmaDoubleComplex*>(a), lda,
-                   0, 0, 0, 0, abstol, m, wHost.data(),
+                   0, 0, 0, 0, abstol, &nEigOut, wHost.data(),
                    reinterpret_cast<magmaDoubleComplex*>(z.data()), ldz,
                    reinterpret_cast<magmaDoubleComplex*>(wA.data()), n,
                    reinterpret_cast<magmaDoubleComplex*>(wZ.data()), n,
@@ -221,7 +223,7 @@ auto solve(Queue& queue, char jobz, char uplo, int n, api::ComplexType<double>* 
   if (lwork < 2 * n) lwork = 2 * n;
   auto work = queue.create_host_array<api::ComplexType<double>, 1>(lwork);
   magma_zheevx_gpu(jobzEnum, rangeEnum, uploEnum, n, reinterpret_cast<magmaDoubleComplex*>(a), lda,
-                   0, 0, 0, 0, abstol, m, wHost.data(),
+                   0, 0, 0, 0, abstol, &nEigOut, wHost.data(),
                    reinterpret_cast<magmaDoubleComplex*>(z.data()), ldz,
                    reinterpret_cast<magmaDoubleComplex*>(wA.data()), n,
                    reinterpret_cast<magmaDoubleComplex*>(wZ.data()), n,
@@ -230,11 +232,11 @@ auto solve(Queue& queue, char jobz, char uplo, int n, api::ComplexType<double>* 
 
   if (info != 0) throw EigensolverError();
 
-  api::memcpy_async(w, wHost.data(), (*m) * sizeof(double), api::flag::MemcpyHostToDevice,
+  api::memcpy_async(w, wHost.data(), (nEigOut) * sizeof(double), api::flag::MemcpyHostToDevice,
                     queue.stream());
   api::memcpy_2d_async(a, lda * sizeof(api::ComplexType<double>), z.data(),
                        ldz * sizeof(api::ComplexType<double>), n * sizeof(api::ComplexType<double>),
-                       *m, api::flag::MemcpyDeviceToDevice, queue.stream());
+                       nEigOut, api::flag::MemcpyDeviceToDevice, queue.stream());
   queue.sync();
 
 #else
@@ -283,6 +285,7 @@ auto solve(Queue& queue, char jobz, char uplo, int n, api::ComplexType<float>* a
   const float abstol = 2 * host::lapack::slamch('S');
 
   int ldz = n;
+  int nEigOut = 0;
 
   auto wHost = queue.create_pinned_array<float, 1>(n);
   auto rwork = queue.create_host_array<float, 1>(7 * n);
@@ -292,7 +295,7 @@ auto solve(Queue& queue, char jobz, char uplo, int n, api::ComplexType<float>* a
   api::ComplexType<float> worksize;
   magma_chegvx(1, jobzEnum, rangeEnum, uploEnum, n,
                reinterpret_cast<magmaFloatComplex*>(aHost.data()), n,
-               reinterpret_cast<magmaFloatComplex*>(bHost.data()), n, 0, 0, 0, 0, abstol, m,
+               reinterpret_cast<magmaFloatComplex*>(bHost.data()), n, 0, 0, 0, 0, abstol, &nEigOut,
                wHost.data(), reinterpret_cast<magmaFloatComplex*>(zHost.data()), ldz,
                reinterpret_cast<magmaFloatComplex*>(&worksize), -1, rwork.data(), iwork.data(),
                ifail.data(), &info);
@@ -301,18 +304,18 @@ auto solve(Queue& queue, char jobz, char uplo, int n, api::ComplexType<float>* a
   auto work = queue.create_host_array<api::ComplexType<float>, 1>(lwork);
   magma_chegvx(1, jobzEnum, rangeEnum, uploEnum, n,
                reinterpret_cast<magmaFloatComplex*>(aHost.data()), n,
-               reinterpret_cast<magmaFloatComplex*>(bHost.data()), n, 0, 0, 0, 0, abstol, m,
+               reinterpret_cast<magmaFloatComplex*>(bHost.data()), n, 0, 0, 0, 0, abstol, &nEigOut,
                wHost.data(), reinterpret_cast<magmaFloatComplex*>(zHost.data()), ldz,
                reinterpret_cast<magmaFloatComplex*>(work.data()), lwork, rwork.data(), iwork.data(),
                ifail.data(), &info);
 
   if (info != 0) throw EigensolverError();
 
-  api::memcpy_async(w, wHost.data(), (*m) * sizeof(float), api::flag::MemcpyHostToDevice,
+  api::memcpy_async(w, wHost.data(), (nEigOut) * sizeof(float), api::flag::MemcpyHostToDevice,
                     queue.stream());
   api::memcpy_2d_async(a, lda * sizeof(api::ComplexType<float>), zHost.data(),
                        ldz * sizeof(api::ComplexType<float>), n * sizeof(api::ComplexType<float>),
-                       *m, api::flag::MemcpyDeviceToHost, queue.stream());
+                       nEigOut, api::flag::MemcpyDeviceToHost, queue.stream());
   queue.sync();
 
 #else
@@ -361,6 +364,7 @@ auto solve(Queue& queue, char jobz, char uplo, int n, api::ComplexType<double>* 
   const double abstol = 2 * host::lapack::dlamch('S');
 
   int ldz = n;
+  int nEigOut = 0;
 
   auto wHost = queue.create_pinned_array<double, 1>(n);
   auto rwork = queue.create_host_array<double, 1>(7 * n);
@@ -370,7 +374,7 @@ auto solve(Queue& queue, char jobz, char uplo, int n, api::ComplexType<double>* 
   api::ComplexType<double> worksize;
   magma_zhegvx(1, jobzEnum, rangeEnum, uploEnum, n,
                reinterpret_cast<magmaDoubleComplex*>(aHost.data()), n,
-               reinterpret_cast<magmaDoubleComplex*>(bHost.data()), n, 0, 0, 0, 0, abstol, m,
+               reinterpret_cast<magmaDoubleComplex*>(bHost.data()), n, 0, 0, 0, 0, abstol, &nEigOut,
                wHost.data(), reinterpret_cast<magmaDoubleComplex*>(zHost.data()), ldz,
                reinterpret_cast<magmaDoubleComplex*>(&worksize), -1, rwork.data(), iwork.data(),
                ifail.data(), &info);
@@ -379,18 +383,18 @@ auto solve(Queue& queue, char jobz, char uplo, int n, api::ComplexType<double>* 
   auto work = queue.create_host_array<api::ComplexType<double>, 1>(lwork);
   magma_zhegvx(1, jobzEnum, rangeEnum, uploEnum, n,
                reinterpret_cast<magmaDoubleComplex*>(aHost.data()), n,
-               reinterpret_cast<magmaDoubleComplex*>(bHost.data()), n, 0, 0, 0, 0, abstol, m,
+               reinterpret_cast<magmaDoubleComplex*>(bHost.data()), n, 0, 0, 0, 0, abstol, &nEigOut,
                wHost.data(), reinterpret_cast<magmaDoubleComplex*>(zHost.data()), ldz,
                reinterpret_cast<magmaDoubleComplex*>(work.data()), lwork, rwork.data(),
                iwork.data(), ifail.data(), &info);
 
   if (info != 0) throw EigensolverError();
 
-  api::memcpy_async(w, wHost.data(), (*m) * sizeof(double), api::flag::MemcpyHostToDevice,
+  api::memcpy_async(w, wHost.data(), (nEigOut) * sizeof(double), api::flag::MemcpyHostToDevice,
                     queue.stream());
   api::memcpy_2d_async(a, lda * sizeof(api::ComplexType<double>), zHost.data(),
                        ldz * sizeof(api::ComplexType<double>), n * sizeof(api::ComplexType<double>),
-                       *m, api::flag::MemcpyDeviceToHost, queue.stream());
+                       nEigOut, api::flag::MemcpyDeviceToHost, queue.stream());
   queue.sync();
 
 #else
