@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 
 # Create context with selected processing unit.
 # Options are "AUTO", "CPU" and "GPU".
-ctx = bipp.Context("CPU")
+ctx = bipp.Context("AUTO")
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
@@ -112,7 +112,7 @@ for t in ProgressBar(time[::time_slice]):
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
     uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
-    imager.collect(wl, I_est, W.data, XYZ.data, uvw, S.data)
+    imager.collect(wl, I_est, S.data, W.data, XYZ.data, uvw)
 
 lsq_image = imager.get("LSQ").reshape((-1, N_pix, N_pix))
 std_image = imager.get("STD").reshape((-1, N_pix, N_pix))

@@ -173,8 +173,9 @@ struct StandardSynthesisDispatcher {
 
   StandardSynthesisDispatcher& operator=(const StandardSynthesisDispatcher&) = delete;
 
-  auto collect(double wl, const std::function<pybind11::array(std::size_t, pybind11::array)>& eigMaskFunc, pybind11::array w,
-               pybind11::array xyz, std::optional<pybind11::array> s) -> void {
+  auto collect(double wl,
+               const std::function<pybind11::array(std::size_t, pybind11::array)>& eigMaskFunc,
+               pybind11::array s, pybind11::array w, pybind11::array xyz) -> void {
     std::visit(
         [&](auto&& arg) -> void {
           using variantType = std::decay_t<decltype(arg)>;
@@ -187,13 +188,8 @@ struct StandardSynthesisDispatcher {
             auto nBeam = wArray.shape(1);
             py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(xyz);
             check_2d_array(xyzArray, {nAntenna, 3});
-            std::optional<py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast>>
-                sArray;
-            if (s) {
-              sArray = py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast>(
-                  s.value());
-              check_2d_array(sArray.value(), {nBeam, nBeam});
-            }
+            py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast> sArray(s);
+            check_2d_array(sArray, {nBeam, nBeam});
 
             auto eigMaskFuncLambda = [&](std::size_t idxBin, std::size_t nEig, T* d) {
               py::array_t<T> dArray(nEig);
@@ -207,10 +203,9 @@ struct StandardSynthesisDispatcher {
             };
 
             std::get<StandardSynthesis<T>>(plan_).collect(
-                nAntenna, nBeam, wl, eigMaskFuncLambda, s ? sArray.value().data(0) : nullptr,
-                safe_cast<std::size_t>(sArray.value().strides(1) / sArray.value().itemsize()),
-                wArray.data(0), safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()),
-                xyzArray.data(0),
+                nAntenna, nBeam, wl, eigMaskFuncLambda, sArray.data(0),
+                safe_cast<std::size_t>(sArray.strides(1) / sArray.itemsize()), wArray.data(0),
+                safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()), xyzArray.data(0),
                 safe_cast<std::size_t>(xyzArray.strides(1) / xyzArray.itemsize()));
 
           } else {
@@ -292,7 +287,7 @@ struct NufftSynthesisDispatcher {
 
   auto collect(double wl,
                const std::function<pybind11::array(std::size_t, pybind11::array)>& eigMaskFunc,
-               pybind11::array w, pybind11::array xyz, pybind11::array uvw, pybind11::array s)
+               pybind11::array s, pybind11::array w, pybind11::array xyz, pybind11::array uvw)
       -> void {
     std::visit(
         [&](auto&& arg) -> void {
@@ -417,8 +412,8 @@ PYBIND11_MODULE(pybipp, m) {
            pybind11::arg("filter"), pybind11::arg("lmn_x"), pybind11::arg("lmn_y"),
            pybind11::arg("lmn_y"), pybind11::arg("precision"))
       .def("collect", &NufftSynthesisDispatcher::collect, pybind11::arg("wl"),
-           pybind11::arg("mask"), pybind11::arg("w"), pybind11::arg("xyz"), pybind11::arg("uvw"),
-           pybind11::arg("s") = std::optional<pybind11::array>())
+           pybind11::arg("mask"), pybind11::arg("s"), pybind11::arg("w"), pybind11::arg("xyz"),
+           pybind11::arg("uvw"))
       .def("get", &NufftSynthesisDispatcher::get, pybind11::arg("f"));
 
   pybind11::class_<StandardSynthesisDispatcher>(m, "StandardSynthesis")
@@ -428,8 +423,7 @@ PYBIND11_MODULE(pybipp, m) {
            pybind11::arg("lmn_x"), pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
            pybind11::arg("precision"))
       .def("collect", &StandardSynthesisDispatcher::collect, pybind11::arg("wl"),
-           pybind11::arg("mask"), pybind11::arg("w"), pybind11::arg("xyz"),
-           pybind11::arg("s") = std::optional<pybind11::array>())
+           pybind11::arg("mask"), pybind11::arg("s"), pybind11::arg("w"), pybind11::arg("xyz"))
       .def("get", &StandardSynthesisDispatcher::get, pybind11::arg("f"));
 
   m.def(
@@ -464,17 +458,4 @@ PYBIND11_MODULE(pybipp, m) {
           },
           pybind11::arg("ctx"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),
           pybind11::arg("xyz"));
-
-  // m.def(
-  //     "test",
-  //     [](const std::function<py::array_t<int, py::array::f_style>(
-  //            std::size_t, py::array_t<float, py::array::f_style>)>& func) {
-  //       py::array_t<float, pybind11::array::f_style | py::array::forcecast> d(15);
-  //       auto start = std::chrono::high_resolution_clock::now();
-  //       func(5, d);
-  //       auto end = std::chrono::high_resolution_clock::now();
-  //       const std::chrono::duration<double> elapsed_seconds{end - start};
-  //       printf("time; %f\n", elapsed_seconds.count());
-  //     },
-  //     pybind11::arg("func"));
 }

@@ -105,7 +105,7 @@ for t in ProgressBar(time[::25]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    imager.collect(wl, my_test, W.data, XYZ.data, S.data)
+    imager.collect(wl, I_est, S.data, W.data, XYZ.data)
 
 I_lsq = imager.get("LSQ").reshape((-1, px_w, px_h))
 I_std = imager.get("STD").reshape((-1, px_w, px_h))
