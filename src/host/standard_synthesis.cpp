@@ -94,7 +94,7 @@ auto StandardSynthesis<T>::collect(
 
   for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
     copy(d, dMaskedArray.slice_view(idxLevel));
-    eigMaskFunc(idxLevel, nBeam, dMaskedArray.slice_view(idxLevel).data());
+    eigMaskFunc(idxLevel, nEig, dMaskedArray.slice_view(idxLevel).data());
   }
 
   auto dCount = HostArray<short, 1>(ctx_->host_alloc(), d.size());
@@ -162,9 +162,94 @@ auto StandardSynthesis<T>::collect(
 }
 
 template <typename T>
-auto StandardSynthesis<T>::get(BippFilter f, HostView<T, 2> out) -> void {
+auto StandardSynthesis<T>::collect(T wl, ConstView<std::complex<T>, 2> vView,
+                                   ConstHostView<T, 2> dMasked, ConstView<T, 2> xyzUvwView)
+    -> void {
+  HostArray<std::complex<T>, 2> v(ctx_->host_alloc(),vView.shape());
+  copy(ConstHostView<std::complex<T>, 2>(vView), v);
+  ConstHostView<T, 2> xyz(xyzUvwView);
+
+  assert(v.shape(0) == xyz.shape(0));
+  assert(v.shape(1) == dMasked.shape(0));
+  assert(img_.shape(1) == dMasked.shape(1));
+
+  const auto nEig = dMasked.shape(0);
+  const auto nAntenna = v.shape(0);
+
+  HostArray<T, 2> dMaskedArray(ctx_->host_alloc(), dMasked.shape());
+  copy(dMasked, dMaskedArray);
+
+  auto dCount = HostArray<short, 1>(ctx_->host_alloc(), dMasked.shape(0));
+  dCount.zero();
+  for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
+    auto mask = dMaskedArray.slice_view(idxLevel);
+    for(std::size_t i = 0; i < mask.size(); ++i) {
+      dCount[i] |= mask[i] != 0;
+    }
+  }
+
+  // remove any eigenvalue that is zero for all level
+  // by copying forward
+  std::size_t nEigRemoved = 0;
+  for (std::size_t i = 0; i < nEig; ++i) {
+    if(dCount[i]) {
+      if(nEigRemoved) {
+        copy(v.slice_view(i), v.slice_view(i - nEigRemoved));
+        for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
+          dMaskedArray[{i - nEigRemoved, idxLevel}] = dMaskedArray[{i, idxLevel}];
+        }
+      }
+    } else {
+      ++nEigRemoved;
+    }
+  }
+
+  const auto nEigMasked = nEig - nEigRemoved;
+
+
+  auto unlayeredStats = HostArray<T, 2>(ctx_->host_alloc(), {nPixel_, nEigMasked});
+  auto dMaskedReduced = dMaskedArray.sub_view({0, 0}, {nEigMasked, dMaskedArray.shape(1)});
+
+  T alpha = 2.0 * M_PI / wl;
+
+  gemmexp(nEigMasked, nPixel_, nAntenna, alpha, v.data(), v.strides(1), xyz.data(), xyz.strides(1),
+          &pixel_[{0, 0}], &pixel_[{0, 1}], &pixel_[{0, 2}], unlayeredStats.data(),
+          unlayeredStats.strides(1));
+  ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gemmexp", unlayeredStats);
+
+  auto dFiltered = HostArray<T, 1>(ctx_->host_alloc(), nEigMasked);
+
+  // cluster eigenvalues / vectors based on mask
+  for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
+    for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
+      auto dMaskedSlice = dMaskedReduced.slice_view(idxLevel).sub_view(0, nEigMasked);
+
+      apply_filter(filter_[idxFilter], nEigMasked, dMaskedSlice.data(), dFiltered.data());
+
+      auto imgCurrent = img_.slice_view(idxFilter).slice_view(idxLevel);
+      for (std::size_t idxEig = 0; idxEig < dMaskedSlice.size(); ++idxEig) {
+        if (dMaskedSlice[idxEig]) {
+          const auto scale = dFiltered[idxEig];
+
+          ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
+                             "Assigning eigenvalue {} (filtered {}) to bin {}",
+                             dMaskedSlice[{idxEig}], scale, idxLevel);
+
+          blas::axpy(nPixel_, scale, &unlayeredStats[{0, idxEig}], 1, imgCurrent.data(), 1);
+        }
+      }
+    }
+  }
+
+  ++count_;
+}
+
+template <typename T>
+auto StandardSynthesis<T>::get(BippFilter f, View<T, 2> out) -> void {
   assert(out.shape(0) == nPixel_);
   assert(out.shape(1) == nLevel_);
+
+  HostView<T, 2> outHost(out);
 
   std::size_t index = nFilter_;
   for (std::size_t i = 0; i < nFilter_; ++i) {
@@ -177,13 +262,13 @@ auto StandardSynthesis<T>::get(BippFilter f, HostView<T, 2> out) -> void {
 
   for (std::size_t i = 0; i < nLevel_; ++i) {
     const T* __restrict__ localImg = &img_[{0, i, index}];
-    T* __restrict__ outputImg = &out[{0, i}];
+    T* __restrict__ outputImg = &outHost[{0, i}];
     const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
 
     for (std::size_t j = 0; j < nPixel_; ++j) {
       outputImg[j] = scale * localImg[j];
     }
-    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", out.slice_view(i));
+    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", outHost.slice_view(i));
   }
 }
 

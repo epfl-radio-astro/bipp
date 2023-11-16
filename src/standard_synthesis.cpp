@@ -9,6 +9,7 @@
 #include "context_internal.hpp"
 #include "host/standard_synthesis.hpp"
 #include "memory/view.hpp"
+#include "imager.hpp"
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/standard_synthesis.hpp"
 #include "gpu/util/device_accessor.hpp"
@@ -171,11 +172,27 @@ template <typename T>
 StandardSynthesis<T>::StandardSynthesis(Context& ctx, std::size_t nLevel, std::size_t nFilter,
                                         const BippFilter* filter, std::size_t nPixel,
                                         const T* pixelX, const T* pixelY, const T* pixelZ) {
+  // try {
+  //   plan_ = decltype(plan_)(
+  //       new StandardSynthesisInternal<T>(InternalContextAccessor::get(ctx), nLevel, nFilter,
+  //                                        filter, nPixel, pixelX, pixelY, pixelZ),
+  //       [](auto&& ptr) { delete reinterpret_cast<StandardSynthesisInternal<T>*>(ptr); });
+  // } catch (const std::exception& e) {
+  //   try {
+  //     InternalContextAccessor::get(ctx)->logger().log(
+  //         BIPP_LOG_LEVEL_ERROR, "StandardSynthesis creation error: {}", e.what());
+  //   } catch (...) {
+  //   }
+  //   throw;
+  // }
+
   try {
     plan_ = decltype(plan_)(
-        new StandardSynthesisInternal<T>(InternalContextAccessor::get(ctx), nLevel, nFilter,
-                                         filter, nPixel, pixelX, pixelY, pixelZ),
-        [](auto&& ptr) { delete reinterpret_cast<StandardSynthesisInternal<T>*>(ptr); });
+        new Imager<T>(Imager<T>::standard_synthesis(
+            InternalContextAccessor::get(ctx), nLevel, ConstView<BippFilter, 1>(filter, nFilter, 1),
+            ConstView<T, 1>(pixelX, nPixel, 1), ConstView<T, 1>(pixelY, nPixel, 1),
+            ConstView<T, 1>(pixelZ, nPixel, 1))),
+        [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
   } catch (const std::exception& e) {
     try {
       InternalContextAccessor::get(ctx)->logger().log(
@@ -192,9 +209,25 @@ auto StandardSynthesis<T>::collect(
     const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc, const std::complex<T>* s,
     std::size_t lds, const std::complex<T>* w, std::size_t ldw, const T* xyz, std::size_t ldxyz)
     -> void {
+  // try {
+  //   reinterpret_cast<StandardSynthesisInternal<T>*>(plan_.get())
+  //       ->collect(nAntenna, nBeam, wl, eigMaskFunc, s, lds, w, ldw, xyz, ldxyz);
+  // } catch (const std::exception& e) {
+  //   try {
+  //     reinterpret_cast<StandardSynthesisInternal<T>*>(plan_.get())
+  //         ->ctx_->logger()
+  //         .log(BIPP_LOG_LEVEL_ERROR, "{} StandardSynthesis.get() error: {}",
+  //              (const void*)plan_.get(), e.what());
+  //   } catch (...) {
+  //   }
+  //   throw;
+  // }
+
   try {
-    reinterpret_cast<StandardSynthesisInternal<T>*>(plan_.get())
-        ->collect(nAntenna, nBeam, wl, eigMaskFunc, s, lds, w, ldw, xyz, ldxyz);
+    reinterpret_cast<Imager<T>*>(plan_.get())
+        ->collect(wl, eigMaskFunc, ConstView<std::complex<T>, 2>(s, {nBeam, nBeam}, {1, lds}),
+                  ConstView<std::complex<T>, 2>(w, {nAntenna, nBeam}, {1, ldw}),
+                  ConstView<T, 2>(xyz, {nAntenna, 3}, {1, ldxyz}), ConstView<T, 2>());
   } catch (const std::exception& e) {
     try {
       reinterpret_cast<StandardSynthesisInternal<T>*>(plan_.get())
@@ -209,7 +242,8 @@ auto StandardSynthesis<T>::collect(
 
 template <typename T>
 auto StandardSynthesis<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
-  reinterpret_cast<StandardSynthesisInternal<T>*>(plan_.get())->get(f, out, ld);
+  // reinterpret_cast<StandardSynthesisInternal<T>*>(plan_.get())->get(f, out, ld);
+  reinterpret_cast<Imager<T>*>(plan_.get())->get(f, out, ld);
 }
 
 template class BIPP_EXPORT StandardSynthesis<double>;

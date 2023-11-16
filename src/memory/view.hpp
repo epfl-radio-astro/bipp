@@ -146,9 +146,17 @@ protected:
 
   template <typename VIEW_TYPE>
   auto sub_view_impl(const IndexType& offset, const IndexType& shape) const -> VIEW_TYPE {
-    if (!compare_elements(offset, shape_, std::less{}) ||
-        !compare_elements(shape, shape_, std::less_equal{}))
-      throw InternalError("Sub view offset or shape out of range.");
+    assert(compare_elements(offset, shape_, std::less{}));
+#ifndef NDEBUG
+    for (std::size_t i = 0; i < DIM; ++i) {
+      if constexpr (DIM == 1) {
+        assert(shape + offset <= shape_);
+      } else {
+        assert(shape[i] + offset[i] <= shape_[i]);
+      }
+    }
+#endif
+
     return VIEW_TYPE{ConstView{constPtr_ + view_index(offset, strides_), shape, strides_}};
   }
 
@@ -166,11 +174,12 @@ public:
 
   View() : BaseType() {}
 
-  View(const BaseType& v) : BaseType(v) {}
-
   View(T* ptr, const IndexType& shape, const IndexType& strides) : BaseType(ptr, shape, strides) {}
 
   inline auto data() -> T* { return const_cast<T*>(this->constPtr_); }
+
+protected:
+  View(const BaseType& v) : BaseType(v) {}
 };
 
 template <typename T, std::size_t DIM>
@@ -182,6 +191,8 @@ public:
   using SliceType = HostView<T, DIM - 1>;
 
   HostView() : BaseType(){};
+
+  explicit HostView(const View<T, DIM>& v) : BaseType(v){};
 
   HostView(T* ptr, const IndexType& shape, const IndexType& strides)
       : BaseType(ptr, shape, strides){};
@@ -218,7 +229,7 @@ protected:
   friend ConstView<T, DIM>;
   friend ConstView<T, DIM + 1>;
 
-  HostView(ConstView<T, DIM>&& b) : BaseType(std::move(b)){};
+  HostView(const ConstView<T, DIM>& b) : BaseType(b){};
 };
 
 
@@ -233,6 +244,8 @@ public:
   ConstHostView() : BaseType(){};
 
   ConstHostView(const HostView<T, DIM>& v) : BaseType(v){};
+
+  explicit ConstHostView(const ConstView<T, DIM>& v) : BaseType(v){};
 
   ConstHostView(std::shared_ptr<Allocator> alloc, const IndexType& shape)
       : BaseType(std::move(alloc), shape){};
@@ -253,11 +266,11 @@ public:
     return this->template sub_view_impl<ConstHostView<T, DIM>>(offset, shape);
   }
 
-protected:
-  friend ConstView<T, DIM>;
-  friend ConstView<T, DIM + 1>;
+// protected:
+//   friend ConstView<T, DIM>;
+//   friend ConstView<T, DIM + 1>;
 
-  ConstHostView(ConstView<T, DIM>&& b) : BaseType(std::move(b)){};
+//   ConstHostView(ConstView<T, DIM>&& b) : BaseType(std::move(b)){};
 };
 
 
@@ -272,6 +285,8 @@ public:
   using SliceType = DeviceView<T, DIM - 1>;
 
   DeviceView() : BaseType(){};
+
+  explicit DeviceView(const View<T, DIM>& v) : BaseType(v){};
 
   DeviceView(T* ptr, const IndexType& shape, const IndexType& strides)
       : BaseType(ptr, shape, strides){};
@@ -288,7 +303,7 @@ protected:
   friend ConstView<T, DIM>;
   friend ConstView<T, DIM + 1>;
 
-  DeviceView(ConstView<T, DIM>&& b) : BaseType(std::move(b)){};
+  DeviceView(const ConstView<T, DIM>& b) : BaseType(b){};
 };
 
 template <typename T, std::size_t DIM>
@@ -302,6 +317,8 @@ public:
   ConstDeviceView() : BaseType(){};
 
   ConstDeviceView(const DeviceView<T, DIM>& v) : BaseType(v){};
+
+  explicit ConstDeviceView(const ConstView<T, DIM>& v) : BaseType(v){};
 
   ConstDeviceView(std::shared_ptr<Allocator> alloc, const IndexType& shape)
       : BaseType(std::move(alloc), shape){};
@@ -317,11 +334,11 @@ public:
     return this->template sub_view_impl<ConstDeviceView<T, DIM>>(offset, shape);
   }
 
-protected:
-  friend ConstView<T, DIM>;
-  friend ConstView<T, DIM + 1>;
+// protected:
+//   friend ConstView<T, DIM>;
+//   friend ConstView<T, DIM + 1>;
 
-  ConstDeviceView(ConstView<T, DIM>&& b) : BaseType(std::move(b)){};
+//   ConstDeviceView(ConstView<T, DIM>&& b) : BaseType(std::move(b)){};
 };
 
 #endif

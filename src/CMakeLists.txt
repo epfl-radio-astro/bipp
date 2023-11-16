@@ -5,6 +5,7 @@ set(BIPP_SOURCE_FILES
 	context.cpp
 	nufft_synthesis.cpp
 	logger.cpp
+	imager.cpp
 	memory/allocator_factory.cpp
 	host/eigensolver.cpp
 	host/gram_matrix.cpp

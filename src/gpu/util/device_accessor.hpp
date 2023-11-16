@@ -31,11 +31,14 @@ public:
 
   DeviceAccessor(gpu::Queue& q, DeviceView<T, DIM> v) : deviceView_(v) {}
 
-  DeviceAccessor(gpu::Queue& q, T* ptr, IndexType shape, IndexType strides) {
-    if(gpu::is_device_ptr(ptr)) {
-      *this = DeviceAccessor(q, DeviceView<T, DIM>(ptr, shape, strides));
+  DeviceAccessor(gpu::Queue& q, T* ptr, IndexType shape, IndexType strides)
+      : DeviceAccessor(q, View<T, DIM>(ptr, shape, strides)) {}
+
+  DeviceAccessor(gpu::Queue& q, View<T, DIM> v) {
+    if (gpu::is_device_ptr(v.data())) {
+      *this = DeviceAccessor(q, DeviceView<T, DIM>(v));
     } else {
-      *this = DeviceAccessor(q, HostView<T, DIM>(ptr, shape, strides));
+      *this = DeviceAccessor(q, HostView<T, DIM>(v));
     }
   }
 
@@ -66,11 +69,14 @@ public:
 
   ConstDeviceAccessor(gpu::Queue& q, ConstDeviceView<T, DIM> v) : deviceView_(v) {}
 
-  ConstDeviceAccessor(gpu::Queue& q, const T* ptr, IndexType shape, IndexType strides) {
-    if (gpu::is_device_ptr(ptr)) {
-      *this = ConstDeviceAccessor(q, ConstDeviceView<T, DIM>(ptr, shape, strides));
+  ConstDeviceAccessor(gpu::Queue& q, const T* ptr, IndexType shape, IndexType strides)
+      : ConstDeviceAccessor(q, ConstView<T, DIM>(ptr, shape, strides)) {}
+
+  ConstDeviceAccessor(gpu::Queue& q, ConstView<T, DIM> v) {
+    if (gpu::is_device_ptr(v.data())) {
+      *this = ConstDeviceAccessor(q, ConstDeviceView<T, DIM>(v));
     } else {
-      *this = ConstDeviceAccessor(q, ConstHostView<T, DIM>(ptr, shape, strides));
+      *this = ConstDeviceAccessor(q, ConstHostView<T, DIM>(v));
     }
   }
 
@@ -96,11 +102,14 @@ public:
 
   HostAccessor(gpu::Queue& q, HostView<T, DIM> v) : hostView_(v) {}
 
-  HostAccessor(gpu::Queue& q, T* ptr, IndexType shape, IndexType strides) {
-    if (gpu::is_device_ptr(ptr)) {
-      *this = HostAccessor(q, ConstDeviceView<T, DIM>(ptr, shape, strides));
+  HostAccessor(gpu::Queue& q, T* ptr, IndexType shape, IndexType strides)
+      : HostAccessor(q, View<T, DIM>(ptr, shape, strides)) {}
+
+  HostAccessor(gpu::Queue& q, View<T, DIM> v) {
+    if (gpu::is_device_ptr(v.data())) {
+      *this = HostAccessor(q, DeviceView<T, DIM>(v));
     } else {
-      *this = HostAccessor(q, HostView<T, DIM>(ptr, shape, strides));
+      *this = HostAccessor(q, HostView<T, DIM>(v));
     }
   }
 
@@ -131,11 +140,14 @@ public:
 
   ConstHostAccessor(gpu::Queue& q, ConstHostView<T, DIM> v) : hostView_(v) {}
 
-  ConstHostAccessor(gpu::Queue& q, const T* ptr, IndexType shape, IndexType strides) {
-    if (gpu::is_device_ptr(ptr)) {
-      *this = ConstHostAccessor(q, ConstDeviceView<T, DIM>(ptr, shape, strides));
+  ConstHostAccessor(gpu::Queue& q, const T* ptr, IndexType shape, IndexType strides)
+      : ConstHostAccessor(q, ConstView<T, DIM>(ptr, shape, strides)) {}
+
+  ConstHostAccessor(gpu::Queue& q, ConstView<T, DIM> v) {
+    if (gpu::is_device_ptr(v.data())) {
+      *this = ConstHostAccessor(q, ConstDeviceView<T, DIM>(v));
     } else {
-      *this = ConstHostAccessor(q, ConstHostView<T, DIM>(ptr, shape, strides));
+      *this = ConstHostAccessor(q, ConstHostView<T, DIM>(v));
     }
   }
 

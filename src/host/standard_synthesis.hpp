@@ -8,12 +8,13 @@
 #include "context_internal.hpp"
 #include "memory/view.hpp"
 #include "memory/array.hpp"
+#include "synthesis_interface.hpp"
 
 namespace bipp {
 namespace host {
 
 template <typename T>
-class StandardSynthesis {
+class StandardSynthesis : public SynthesisInterface<T> {
 public:
   StandardSynthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nLevel,
                     ConstHostView<BippFilter, 1> filter, ConstHostView<T, 1> pixelX,
@@ -23,13 +24,26 @@ public:
                ConstHostView<std::complex<T>, 2> s, ConstHostView<std::complex<T>, 2> w,
                ConstHostView<T, 2> xyz) -> void;
 
-  auto get(BippFilter f, HostView<T, 2> out) -> void;
+  // auto get(BippFilter f, HostView<T, 2> out) -> void;
 
-  auto context() -> ContextInternal& { return *ctx_; }
+  // auto context() -> ContextInternal& { return *ctx_; }
 
   inline auto num_filter() const -> std::size_t { return nFilter_; }
   inline auto num_pixel() const -> std::size_t { return nPixel_; }
   inline auto num_level() const -> std::size_t { return nLevel_; }
+
+  auto collect(T wl, ConstView<std::complex<T>, 2> vView, ConstHostView<T, 2> dMasked,
+               ConstView<T, 2> xyzUvwView) -> void override;
+
+  auto get(BippFilter f, View<T, 2> out) -> void override;
+
+  auto type() const -> SynthesisType override { return SynthesisType::Standard; }
+
+  auto context() -> ContextInternal& override { return *ctx_; }
+
+  auto gpu_enabled() const -> bool override { return false; }
+
+  auto image() -> View<T, 3> override { return img_; }
 
 private:
   std::shared_ptr<ContextInternal> ctx_;

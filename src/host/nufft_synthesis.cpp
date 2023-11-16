@@ -141,7 +141,7 @@ auto NufftSynthesis<T>::collect(
 
   for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
     copy(d, dMaskedArray.slice_view(idxLevel));
-    eigMaskFunc(idxLevel, nBeam, dMaskedArray.slice_view(idxLevel).data());
+    eigMaskFunc(idxLevel, nEig, dMaskedArray.slice_view(idxLevel).data());
   }
 
   // slice virtual visibility for current step
