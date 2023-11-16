@@ -131,11 +131,11 @@ auto call_eigh(Context& ctx, T wl, const py::array_t<std::complex<T>, py::array:
 }
 
 struct StandardSynthesisDispatcher {
-  StandardSynthesisDispatcher(Context& ctx, std::size_t nIntervals,
+  StandardSynthesisDispatcher(Context& ctx, std::size_t nLevel,
                               const std::vector<std::string>& filter, const py::array& pixelX,
                               const py::array& pixelY, const py::array& pixelZ,
                               const std::string& precision)
-      : nIntervals_(nIntervals), nPixel_(pixelX.shape(0)) {
+      : nLevel_(nLevel), nPixel_(pixelX.shape(0)) {
     std::vector<BippFilter> filterEnums;
     for (const auto& f : filter) {
       filterEnums.emplace_back(string_to_filter(f));
@@ -148,7 +148,7 @@ struct StandardSynthesisDispatcher {
       check_1d_array(pixelYArray, pixelXArray.shape(0));
       check_1d_array(pixelZArray, pixelXArray.shape(0));
       plan_ = StandardSynthesis<float>(
-          ctx, nIntervals, filterEnums.size(), filterEnums.data(),
+          ctx, nLevel, filterEnums.size(), filterEnums.data(),
           pixelXArray.shape(0), pixelXArray.data(0), pixelYArray.data(0), pixelZArray.data(0));
     } else if (precision == "double" || precision == "DOUBLE") {
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> pixelXArray(pixelX);
@@ -157,7 +157,7 @@ struct StandardSynthesisDispatcher {
       check_1d_array(pixelXArray);
       check_1d_array(pixelYArray, pixelXArray.shape(0));
       check_1d_array(pixelZArray, pixelXArray.shape(0));
-      plan_ = StandardSynthesis<double>(ctx, nIntervals, filterEnums.size(), filterEnums.data(),
+      plan_ = StandardSynthesis<double>(ctx, nLevel, filterEnums.size(), filterEnums.data(),
                                         pixelXArray.shape(0), pixelXArray.data(0),
                                         pixelYArray.data(0), pixelZArray.data(0));
     } else {
@@ -221,12 +221,12 @@ struct StandardSynthesisDispatcher {
         [&](auto&& arg) -> pybind11::array {
           using T = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<T, StandardSynthesis<double>>) {
-            py::array_t<double> out({nIntervals_, nPixel_});
+            py::array_t<double> out({nLevel_, nPixel_});
             std::get<StandardSynthesis<double>>(plan_).get(
                 f, out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
             return out;
           } else if constexpr (std::is_same_v<T, StandardSynthesis<float>>) {
-            py::array_t<float> out({nIntervals_, nPixel_});
+            py::array_t<float> out({nLevel_, nPixel_});
             std::get<StandardSynthesis<float>>(plan_).get(
                 f, out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
             return out;
@@ -239,15 +239,15 @@ struct StandardSynthesisDispatcher {
   }
 
   std::variant<std::monostate, StandardSynthesis<float>, StandardSynthesis<double>> plan_;
-  std::size_t nIntervals_, nPixel_;
+  std::size_t nLevel_, nPixel_;
 };
 
 struct NufftSynthesisDispatcher {
-  NufftSynthesisDispatcher(Context& ctx, NufftSynthesisOptions opt, std::size_t nIntervals,
+  NufftSynthesisDispatcher(Context& ctx, NufftSynthesisOptions opt, std::size_t nLevel,
                            const std::vector<std::string>& filter, const py::array& lmnX,
                            const py::array& lmnY, const py::array& lmnZ,
                            const std::string& precision)
-      : nIntervals_(nIntervals), nPixel_(lmnX.shape(0)) {
+      : nLevel_(nLevel), nPixel_(lmnX.shape(0)) {
     std::vector<BippFilter> filterEnums;
     for (const auto& f : filter) {
       filterEnums.emplace_back(string_to_filter(f));
@@ -259,7 +259,7 @@ struct NufftSynthesisDispatcher {
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = NufftSynthesis<float>(ctx, std::move(opt), nIntervals, filterEnums.size(),
+      plan_ = NufftSynthesis<float>(ctx, std::move(opt), nLevel, filterEnums.size(),
                                     filterEnums.data(), lmnXArray.shape(0), lmnXArray.data(0),
                                     lmnYArray.data(0), lmnZArray.data(0));
     } else if (precision == "double" || precision == "DOUBLE") {
@@ -269,7 +269,7 @@ struct NufftSynthesisDispatcher {
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = NufftSynthesis<double>(ctx, std::move(opt), nIntervals, filterEnums.size(),
+      plan_ = NufftSynthesis<double>(ctx, std::move(opt), nLevel, filterEnums.size(),
                                      filterEnums.data(), lmnXArray.shape(0), lmnXArray.data(0),
                                      lmnYArray.data(0), lmnZArray.data(0));
     } else {
@@ -339,12 +339,12 @@ struct NufftSynthesisDispatcher {
         [&](auto&& arg) -> pybind11::array {
           using T = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<T, NufftSynthesis<double>>) {
-            py::array_t<double> out({nIntervals_, nPixel_});
+            py::array_t<double> out({nLevel_, nPixel_});
             std::get<NufftSynthesis<double>>(plan_).get(
                 f, out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
             return out;
           } else if constexpr (std::is_same_v<T, NufftSynthesis<float>>) {
-            py::array_t<float> out({nIntervals_, nPixel_});
+            py::array_t<float> out({nLevel_, nPixel_});
             std::get<NufftSynthesis<float>>(plan_).get(
                 f, out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
             return out;
@@ -357,7 +357,7 @@ struct NufftSynthesisDispatcher {
   }
 
   std::variant<std::monostate, NufftSynthesis<float>, NufftSynthesis<double>> plan_;
-  std::size_t nIntervals_, nPixel_;
+  std::size_t nLevel_, nPixel_;
 };
 
 }  // namespace
@@ -408,7 +408,7 @@ PYBIND11_MODULE(pybipp, m) {
       .def(pybind11::init<Context&, NufftSynthesisOptions, std::size_t,
                           const std::vector<std::string>&, const py::array&, const py::array&,
                           const py::array&, const std::string&>(),
-           pybind11::arg("ctx"), pybind11::arg("opt"), pybind11::arg("n_intervals"),
+           pybind11::arg("ctx"), pybind11::arg("opt"), pybind11::arg("n_level"),
            pybind11::arg("filter"), pybind11::arg("lmn_x"), pybind11::arg("lmn_y"),
            pybind11::arg("lmn_y"), pybind11::arg("precision"))
       .def("collect", &NufftSynthesisDispatcher::collect, pybind11::arg("wl"),
@@ -419,7 +419,7 @@ PYBIND11_MODULE(pybipp, m) {
   pybind11::class_<StandardSynthesisDispatcher>(m, "StandardSynthesis")
       .def(pybind11::init<Context&, std::size_t, const std::vector<std::string>&, const py::array&,
                           const py::array&, const py::array&, const std::string&>(),
-           pybind11::arg("ctx"), pybind11::arg("n_intervals"), pybind11::arg("filter"),
+           pybind11::arg("ctx"), pybind11::arg("n_level"), pybind11::arg("filter"),
            pybind11::arg("lmn_x"), pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
            pybind11::arg("precision"))
       .def("collect", &StandardSynthesisDispatcher::collect, pybind11::arg("wl"),

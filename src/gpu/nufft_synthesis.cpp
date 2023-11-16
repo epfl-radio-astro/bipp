@@ -28,17 +28,17 @@ namespace gpu {
 
 template <typename T>
 NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
-                                  std::size_t nIntervals, HostArray<BippFilter, 1> filter,
+                                  std::size_t nLevel, HostArray<BippFilter, 1> filter,
                                   DeviceArray<T, 2> pixel)
 
     : ctx_(std::move(ctx)),
       opt_(std::move(opt)),
-      nIntervals_(nIntervals),
+      nLevel_(nLevel),
       nFilter_(filter.shape()),
       nPixel_(pixel.shape(0)),
       filter_(std::move(filter)),
       pixel_(std::move(pixel)),
-      img_(ctx_->gpu_queue().create_device_array<T, 3>({nPixel_, nIntervals_, nFilter_})),
+      img_(ctx_->gpu_queue().create_device_array<T, 3>({nPixel_, nLevel_, nFilter_})),
       imgPartition_(DomainPartition::none(ctx_, nPixel_)),
       collectPoints_(0),
       totalCollectCount_(0) {
@@ -93,7 +93,7 @@ auto NufftSynthesis<T>::collect(
     api::mem_get_info(&freeMem, &totalMem);
 
     const std::size_t minSizeUvw = 3 * nAntenna * nAntenna;
-    const std::size_t minSizeVirtVis = nIntervals_ * nFilter_ * nAntenna * nAntenna;
+    const std::size_t minSizeVirtVis = nLevel_ * nFilter_ * nAntenna * nAntenna;
     const double memFracUvw =
         double(minSizeUvw * sizeof(T)) /
         double(minSizeUvw * sizeof(T) + minSizeVirtVis * sizeof(std::complex<T>));
@@ -114,7 +114,7 @@ auto NufftSynthesis<T>::collect(
     queue.sync();
 
     virtualVis_ = queue.create_device_array<api::ComplexType<T>, 3>(
-        {maxPoints, nIntervals_, nFilter_});
+        {maxPoints, nLevel_, nFilter_});
     uvw_ = queue.create_device_array<T, 2>({maxPoints, 3});
   }
 
@@ -133,15 +133,15 @@ auto NufftSynthesis<T>::collect(
   ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "vUnbeam", vUnbeam);
 
   // callback for each level with eigenvalues
-  auto dMaskedArray = queue.create_host_array<T, 2>({d.size(), nIntervals_});
+  auto dMaskedArray = queue.create_host_array<T, 2>({d.size(), nLevel_});
   auto dHost = queue.create_host_array<T, 1>(d.size());
   copy(queue, d, dHost);
 
   queue.sync(); // make sure d is on host
 
-  for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
-    copy(dHost, dMaskedArray.slice_view(idxInt));
-    eigMaskFunc(idxInt, nBeam, dMaskedArray.slice_view(idxInt).data());
+  for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
+    copy(dHost, dMaskedArray.slice_view(idxLevel));
+    eigMaskFunc(idxLevel, nBeam, dMaskedArray.slice_view(idxLevel).data());
   }
 
   // slice virtual visibility for current step
@@ -237,7 +237,7 @@ auto NufftSynthesis<T>::computeNufft() -> void {
         opt_.localUVWPartition.method);
 
     for (std::size_t i = 0; i < nFilter_; ++i) {
-      for (std::size_t j = 0; j < nIntervals_; ++j) {
+      for (std::size_t j = 0; j < nLevel_; ++j) {
         inputPartition.apply(currentVirtualVis.slice_view(i).slice_view(j));
       }
     }
@@ -257,7 +257,7 @@ auto NufftSynthesis<T>::computeNufft() -> void {
           ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "nufft size {}, direct evaluation", inputSize);
           // Direct evaluation of sum for small input sizes
           for (std::size_t i = 0; i < nFilter_; ++i) {
-            for (std::size_t j = 0; j < nIntervals_; ++j) {
+            for (std::size_t j = 0; j < nLevel_; ++j) {
               auto imgPtr = img_.slice_view(i).slice_view(j).data() + imgBegin;
               nuft_sum<T>(queue.device_prop(), nullptr, 1.0, inputSize,
                           currentVirtualVis.slice_view(i).slice_view(j).data() + inputBegin,
@@ -275,7 +275,7 @@ auto NufftSynthesis<T>::computeNufft() -> void {
                                 pixelZ.data() + imgBegin);
 
           for (std::size_t i = 0; i < nFilter_; ++i) {
-            for (std::size_t j = 0; j < nIntervals_; ++j) {
+            for (std::size_t j = 0; j < nLevel_; ++j) {
               auto imgPtr = img_.slice_view(i).slice_view(j).data() + imgBegin;
               transform.execute(currentVirtualVis.slice_view(i).slice_view(j).data() + inputBegin,
                                 output.data());
@@ -317,14 +317,14 @@ auto NufftSynthesis<T>::get(BippFilter f, DeviceView<T, 2> out) -> void {
 
   auto filterImg = img_.slice_view(index);
 
-  for (std::size_t i = 0; i < nIntervals_; ++i) {
-    auto intervalImage = filterImg.slice_view(i);
-    auto intervalOut = out.slice_view(i);
-    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image permuted", intervalImage);
-    imgPartition_.reverse<T>(intervalImage, intervalOut);
+  for (std::size_t i = 0; i < nLevel_; ++i) {
+    auto levelImage = filterImg.slice_view(i);
+    auto levelOut = out.slice_view(i);
+    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image permuted", levelImage);
+    imgPartition_.reverse<T>(levelImage, levelOut);
 
-    scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale, intervalOut.data());
-    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", intervalOut);
+    scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale, levelOut.data());
+    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", levelOut);
   }
 }
 

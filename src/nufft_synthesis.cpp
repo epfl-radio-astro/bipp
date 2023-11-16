@@ -23,12 +23,12 @@ namespace bipp {
 template <typename T>
 struct NufftSynthesisInternal {
   NufftSynthesisInternal(const std::shared_ptr<ContextInternal>& ctx, NufftSynthesisOptions opt,
-                         std::size_t nIntervals, std::size_t nFilter, const BippFilter* filter,
+                         std::size_t nLevel, std::size_t nFilter, const BippFilter* filter,
                          std::size_t nPixel, const T* lmnX, const T* lmnY, const T* lmnZ)
-      : ctx_(ctx), nIntervals_(nIntervals), nPixel_(nPixel) {
+      : ctx_(ctx), nLevel_(nLevel), nPixel_(nPixel) {
     ctx_->logger().log(
         BIPP_LOG_LEVEL_DEBUG, "{} NufftSynthesis.create({}, opt, {}, {}, {}, {}, {}, {}, {})",
-        (const void*)this, (const void*)ctx_.get(), nIntervals, nFilter, (const void*)filter,
+        (const void*)this, (const void*)ctx_.get(), nLevel, nFilter, (const void*)filter,
         nPixel, (const void*)lmnX, (const void*)lmnY, (const void*)lmnZ);
 
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "lmnX", nPixel_, 1, lmnX, nPixel_);
@@ -36,7 +36,7 @@ struct NufftSynthesisInternal {
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "lmnZ", nPixel_, 1, lmnZ, nPixel_);
 
     if (ctx_->processing_unit() == BIPP_PU_CPU) {
-      planHost_.emplace(ctx_, opt, nIntervals, ConstHostView<BippFilter, 1>(filter, nFilter, 1),
+      planHost_.emplace(ctx_, opt, nLevel, ConstHostView<BippFilter, 1>(filter, nFilter, 1),
                         ConstHostView<T, 1>(lmnX, nPixel, 1), ConstHostView<T, 1>(lmnY, nPixel, 1),
                         ConstHostView<T, 1>(lmnZ, nPixel, 1));
     } else {
@@ -56,7 +56,7 @@ struct NufftSynthesisInternal {
       copy(queue, ConstView<T, 1>(lmnY, nPixel_, 1), pixelArray.slice_view(1));
       copy(queue, ConstView<T, 1>(lmnZ, nPixel_, 1), pixelArray.slice_view(2));
 
-      planGPU_.emplace(ctx_, std::move(opt), nIntervals, std::move(filterArray),
+      planGPU_.emplace(ctx_, std::move(opt), nLevel, std::move(filterArray),
                        std::move(pixelArray));
 #else
       throw GPUSupportError();
@@ -151,11 +151,11 @@ struct NufftSynthesisInternal {
                        (int)f, (const void*)out, ld);
     if (planHost_) {
       auto& p = planHost_.value();
-      p.get(f, HostView<T, 2>(out, {p.num_pixel(), p.num_intervals()}, {1, ld}));
+      p.get(f, HostView<T, 2>(out, {p.num_pixel(), p.num_level()}, {1, ld}));
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       auto& queue = ctx_->gpu_queue();
-      DeviceAccessor<T, 2> imgDevice(queue, out, {nPixel_, nIntervals_}, {1, ld});
+      DeviceAccessor<T, 2> imgDevice(queue, out, {nPixel_, nLevel_}, {1, ld});
       planGPU_->get(f, imgDevice.view());
       imgDevice.copy_back(queue);
       ctx_->gpu_queue().sync();
@@ -166,7 +166,7 @@ struct NufftSynthesisInternal {
   }
 
   std::shared_ptr<ContextInternal> ctx_;
-  std::size_t nIntervals_, nPixel_;
+  std::size_t nLevel_, nPixel_;
   std::optional<host::NufftSynthesis<T>> planHost_;
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
   std::optional<gpu::NufftSynthesis<T>> planGPU_;
@@ -174,12 +174,12 @@ struct NufftSynthesisInternal {
 };
 
 template <typename T>
-NufftSynthesis<T>::NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::size_t nIntervals,
+NufftSynthesis<T>::NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::size_t nLevel,
                                   std::size_t nFilter, const BippFilter* filter, std::size_t nPixel,
                                   const T* lmnX, const T* lmnY, const T* lmnZ) {
   try {
     plan_ = decltype(plan_)(
-        new NufftSynthesisInternal<T>(InternalContextAccessor::get(ctx), std::move(opt), nIntervals,
+        new NufftSynthesisInternal<T>(InternalContextAccessor::get(ctx), std::move(opt), nLevel,
                                       nFilter, filter, nPixel, lmnX, lmnY, lmnZ),
         [](auto&& ptr) { delete reinterpret_cast<NufftSynthesisInternal<T>*>(ptr); });
   } catch (const std::exception& e) {
@@ -381,7 +381,7 @@ BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_grid(BippNufftSynt
 }
 
 BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSynthesisOptions opt,
-                                                    size_t nIntervals, size_t nFilter,
+                                                    size_t nLevel, size_t nFilter,
                                                     const BippFilter* filter, size_t nPixel,
                                                     const float* lmnX, const float* lmnY,
                                                     const float* lmnZ, BippNufftSynthesisF* plan) {
@@ -391,7 +391,7 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSy
   try {
     *plan = new NufftSynthesisInternal<float>(
         InternalContextAccessor::get(*reinterpret_cast<Context*>(ctx)),
-        *reinterpret_cast<const NufftSynthesisOptions*>(opt),  nIntervals, nFilter,
+        *reinterpret_cast<const NufftSynthesisOptions*>(opt),  nLevel, nFilter,
         filter, nPixel, lmnX, lmnY, lmnZ);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
@@ -453,7 +453,7 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_get_f(BippNufftSynthesisF plan, BippF
 }
 
 BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, BippNufftSynthesisOptions opt,
-                                                 size_t nIntervals,
+                                                 size_t nLevel,
                                                   size_t nFilter, const BippFilter* filter,
                                                   size_t nPixel, const double* lmnX,
                                                   const double* lmnY, const double* lmnZ,
@@ -464,7 +464,7 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, BippNufftSynt
   try {
     *plan = new NufftSynthesisInternal<double>(
         InternalContextAccessor::get(*reinterpret_cast<Context*>(ctx)),
-        *reinterpret_cast<const NufftSynthesisOptions*>(opt), nIntervals, nFilter, filter, nPixel,
+        *reinterpret_cast<const NufftSynthesisOptions*>(opt), nLevel, nFilter, filter, nPixel,
         lmnX, lmnY, lmnZ);
   } catch (const bipp::GenericError& e) {
     return e.error_code();

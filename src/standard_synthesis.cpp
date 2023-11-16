@@ -20,13 +20,13 @@ namespace bipp {
 
 template <typename T>
 struct StandardSynthesisInternal {
-  StandardSynthesisInternal(const std::shared_ptr<ContextInternal>& ctx, std::size_t nIntervals,
+  StandardSynthesisInternal(const std::shared_ptr<ContextInternal>& ctx, std::size_t nLevel,
                             std::size_t nFilter, const BippFilter* filter, std::size_t nPixel,
                             const T* pixelX, const T* pixelY, const T* pixelZ)
-      : ctx_(ctx), nIntervals_(nIntervals), nPixel_(nPixel) {
+      : ctx_(ctx), nLevel_(nLevel), nPixel_(nPixel) {
     ctx_->logger().log(
         BIPP_LOG_LEVEL_DEBUG, "{} StandardSynthesis.create({}, opt, {} ,{} {}, {}, {}, {}, {})",
-        (const void*)this, (const void*)ctx_.get(), nIntervals, nFilter, (const void*)filter,
+        (const void*)this, (const void*)ctx_.get(), nLevel, nFilter, (const void*)filter,
         nPixel, (const void*)pixelX, (const void*)pixelY, (const void*)pixelZ);
 
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "lmnX", nPixel_, 1, pixelX, nPixel_);
@@ -35,7 +35,7 @@ struct StandardSynthesisInternal {
 
     if (ctx_->processing_unit() == BIPP_PU_CPU) {
       planHost_.emplace(
-          ctx_, nIntervals, ConstHostView<BippFilter, 1>(filter, nFilter, 1),
+          ctx_, nLevel, ConstHostView<BippFilter, 1>(filter, nFilter, 1),
           ConstHostView<T, 1>(pixelX, nPixel, 1), ConstHostView<T, 1>(pixelY, nPixel, 1),
           ConstHostView<T, 1>(pixelZ, nPixel, 1));
     } else {
@@ -55,7 +55,7 @@ struct StandardSynthesisInternal {
       copy(queue, ConstView<T, 1>(pixelY, nPixel_, 1), pixelArray.slice_view(1));
       copy(queue, ConstView<T, 1>(pixelZ, nPixel_, 1), pixelArray.slice_view(2));
 
-      planGPU_.emplace(ctx_, nIntervals, std::move(filterArray), std::move(pixelArray));
+      planGPU_.emplace(ctx_, nLevel, std::move(filterArray), std::move(pixelArray));
 #else
       throw GPUSupportError();
 #endif
@@ -145,11 +145,11 @@ struct StandardSynthesisInternal {
                        (const void*)this, (int)f, (const void*)img, ld);
     if (planHost_) {
       auto& p = planHost_.value();
-      p.get(f, HostView<T, 2>(img, {p.num_pixel(), p.num_intervals()}, {1, ld}));
+      p.get(f, HostView<T, 2>(img, {p.num_pixel(), p.num_level()}, {1, ld}));
     } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
       auto& queue = ctx_->gpu_queue();
-      DeviceAccessor<T, 2> imgDevice(queue, img, {nPixel_, nIntervals_}, {1, ld});
+      DeviceAccessor<T, 2> imgDevice(queue, img, {nPixel_, nLevel_}, {1, ld});
       planGPU_->get(f, imgDevice.view());
       imgDevice.copy_back(queue);
       ctx_->gpu_queue().sync();
@@ -160,7 +160,7 @@ struct StandardSynthesisInternal {
   }
 
   std::shared_ptr<ContextInternal> ctx_;
-  std::size_t nIntervals_, nPixel_;
+  std::size_t nLevel_, nPixel_;
   std::optional<host::StandardSynthesis<T>> planHost_;
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
   std::optional<gpu::StandardSynthesis<T>> planGPU_;
@@ -168,12 +168,12 @@ struct StandardSynthesisInternal {
 };
 
 template <typename T>
-StandardSynthesis<T>::StandardSynthesis(Context& ctx, std::size_t nIntervals, std::size_t nFilter,
+StandardSynthesis<T>::StandardSynthesis(Context& ctx, std::size_t nLevel, std::size_t nFilter,
                                         const BippFilter* filter, std::size_t nPixel,
                                         const T* pixelX, const T* pixelY, const T* pixelZ) {
   try {
     plan_ = decltype(plan_)(
-        new StandardSynthesisInternal<T>(InternalContextAccessor::get(ctx), nIntervals, nFilter,
+        new StandardSynthesisInternal<T>(InternalContextAccessor::get(ctx), nLevel, nFilter,
                                          filter, nPixel, pixelX, pixelY, pixelZ),
         [](auto&& ptr) { delete reinterpret_cast<StandardSynthesisInternal<T>*>(ptr); });
   } catch (const std::exception& e) {
@@ -217,7 +217,7 @@ template class BIPP_EXPORT StandardSynthesis<double>;
 template class BIPP_EXPORT StandardSynthesis<float>;
 
 extern "C" {
-BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t nIntervals,
+BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t nLevel,
                                                        size_t nFilter, const BippFilter* filter,
                                                        size_t nPixel, const float* lmnX,
                                                        const float* lmnY, const float* lmnZ,
@@ -227,7 +227,7 @@ BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t n
   }
   try {
     *plan = new StandardSynthesisInternal<float>(
-        InternalContextAccessor::get(*reinterpret_cast<Context*>(ctx)), nIntervals, nFilter, filter,
+        InternalContextAccessor::get(*reinterpret_cast<Context*>(ctx)), nLevel, nFilter, filter,
         nPixel, lmnX, lmnY, lmnZ);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
@@ -288,7 +288,7 @@ BIPP_EXPORT BippError bipp_standard_synthesis_get_f(BippStandardSynthesisF plan,
   return BIPP_SUCCESS;
 }
 
-BIPP_EXPORT BippError bipp_standard_synthesis_create(BippContext ctx, size_t nIntervals,
+BIPP_EXPORT BippError bipp_standard_synthesis_create(BippContext ctx, size_t nLevel,
                                                      size_t nFilter, const BippFilter* filter,
                                                      size_t nPixel, const double* lmnX,
                                                      const double* lmnY, const double* lmnZ,
@@ -298,7 +298,7 @@ BIPP_EXPORT BippError bipp_standard_synthesis_create(BippContext ctx, size_t nIn
   }
   try {
     *plan = new StandardSynthesisInternal<double>(
-        InternalContextAccessor::get(*reinterpret_cast<Context*>(ctx)), nIntervals, nFilter, filter,
+        InternalContextAccessor::get(*reinterpret_cast<Context*>(ctx)), nLevel, nFilter, filter,
         nPixel, lmnX, lmnY, lmnZ);
   } catch (const bipp::GenericError& e) {
     return e.error_code();

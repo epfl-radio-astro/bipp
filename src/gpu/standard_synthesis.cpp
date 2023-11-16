@@ -29,16 +29,16 @@ namespace gpu {
 
 template <typename T>
 StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx,
-                                        std::size_t nIntervals, HostArray<BippFilter, 1> filter,
+                                        std::size_t nLevel, HostArray<BippFilter, 1> filter,
                                         DeviceArray<T, 2> pixel)
     : ctx_(std::move(ctx)),
-      nIntervals_(nIntervals),
+      nLevel_(nLevel),
       nFilter_(filter.size()),
       nPixel_(pixel.shape(0)),
       count_(0),
       filter_(std::move(filter)),
       pixel_(std::move(pixel)),
-      img_(ctx_->gpu_queue().create_device_array<T, 3>({nPixel_, nIntervals_, nFilter_})) {
+      img_(ctx_->gpu_queue().create_device_array<T, 3>({nPixel_, nLevel_, nFilter_})) {
   auto& queue = ctx_->gpu_queue();
   api::memset_async(img_.data(), 0, img_.size() * sizeof(T), queue.stream());
 }
@@ -87,31 +87,31 @@ auto StandardSynthesis<T>::collect(
 
 
   // callback for each level with eigenvalues
-  auto dMaskedArray = queue.create_host_array<T, 2>({d.size(), nIntervals_});
+  auto dMaskedArray = queue.create_host_array<T, 2>({d.size(), nLevel_});
 
-  for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
-    copy(dHostArray, dMaskedArray.slice_view(idxInt));
-    eigMaskFunc(idxInt, nBeam, dMaskedArray.slice_view(idxInt).data());
+  for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
+    copy(dHostArray, dMaskedArray.slice_view(idxLevel));
+    eigMaskFunc(idxLevel, nBeam, dMaskedArray.slice_view(idxLevel).data());
   }
 
   auto dCount = queue.create_host_array<short, 1>(d.size());
   dCount.zero();
-  for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
-    auto mask = dMaskedArray.slice_view(idxInt);
+  for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
+    auto mask = dMaskedArray.slice_view(idxLevel);
     for(std::size_t i = 0; i < mask.size(); ++i) {
       dCount[i] |= mask[i] != 0;
     }
   }
 
-  // remove any eigenvalue that is zero for all levels
+  // remove any eigenvalue that is zero for all level
   // by copying forward
   std::size_t nEigRemoved = 0;
   for (std::size_t i = 0; i < nEig; ++i) {
     if(dCount[i]) {
       if(nEigRemoved) {
         copy(queue, vUnbeam.slice_view(i), vUnbeam.slice_view(i - nEigRemoved));
-        for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
-          dMaskedArray[{i - nEigRemoved, idxInt}] = dMaskedArray[{i, idxInt}];
+        for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
+          dMaskedArray[{i - nEigRemoved, idxLevel}] = dMaskedArray[{i, idxLevel}];
         }
       }
     } else {
@@ -141,20 +141,20 @@ auto StandardSynthesis<T>::collect(
 
   // cluster eigenvalues / vectors based on mask
   for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
-    for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
-      auto dMaskedSlice = dMasked.slice_view(idxInt);
+    for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
+      auto dMaskedSlice = dMasked.slice_view(idxLevel);
 
       host::apply_filter(filter_[idxFilter], nEigMasked, dMaskedSlice.data(),
                          dFilteredHost.data());
 
-      auto imgCurrent = img_.slice_view(idxFilter).slice_view(idxInt);
+      auto imgCurrent = img_.slice_view(idxFilter).slice_view(idxLevel);
       for (std::size_t idxEig = 0; idxEig < dMaskedSlice.size(); ++idxEig) {
         if (dMaskedSlice[idxEig]) {
           const auto scale = dFilteredHost[idxEig];
 
           ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
                              "Assigning eigenvalue {} (filtered {}) to bin {}",
-                             dMaskedSlice[{idxEig}], scale, idxInt);
+                             dMaskedSlice[{idxEig}], scale, idxLevel);
 
           api::blas::axpy(queue.blas_handle(), nPixel_, &scale,
                           unlayeredStats.slice_view(idxEig).data(), 1, imgCurrent.data(), 1);
@@ -171,7 +171,7 @@ auto StandardSynthesis<T>::get(BippFilter f, DeviceView<T, 2> out) -> void {
   auto& queue = ctx_->gpu_queue();
 
   assert(out.shape(0) == nPixel_);
-  assert(out.shape(1) == nIntervals_);
+  assert(out.shape(1) == nLevel_);
 
   std::size_t index = nFilter_;
   for (std::size_t i = 0; i < nFilter_; ++i) {
@@ -185,7 +185,7 @@ auto StandardSynthesis<T>::get(BippFilter f, DeviceView<T, 2> out) -> void {
   auto filterImg = img_.slice_view(index);
 
   const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
-  for (std::size_t i = 0; i < nIntervals_; ++i) {
+  for (std::size_t i = 0; i < nLevel_; ++i) {
     scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, filterImg.slice_view(i).data(),
                     scale, out.slice_view(i).data());
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", out.slice_view(i));

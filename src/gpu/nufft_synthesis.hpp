@@ -14,7 +14,7 @@ template <typename T>
 class NufftSynthesis {
 public:
   NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
-                 std::size_t nIntervals,
+                 std::size_t nLevel,
                  HostArray<BippFilter, 1> filter, DeviceArray<T, 2> pixel);
 
   auto collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
@@ -28,14 +28,14 @@ public:
 
   inline auto num_filter() const -> std::size_t { return nFilter_; }
   inline auto num_pixel() const -> std::size_t { return nPixel_; }
-  inline auto num_intervals() const -> std::size_t { return nIntervals_; }
+  inline auto num_level() const -> std::size_t { return nLevel_; }
 
 private:
   auto computeNufft() -> void;
 
   std::shared_ptr<ContextInternal> ctx_;
   NufftSynthesisOptions opt_;
-  const std::size_t nIntervals_, nFilter_, nPixel_;
+  const std::size_t nLevel_, nFilter_, nPixel_;
   HostArray<BippFilter, 1> filter_;
   DeviceArray<T, 2> pixel_;
   DomainPartition imgPartition_;

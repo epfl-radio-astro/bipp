@@ -34,17 +34,17 @@ static auto center_vector(std::size_t n, const T* __restrict__ in, T* __restrict
 
 template <typename T>
 StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx,
-                                        std::size_t nIntervals, ConstHostView<BippFilter, 1> filter,
+                                        std::size_t nLevel, ConstHostView<BippFilter, 1> filter,
                                         ConstHostView<T, 1> pixelX, ConstHostView<T, 1> pixelY,
                                         ConstHostView<T, 1> pixelZ)
     : ctx_(std::move(ctx)),
-      nIntervals_(nIntervals),
+      nLevel_(nLevel),
       nFilter_(filter.size()),
       nPixel_(pixelX.size()),
       count_(0),
       filter_(ctx_->host_alloc(), filter.shape()),
       pixel_(ctx_->host_alloc(), {pixelX.size(), 3}),
-      img_(ctx_->host_alloc(), {nPixel_, nIntervals_, nFilter_}) {
+      img_(ctx_->host_alloc(), {nPixel_, nLevel_, nFilter_}) {
   assert(pixelX.size() == pixelY.size());
   assert(pixelX.size() == pixelZ.size());
 
@@ -90,31 +90,31 @@ auto StandardSynthesis<T>::collect(
 
 
   // callback for each level with eigenvalues
-  auto dMaskedArray = HostArray<T, 2>(ctx_->host_alloc(), {d.size(), nIntervals_});
+  auto dMaskedArray = HostArray<T, 2>(ctx_->host_alloc(), {d.size(), nLevel_});
 
-  for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
-    copy(d, dMaskedArray.slice_view(idxInt));
-    eigMaskFunc(idxInt, nBeam, dMaskedArray.slice_view(idxInt).data());
+  for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
+    copy(d, dMaskedArray.slice_view(idxLevel));
+    eigMaskFunc(idxLevel, nBeam, dMaskedArray.slice_view(idxLevel).data());
   }
 
   auto dCount = HostArray<short, 1>(ctx_->host_alloc(), d.size());
   dCount.zero();
-  for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
-    auto mask = dMaskedArray.slice_view(idxInt);
+  for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
+    auto mask = dMaskedArray.slice_view(idxLevel);
     for(std::size_t i = 0; i < mask.size(); ++i) {
       dCount[i] |= mask[i] != 0;
     }
   }
 
-  // remove any eigenvalue that is zero for all levels
+  // remove any eigenvalue that is zero for all level
   // by copying forward
   std::size_t nEigRemoved = 0;
   for (std::size_t i = 0; i < nEig; ++i) {
     if(dCount[i]) {
       if(nEigRemoved) {
         copy(vUnbeam.slice_view(i), vUnbeam.slice_view(i - nEigRemoved));
-        for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
-          dMaskedArray[{i - nEigRemoved, idxInt}] = dMaskedArray[{i, idxInt}];
+        for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
+          dMaskedArray[{i - nEigRemoved, idxLevel}] = dMaskedArray[{i, idxLevel}];
         }
       }
     } else {
@@ -138,19 +138,19 @@ auto StandardSynthesis<T>::collect(
 
   // cluster eigenvalues / vectors based on mask
   for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
-    for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
-      auto dMaskedSlice = dMasked.slice_view(idxInt);
+    for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
+      auto dMaskedSlice = dMasked.slice_view(idxLevel);
 
       apply_filter(filter_[idxFilter], nEigMasked, dMaskedSlice.data(), dFiltered.data());
 
-      auto imgCurrent = img_.slice_view(idxFilter).slice_view(idxInt);
+      auto imgCurrent = img_.slice_view(idxFilter).slice_view(idxLevel);
       for (std::size_t idxEig = 0; idxEig < dMaskedSlice.size(); ++idxEig) {
         if (dMaskedSlice[idxEig]) {
           const auto scale = dFiltered[idxEig];
 
           ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
                              "Assigning eigenvalue {} (filtered {}) to bin {}",
-                             dMaskedSlice[{idxEig}], scale, idxInt);
+                             dMaskedSlice[{idxEig}], scale, idxLevel);
 
           blas::axpy(nPixel_, scale, &unlayeredStats[{0, idxEig}], 1, imgCurrent.data(), 1);
         }
@@ -164,7 +164,7 @@ auto StandardSynthesis<T>::collect(
 template <typename T>
 auto StandardSynthesis<T>::get(BippFilter f, HostView<T, 2> out) -> void {
   assert(out.shape(0) == nPixel_);
-  assert(out.shape(1) == nIntervals_);
+  assert(out.shape(1) == nLevel_);
 
   std::size_t index = nFilter_;
   for (std::size_t i = 0; i < nFilter_; ++i) {
@@ -175,7 +175,7 @@ auto StandardSynthesis<T>::get(BippFilter f, HostView<T, 2> out) -> void {
   }
   if (index == nFilter_) throw InvalidParameterError();
 
-  for (std::size_t i = 0; i < nIntervals_; ++i) {
+  for (std::size_t i = 0; i < nLevel_; ++i) {
     const T* __restrict__ localImg = &img_[{0, i, index}];
     T* __restrict__ outputImg = &out[{0, i}];
     const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
