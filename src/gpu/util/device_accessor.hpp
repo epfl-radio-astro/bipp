@@ -15,7 +15,14 @@
 #include "gpu/util/queue.hpp"
 #include "gpu/util/device_pointer.hpp"
 
+
+
 namespace bipp {
+
+/*
+ * Allows access to multi-dimensional memory from GPU. Copies if input is located on host, otherwise
+ * only presents to the initial input.
+ */
 template <typename T, std::size_t DIM>
 class DeviceAccessor {
 public:
@@ -42,8 +49,10 @@ public:
     }
   }
 
+  // Access from device
   inline auto view() const -> const DeviceView<T, DIM>& { return deviceView_; }
 
+  // Copy back to host if copy to device was performed at construction
   inline auto copy_back(gpu::Queue& q) -> void {
     if (sourceView_) copy(q, deviceView_, sourceView_.value());
   }
@@ -54,6 +63,10 @@ private:
   std::optional<HostView<T, DIM>> sourceView_;
 };
 
+/*
+ * Allows access to multi-dimensional memory from GPU. Copies if input is located on host, otherwise
+ * only presents to the initial input.
+ */
 template <typename T, std::size_t DIM>
 class ConstDeviceAccessor {
 public:
@@ -87,6 +100,12 @@ private:
   ConstDeviceView<T, DIM> deviceView_;
 };
 
+/*
+ * Allows access to multi-dimensional memory from Host. Copies if input is located on device,
+ * otherwise only presents to the initial input.
+ *
+ * Note: May require queue synchronization before available.
+ */
 template <typename T, std::size_t DIM>
 class HostAccessor {
 public:
@@ -115,6 +134,7 @@ public:
 
   inline auto view() const -> const HostView<T, DIM>& { return hostView_; }
 
+  // Copy back to device if copy to host was performed at construction
   inline auto copy_back(gpu::Queue& q) -> void {
     if (sourceView_) copy(q, hostView_, sourceView_.value());
   }
@@ -125,6 +145,12 @@ private:
   std::optional<DeviceView<T, DIM>> sourceView_;
 };
 
+/*
+ * Allows access to multi-dimensional memory from Host. Copies if input is located on device,
+ * otherwise only presents to the initial input.
+ *
+ * Note: May require queue synchronization before available.
+ */
 template <typename T, std::size_t DIM>
 class ConstHostAccessor {
 public:

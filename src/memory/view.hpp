@@ -13,6 +13,31 @@
 #include "bipp/exceptions.hpp"
 #include "memory/allocator.hpp"
 
+
+/*
+ *
+ *  Views are non-owning objects allowing access to memory through multi-dimensional indexing.
+ *  Arrays inherit from views and own the associated memory.
+ *
+ *  Note: Coloumn-major memory layout! The stride in the first dimension is always 1.
+ *
+ *  The inheritance tree is as follows:
+ *
+ *                            ConstView
+ *                                |
+ *                ------------------------View
+ *                |                         |
+ *          --------------              -----------
+ *          |            |              |         |
+ *  ConstHostView  ConstDeviceView  HostView DeviceView
+ *                                      |         |
+ *                                 HostArray DeviceArray
+ *
+ *
+ * Host views support the [..] operator for element-wise access.
+ * Device views may not be passed to device kernels and do not support element-wise access.
+ */
+
 namespace bipp {
 
 namespace impl {
@@ -45,6 +70,9 @@ struct ViewIndexHelper<DIM, 1> {
 
 }  // namespace impl
 
+/*
+ * Helper functions
+ */
 template <std::size_t DIM>
 inline constexpr auto view_index(const std::array<std::size_t, DIM>& indices,
                                   const std::array<std::size_t, DIM>& strides) -> std::size_t {
@@ -60,10 +88,15 @@ inline constexpr auto view_size(const std::array<std::size_t, DIM>& shape) -> st
   return std::reduce(shape.begin(), shape.end(), std::size_t(1), std::multiplies{});
 }
 
+
+
 template <typename T, std::size_t DIM>
 class ConstView {
 public:
+  using ValueType = T;
+  using BaseType = ConstView<T, DIM>;
   using IndexType = std::conditional_t<DIM == 1, std::size_t, std::array<std::size_t, DIM>>;
+  using SliceType = ConstView<T, DIM - 1>;
 
   ConstView() {
     if constexpr(DIM==1) {
@@ -111,6 +144,14 @@ public:
       return strides_;
     else
       return strides_[i];
+  }
+
+  auto slice_view(std::size_t outer_index) const -> SliceType {
+    return this->template slice_view_impl<SliceType>(outer_index);
+  }
+
+  auto sub_view(const IndexType& offset, const IndexType& shape) const -> ConstView<T, DIM> {
+    return this->template sub_view_impl<ConstView<T, DIM>>(offset, shape);
   }
 
 protected:
@@ -169,8 +210,10 @@ protected:
 template <typename T, std::size_t DIM>
 class View : public ConstView<T, DIM> {
 public:
+  using ValueType = T;
   using BaseType = ConstView<T, DIM>;
   using IndexType = typename BaseType::IndexType;
+  using SliceType = View<T, DIM - 1>;
 
   View() : BaseType() {}
 
@@ -178,7 +221,18 @@ public:
 
   inline auto data() -> T* { return const_cast<T*>(this->constPtr_); }
 
+  auto slice_view(std::size_t outer_index) const -> SliceType {
+    return this->template slice_view_impl<SliceType>(outer_index);
+  }
+
+  auto sub_view(const IndexType& offset, const IndexType& shape) const -> View<T, DIM> {
+    return this->template sub_view_impl<View<T, DIM>>(offset, shape);
+  }
+
 protected:
+  friend ConstView<T, DIM>;
+  friend ConstView<T, DIM + 1>;
+
   View(const BaseType& v) : BaseType(v) {}
 };
 
@@ -265,12 +319,6 @@ public:
   auto sub_view(const IndexType& offset, const IndexType& shape) const -> ConstHostView<T, DIM> {
     return this->template sub_view_impl<ConstHostView<T, DIM>>(offset, shape);
   }
-
-// protected:
-//   friend ConstView<T, DIM>;
-//   friend ConstView<T, DIM + 1>;
-
-//   ConstHostView(ConstView<T, DIM>&& b) : BaseType(std::move(b)){};
 };
 
 
@@ -333,12 +381,6 @@ public:
   auto sub_view(const IndexType& offset, const IndexType& shape) const -> ConstDeviceView<T, DIM> {
     return this->template sub_view_impl<ConstDeviceView<T, DIM>>(offset, shape);
   }
-
-// protected:
-//   friend ConstView<T, DIM>;
-//   friend ConstView<T, DIM + 1>;
-
-//   ConstDeviceView(ConstView<T, DIM>&& b) : BaseType(std::move(b)){};
 };
 
 #endif

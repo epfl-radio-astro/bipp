@@ -11,6 +11,10 @@
 #include "memory/allocator.hpp"
 #include "memory/view.hpp"
 
+/*
+ * Arrays are views, that own the attached memory.
+ */
+
 namespace bipp {
 template <typename T, std::size_t DIM>
 class HostArray : public HostView<T, DIM> {
