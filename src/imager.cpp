@@ -1,19 +1,21 @@
 #include "imager.hpp"
 
+#include <cassert>
 #include <complex>
 #include <cstddef>
 #include <memory>
-#include <cassert>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
 #include "host/eigensolver.hpp"
-#include "memory/copy.hpp"
+#include "host/nufft_synthesis.hpp"
 #include "host/standard_synthesis.hpp"
+#include "memory/copy.hpp"
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/eigensolver.hpp"
 #include "gpu/kernels/center_vector.hpp"
+#include "gpu/nufft_synthesis.hpp"
 #include "gpu/standard_synthesis.hpp"
 #include "gpu/util/device_accessor.hpp"
 #include "gpu/util/device_pointer.hpp"
@@ -69,6 +71,43 @@ auto Imager<T>::standard_synthesis(std::shared_ptr<ContextInternal> ctx, std::si
       return Imager(std::make_unique<host::StandardSynthesis<T>>(
           std::move(ctx), nLevel, ConstHostView<BippFilter, 1>(filter), ConstHostView<T, 1>(pixelX),
           ConstHostView<T, 1>(pixelY), ConstHostView<T, 1>(pixelZ)));
+    }
+
+    template <typename T>
+    auto Imager<T>::nufft_synthesis(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
+                                    std::size_t nLevel, ConstView<BippFilter, 1> filter,
+                                    ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
+                                    ConstView<T, 1> pixelZ) -> Imager<T> {
+      assert(pixelX.size() == pixelY.size());
+      assert(pixelX.size() == pixelZ.size());
+
+      assert(ctx);
+      if(ctx->processing_unit() == BIPP_PU_GPU) {
+#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+      auto& queue = ctx->gpu_queue();
+      // Syncronize with default stream.
+      queue.sync_with_stream(nullptr);
+      // syncronize with stream to be synchronous with host before exiting
+      auto syncGuard = queue.sync_guard();
+
+      auto filterArray = queue.create_host_array<BippFilter, 1>(filter.size());
+      copy(queue, filter, filterArray);
+      queue.sync();  // make sure filters are available
+
+      auto pixelArray = queue.create_device_array<T, 2>({pixelX.size(), 3});
+      copy(queue, pixelX, pixelArray.slice_view(0));
+      copy(queue, pixelY, pixelArray.slice_view(1));
+      copy(queue, pixelZ, pixelArray.slice_view(2));
+
+      return Imager(std::make_unique<gpu::NufftSynthesis<T>>(
+          ctx, std::move(opt), nLevel, std::move(filterArray), std::move(pixelArray)));
+#else
+      throw GPUSupportError();
+#endif
+      }
+      return Imager(std::make_unique<host::NufftSynthesis<T>>(
+          std::move(ctx), opt, nLevel, ConstHostView<BippFilter, 1>(filter),
+          ConstHostView<T, 1>(pixelX), ConstHostView<T, 1>(pixelY), ConstHostView<T, 1>(pixelZ)));
     }
 
 template <typename T>
@@ -180,6 +219,16 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
 template <typename T>
 auto Imager<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
   auto img = synthesis_->image();
+
+#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+  if (synthesis_->gpu_enabled()) {
+    gpu::Queue& queue = synthesis_->context().gpu_queue();
+    // Syncronize with default stream.
+    queue.sync_with_stream(nullptr);
+    // syncronize with stream to be synchronous with host before exiting
+    auto syncGuard = queue.sync_guard();
+  }
+#endif
 
   synthesis_->get(f, View<T, 2>(out, {img.shape(0), img.shape(1)}, {1, ld}));
 }

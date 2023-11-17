@@ -15,6 +15,7 @@
 #include "gpu/kernels/nuft_sum.hpp"
 #include "gpu/kernels/scale_vector.hpp"
 #include "gpu/nufft_3d3.hpp"
+#include "gpu/util/device_accessor.hpp"
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
 #include "gpu/virtual_vis.hpp"
@@ -67,23 +68,24 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
 }
 
 template <typename T>
-auto NufftSynthesis<T>::collect(
-    T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
-    ConstHostView<api::ComplexType<T>, 2> sHost, ConstDeviceView<api::ComplexType<T>, 2> s,
-    ConstDeviceView<api::ComplexType<T>, 2> w, ConstDeviceView<T, 2> xyz, ConstDeviceView<T, 2> uvw)
-    -> void {
+auto NufftSynthesis<T>::collect(T wl, ConstView<std::complex<T>, 2> vView,
+                                ConstHostView<T, 2> dMasked, ConstView<T, 2> xyzUvwView) -> void {
 
-  const auto nAntenna = w.shape(0);
-  const auto nBeam = w.shape(1);
+  const auto nAntenna = vView.shape(0);
+  const auto nEig = dMasked.shape(0);
 
-  assert(xyz.shape(0) == nAntenna);
-  assert(xyz.shape(1) == 3);
-  assert(s.shape(0) == nBeam);
-  assert(s.shape(1) == nBeam);
-  assert(uvw.shape(0) == nAntenna * nAntenna);
-  assert(uvw.shape(1) == 3);
+  assert(dMasked.shape(1) == nLevel_);
+  assert(vView.shape(1) == nEig);
+  assert(xyzUvwView.shape(0) == nAntenna * nAntenna);
+  assert(xyzUvwView.shape(1) == 3);
 
   auto& queue = ctx_->gpu_queue();
+
+  ConstDeviceAccessor<api::ComplexType<T>, 2> vDevice(
+      queue, ConstView<api::ComplexType<T>, 2>(
+                 reinterpret_cast<const gpu::api::ComplexType<T>*>(vView.data()), vView.shape(),
+                 vView.strides()));
+  auto v = vDevice.view();
 
   // allocate initial memory if not yet done
   if (uvw_.shape(0) <= collectPoints_ + nAntenna * nAntenna) {
@@ -119,30 +121,7 @@ auto NufftSynthesis<T>::collect(
   }
 
   // store coordinates
-  copy(queue, uvw,
-       uvw_.sub_view({collectPoints_, 0}, {nAntenna * nAntenna, 3}));
-
-  auto vUnbeamArray = queue.create_device_array<api::ComplexType<T>, 2>({nAntenna, nBeam});
-  auto dArray = queue.create_device_array<T, 1>(nBeam);
-
-  const auto nEig = eigh<T>(*ctx_, wl, s, w, xyz, dArray, vUnbeamArray);
-
-  auto d = dArray.sub_view(0, nEig);
-  auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna, nEig});
-
-  ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "vUnbeam", vUnbeam);
-
-  // callback for each level with eigenvalues
-  auto dMaskedArray = queue.create_host_array<T, 2>({d.size(), nLevel_});
-  auto dHost = queue.create_host_array<T, 1>(d.size());
-  copy(queue, d, dHost);
-
-  queue.sync(); // make sure d is on host
-
-  for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
-    copy(dHost, dMaskedArray.slice_view(idxLevel));
-    eigMaskFunc(idxLevel, nEig, dMaskedArray.slice_view(idxLevel).data());
-  }
+  copy(queue, xyzUvwView, uvw_.sub_view({collectPoints_, 0}, {nAntenna * nAntenna, 3}));
 
   // slice virtual visibility for current step
   auto virtVisCurrent =
@@ -150,7 +129,7 @@ auto NufftSynthesis<T>::collect(
                            {nAntenna * nAntenna, virtualVis_.shape(1), virtualVis_.shape(2)});
 
   // compute virtual visibilities
-  virtual_vis<T>(*ctx_, filter_, dMaskedArray, vUnbeam, virtVisCurrent);
+  virtual_vis<T>(*ctx_, filter_, dMasked, v, virtVisCurrent);
 
   collectPoints_ += nAntenna * nAntenna;
   ++totalCollectCount_;
@@ -297,10 +276,16 @@ auto NufftSynthesis<T>::computeNufft() -> void {
 }
 
 template <typename T>
-auto NufftSynthesis<T>::get(BippFilter f, DeviceView<T, 2> out) -> void {
+auto NufftSynthesis<T>::get(BippFilter f, View<T, 2> out) -> void {
   computeNufft();  // make sure all input has been processed
 
   auto& queue = ctx_->gpu_queue();
+
+
+  assert(out.shape(0) == nPixel_);
+  assert(out.shape(1) == nLevel_);
+
+  DeviceAccessor<T,2> outDevice(queue,out);
 
   std::size_t index = nFilter_;
   const BippFilter* filterPtr = filter_.data();
@@ -317,15 +302,19 @@ auto NufftSynthesis<T>::get(BippFilter f, DeviceView<T, 2> out) -> void {
 
   auto filterImg = img_.slice_view(index);
 
+  auto outDeviceView = outDevice.view();
+
   for (std::size_t i = 0; i < nLevel_; ++i) {
     auto levelImage = filterImg.slice_view(i);
-    auto levelOut = out.slice_view(i);
+    auto levelOut = outDeviceView.slice_view(i);
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image permuted", levelImage);
     imgPartition_.reverse<T>(levelImage, levelOut);
 
     scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale, levelOut.data());
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", levelOut);
   }
+
+  outDevice.copy_back(queue);
 }
 
 template class NufftSynthesis<float>;

@@ -16,19 +16,6 @@ public:
   StandardSynthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nLevel,
                     HostArray<BippFilter, 1> filter, DeviceArray<T, 2> pixel);
 
-  auto collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
-               ConstHostView<api::ComplexType<T>, 2> sHost,
-               ConstDeviceView<api::ComplexType<T>, 2> s, ConstDeviceView<api::ComplexType<T>, 2> w,
-               ConstDeviceView<T, 2> xyz) -> void;
-
-  // auto get(BippFilter f, DeviceView<T, 2> out) -> void;
-
-  // auto context() -> ContextInternal& { return *ctx_; }
-
-  inline auto num_filter() const -> std::size_t { return nFilter_; }
-  inline auto num_pixel() const -> std::size_t { return nPixel_; }
-  inline auto num_level() const -> std::size_t { return nLevel_; }
-
   auto collect(T wl, ConstView<std::complex<T>, 2> vView, ConstHostView<T, 2> dMasked,
                ConstView<T, 2> xyzUvwView) -> void override;
 
