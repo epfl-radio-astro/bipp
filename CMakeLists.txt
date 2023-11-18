@@ -56,6 +56,7 @@ option(BIPP_MAGMA "Use MAGMA library as eigensolver" OFF)
 option(BIPP_UMPIRE "Use Umpire memory pool library" OFF)
 option(BIPP_VC "Use VC vectorization library" OFF)
 option(BIPP_OMP "Use OpenMP for multi-threading" ON)
+option(BIPP_MPI "Use MPI for multi-process parallization" OFF)
 option(BIPP_BUNDLED_LIBS "Use bundled libraries for spdlog, googletest and json" ON)
 
 cmake_dependent_option(BIPP_BUNDLED_SPDLOG "Use bundled spdlog lib" ON "BIPP_BUNDLED_LIBS" OFF)
@@ -102,6 +103,7 @@ endif()
 
 set(BIPP_FLAGS "")
 set(BIPP_EXTERNAL_LIBS "")
+set(BIPP_EXTERNAL_LIBS_PUBLIC "")
 set(BIPP_INCLUDE_DIRS "")
 
 # CUDA
@@ -176,6 +178,12 @@ if(BIPP_UMPIRE)
 endif()
 
 set(BLA_SIZEOF_INTEGER 4) # 32 bit interface to blas / lapack
+
+# MPI
+if(BIPP_MPI)
+  find_package(MPI COMPONENTS CXX REQUIRED)
+  list(APPEND BIPP_EXTERNAL_LIBS_PUBLIC MPI::MPI_CXX)
+endif()
 
 # BLAS
 find_package(BLAS REQUIRED)

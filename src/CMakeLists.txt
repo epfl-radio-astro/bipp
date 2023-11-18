@@ -40,6 +40,12 @@ if(BIPP_CUDA OR BIPP_ROCM)
 		)
 endif()
 
+if(BIPP_MPI)
+	list(APPEND BIPP_SOURCE_FILES
+		mpi_util/mpi_init_guard.cpp
+		)
+endif()
+
 # set all files to CXX, such that .cu files are compiled by the CXX compiler with ROCM enabled
 if(BIPP_ROCM)
     set_source_files_properties(${BIPP_SOURCE_FILES} PROPERTIES LANGUAGE CXX)
@@ -76,6 +82,7 @@ macro(bipp_create_library _TARGET_NAME)
 	target_compile_options(${_TARGET_NAME} PRIVATE ${BIPP_FLAGS})
 	target_include_directories(${_TARGET_NAME} PRIVATE ${BIPP_INCLUDE_DIRS})
 	target_link_libraries(${_TARGET_NAME} PRIVATE ${BIPP_EXTERNAL_LIBS})
+	target_link_libraries(${_TARGET_NAME} PUBLIC ${BIPP_EXTERNAL_LIBS_PUBLIC})
 
 	target_include_directories(${_TARGET_NAME} INTERFACE $<INSTALL_INTERFACE:include>) # for install(EXPORT ...)
 	target_include_directories(${_TARGET_NAME} INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>) # for export(...)
