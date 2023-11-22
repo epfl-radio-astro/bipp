@@ -20,8 +20,9 @@ namespace bipp {
 namespace host {
 
 template <typename T>
-static T calc_sinc(T a, T x) {
-  return x ? std::sin(a * x) / (T(3.14159265358979323846) * x) : T(1);
+static T calc_pi_sinc(T x) {
+  constexpr auto pi = T(3.14159265358979323846);
+  return x ? std::sin(pi * x) / (pi * x) : T(1);
 }
 
 template <typename T>
@@ -34,15 +35,15 @@ auto gram_matrix(ContextInternal& ctx, std::size_t m, std::size_t n, const std::
   auto x = xyz;
   auto y = xyz + ldxyz;
   auto z = xyz + 2 * ldxyz;
-  T sincScale = 2 * 3.14159265358979323846 / wl;
+  
   for (std::size_t i = 0; i < m; ++i) {
-    basePtr[i * m + i] = 1;
+    basePtr[i * m + i] = T(1);
     for (std::size_t j = i + 1; j < m; ++j) {
       auto diffX = x[i] - x[j];
       auto diffY = y[i] - y[j];
       auto diffZ = z[i] - z[j];
       auto norm = std::sqrt(diffX * diffX + diffY * diffY + diffZ * diffZ);
-      basePtr[i * m + j] = calc_sinc(sincScale, norm);
+      basePtr[i * m + j] = calc_pi_sinc(T(2) * norm / wl);
     }
   }
 
