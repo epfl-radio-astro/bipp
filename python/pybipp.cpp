@@ -277,6 +277,42 @@ struct NufftSynthesisDispatcher {
     }
   }
 
+#ifdef BIPP_MPI
+  NufftSynthesisDispatcher(Communicator& comm,Context& ctx, NufftSynthesisOptions opt, std::size_t nLevel,
+                           const std::vector<std::string>& filter, const py::array& lmnX,
+                           const py::array& lmnY, const py::array& lmnZ,
+                           const std::string& precision)
+      : nLevel_(nLevel), nPixel_(lmnX.shape(0)) {
+    std::vector<BippFilter> filterEnums;
+    for (const auto& f : filter) {
+      filterEnums.emplace_back(string_to_filter(f));
+    }
+    if (precision == "single" || precision == "SINGLE") {
+      py::array_t<float, pybind11::array::f_style | py::array::forcecast> lmnXArray(lmnX);
+      py::array_t<float, pybind11::array::f_style | py::array::forcecast> lmnYArray(lmnY);
+      py::array_t<float, pybind11::array::f_style | py::array::forcecast> lmnZArray(lmnZ);
+      check_1d_array(lmnXArray);
+      check_1d_array(lmnYArray, lmnXArray.shape(0));
+      check_1d_array(lmnZArray, lmnXArray.shape(0));
+      plan_ = NufftSynthesis<float>(comm, ctx, std::move(opt), nLevel, filterEnums.size(),
+                                    filterEnums.data(), lmnXArray.shape(0), lmnXArray.data(0),
+                                    lmnYArray.data(0), lmnZArray.data(0));
+    } else if (precision == "double" || precision == "DOUBLE") {
+      py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnXArray(lmnX);
+      py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnYArray(lmnY);
+      py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnZArray(lmnZ);
+      check_1d_array(lmnXArray);
+      check_1d_array(lmnYArray, lmnXArray.shape(0));
+      check_1d_array(lmnZArray, lmnXArray.shape(0));
+      plan_ = NufftSynthesis<double>(comm, ctx, std::move(opt), nLevel, filterEnums.size(),
+                                     filterEnums.data(), lmnXArray.shape(0), lmnXArray.data(0),
+                                     lmnYArray.data(0), lmnZArray.data(0));
+    } else {
+      throw InvalidParameterError();
+    }
+  }
+#endif
+
   NufftSynthesisDispatcher(NufftSynthesisDispatcher&&) = default;
 
   NufftSynthesisDispatcher(const NufftSynthesisDispatcher&) = delete;
@@ -382,6 +418,13 @@ PYBIND11_MODULE(pybipp, m) {
       .def_property_readonly("processing_unit",
            [](const Context& ctx) { return processing_unit_to_string(ctx.processing_unit()); });
 
+#ifdef BIPP_MPI
+  pybind11::class_<Communicator>(m, "Communicator")
+      .def(py::init([]() { return Communicator(MPI_COMM_WORLD); }))
+      .def_property_readonly("is_root", &Communicator::is_root)
+      .def("attach_non_root", &Communicator::attach_non_root, pybind11::arg("ctx"));
+#endif
+
   pybind11::class_<Partition>(m, "Partition")
       .def(py::init())
       .def_static("auto", []() { return Partition{Partition::Auto()}; })
@@ -411,10 +454,19 @@ PYBIND11_MODULE(pybipp, m) {
            pybind11::arg("ctx"), pybind11::arg("opt"), pybind11::arg("n_level"),
            pybind11::arg("filter"), pybind11::arg("lmn_x"), pybind11::arg("lmn_y"),
            pybind11::arg("lmn_y"), pybind11::arg("precision"))
+#ifdef BIPP_MPI
+      .def(pybind11::init<Communicator&, Context&, NufftSynthesisOptions, std::size_t,
+                          const std::vector<std::string>&, const py::array&, const py::array&,
+                          const py::array&, const std::string&>(),
+           pybind11::arg("comm"), pybind11::arg("ctx"), pybind11::arg("opt"),
+           pybind11::arg("n_level"), pybind11::arg("filter"), pybind11::arg("lmn_x"),
+           pybind11::arg("lmn_y"), pybind11::arg("lmn_y"), pybind11::arg("precision"))
+#endif
       .def("collect", &NufftSynthesisDispatcher::collect, pybind11::arg("wl"),
            pybind11::arg("mask"), pybind11::arg("s"), pybind11::arg("w"), pybind11::arg("xyz"),
            pybind11::arg("uvw"))
       .def("get", &NufftSynthesisDispatcher::get, pybind11::arg("f"));
+
 
   pybind11::class_<StandardSynthesisDispatcher>(m, "StandardSynthesis")
       .def(pybind11::init<Context&, std::size_t, const std::vector<std::string>&, const py::array&,

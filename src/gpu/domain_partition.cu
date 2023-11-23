@@ -132,7 +132,7 @@ auto DomainPartition::grid(const std::shared_ptr<ContextInternal>& ctx,
 
   auto permutBuffer = q.create_device_array<std::size_t, 1>(n);
   auto groupSizesBuffer = q.create_device_array<GroupSizeType, 1>(gridSize);
-  auto groupBufferHost = std::vector<Group>(gridSize);
+  auto groupBufferHost = std::vector<PartitionGroup>(gridSize);
 
   // Create block to make sure buffers go out-of-scope before next sync call to safe memory
   {

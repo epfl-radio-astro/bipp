@@ -11,6 +11,11 @@
 #include "memory/view.hpp"
 #include "synthesis_interface.hpp"
 
+#ifdef BIPP_MPI
+#include "communicator_internal.hpp"
+#include "distributed_synthesis.hpp"
+#endif
+
 namespace bipp {
 
 template <typename T>
@@ -24,6 +29,22 @@ public:
                               std::size_t nLevel, ConstView<BippFilter, 1> filter,
                               ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
                               ConstView<T, 1> pixelZ) -> Imager<T>;
+
+#ifdef BIPP_MPI
+  static auto distributed_standard_synthesis(std::shared_ptr<CommunicatorInternal> comm,
+                                             std::shared_ptr<ContextInternal> ctx,
+                                             std::size_t nLevel, ConstView<BippFilter, 1> filter,
+                                             ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
+                                             ConstView<T, 1> pixelZ) -> Imager<T>;
+
+  static auto distributed_nufft_synthesis(std::shared_ptr<CommunicatorInternal> comm,
+                                          std::shared_ptr<ContextInternal> ctx,
+                                          NufftSynthesisOptions opt, std::size_t nLevel,
+                                          ConstView<BippFilter, 1> filter, ConstView<T, 1> pixelX,
+                                          ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ)
+      -> Imager<T>;
+#endif
+
 
   auto collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
                ConstView<std::complex<T>, 2> s, ConstView<std::complex<T>, 2> w,

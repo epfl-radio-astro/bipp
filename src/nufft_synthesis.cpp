@@ -9,6 +9,10 @@
 #include "context_internal.hpp"
 #include "imager.hpp"
 
+#ifdef BIPP_MPI
+#include "communicator_internal.hpp"
+#endif
+
 namespace bipp {
 template <typename T>
 NufftSynthesis<T>::NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::size_t nLevel,
@@ -30,6 +34,30 @@ NufftSynthesis<T>::NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::
     throw;
   }
 }
+
+#ifdef BIPP_MPI
+template <typename T>
+NufftSynthesis<T>::NufftSynthesis(Communicator& comm, Context& ctx, NufftSynthesisOptions opt,
+                                  std::size_t nLevel, std::size_t nFilter, const BippFilter* filter,
+                                  std::size_t nPixel, const T* lmnX, const T* lmnY, const T* lmnZ) {
+  try {
+    plan_ = decltype(plan_)(
+        new Imager<T>(Imager<T>::distributed_nufft_synthesis(
+            InternalCommunicatorAccessor::get(comm), InternalContextAccessor::get(ctx),
+            std::move(opt), nLevel, ConstView<BippFilter, 1>(filter, nFilter, 1),
+            ConstView<T, 1>(lmnX, nPixel, 1), ConstView<T, 1>(lmnY, nPixel, 1),
+            ConstView<T, 1>(lmnZ, nPixel, 1))),
+        [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
+  } catch (const std::exception& e) {
+    try {
+      InternalContextAccessor::get(ctx)->logger().log(
+          BIPP_LOG_LEVEL_ERROR, "NufftSynthesis creation error: {}", e.what());
+    } catch (...) {
+    }
+    throw;
+  }
+}
+#endif
 
 template <typename T>
 auto NufftSynthesis<T>::collect(

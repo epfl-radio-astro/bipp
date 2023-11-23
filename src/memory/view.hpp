@@ -126,6 +126,14 @@ public:
 
   inline auto size_in_bytes() const noexcept -> std::size_t { return totalSize_ * sizeof(T); }
 
+  inline auto is_contiguous() const noexcept -> bool {
+    if constexpr (DIM == 1) {
+      return true;
+    }
+    return std::transform_reduce(shape_.begin(), shape_.end() - 1, strides_.begin() + 1, true,
+                                 std::logical_and{}, std::equal_to{});
+  }
+
   inline auto shape() const noexcept -> const IndexType& { return shape_; }
 
   inline auto shape(std::size_t i) const noexcept -> std::size_t {
@@ -145,6 +153,12 @@ public:
     else
       return strides_[i];
   }
+
+  template <typename F>
+  auto cast_to_type() -> ConstView<T, DIM> {
+    static_assert(sizeof(F) == sizeof(T));
+    return ConstView<F, DIM>(reinterpret_cast<const F*>(constPtr_), shape_, strides_);
+  };
 
   auto slice_view(std::size_t outer_index) const -> SliceType {
     return this->template slice_view_impl<SliceType>(outer_index);
@@ -220,6 +234,12 @@ public:
   View(T* ptr, const IndexType& shape, const IndexType& strides) : BaseType(ptr, shape, strides) {}
 
   inline auto data() -> T* { return const_cast<T*>(this->constPtr_); }
+
+  template <typename F>
+  auto cast_to_type() -> View<T, DIM> {
+    static_assert(sizeof(F) == sizeof(T));
+    return View<F, DIM>(reinterpret_cast<const F*>(this->constPtr_), this->shape_, this->strides_);
+  };
 
   auto slice_view(std::size_t outer_index) const -> SliceType {
     return this->template slice_view_impl<SliceType>(outer_index);

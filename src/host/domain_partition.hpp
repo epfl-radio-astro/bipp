@@ -16,18 +16,19 @@
 #include "memory/view.hpp"
 
 namespace bipp {
+struct PartitionGroup {
+  std::size_t begin = 0;
+  std::size_t size = 0;
+};
+
 namespace host {
 
 class DomainPartition {
 public:
-  struct Group {
-    std::size_t begin = 0;
-    std::size_t size = 0;
-  };
 
   static auto none(const std::shared_ptr<ContextInternal>& ctx,std::size_t n ) {
-    std::vector<Group> groups(1);
-    groups[0] = Group{0, n};
+    std::vector<PartitionGroup> groups(1);
+    groups[0] = PartitionGroup{0, n};
     return DomainPartition(ctx, std::move(groups));
   }
 
@@ -52,7 +53,7 @@ public:
       maxCoord[dimIdx] = *minMaxIt.second;
     }
 
-    std::vector<Group> groups(gridSize);
+    std::vector<PartitionGroup> groups(gridSize);
 
     HostArray<std::size_t, 1> permut(ctx->host_alloc(), {n});
 
@@ -99,7 +100,7 @@ public:
     return DomainPartition(ctx, std::move(permut), std::move(groups));
   }
 
-  inline auto groups() const -> const std::vector<Group>& { return groups_; }
+  inline auto groups() const -> const std::vector<PartitionGroup>& { return groups_; }
 
   inline auto num_elements() const -> std::size_t {
     return permut_.size() ? permut_.size() : groups_[0].size;
@@ -170,15 +171,15 @@ public:
 
 private:
   explicit DomainPartition(std::shared_ptr<ContextInternal> ctx, HostArray<std::size_t, 1> permut,
-                           std::vector<Group> groups)
+                           std::vector<PartitionGroup> groups)
       : ctx_(std::move(ctx)), permut_(std::move(permut)), groups_(std::move(groups)) {}
 
-  explicit DomainPartition(std::shared_ptr<ContextInternal> ctx, std::vector<Group> groups)
+  explicit DomainPartition(std::shared_ptr<ContextInternal> ctx, std::vector<PartitionGroup> groups)
       : ctx_(std::move(ctx)), groups_(std::move(groups)) {}
 
   std::shared_ptr<ContextInternal> ctx_;
   HostArray<std::size_t, 1> permut_;
-  std::vector<Group> groups_;
+  std::vector<PartitionGroup> groups_;
 };
 
 }  // namespace host

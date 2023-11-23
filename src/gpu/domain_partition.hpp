@@ -10,22 +10,18 @@
 #include "bipp/config.h"
 #include "context_internal.hpp"
 #include "gpu/util/runtime_api.hpp"
-#include "memory/view.hpp"
+#include "host/domain_partition.hpp"
 #include "memory/array.hpp"
+#include "memory/view.hpp"
 
 namespace bipp {
 namespace gpu {
 
 class DomainPartition {
 public:
-  struct Group {
-    std::size_t begin = 0;
-    std::size_t size = 0;
-  };
-
   static auto none(const std::shared_ptr<ContextInternal>& ctx, std::size_t n) {
-    std::vector<Group> groupsHost(1);
-    groupsHost[0] = Group{0, n};
+    std::vector<PartitionGroup> groupsHost(1);
+    groupsHost[0] = PartitionGroup{0, n};
     return DomainPartition(ctx, std::move(groupsHost));
   }
 
@@ -35,7 +31,7 @@ public:
                    std::array<std::size_t, 3> gridDimensions,
                    std::array<ConstDeviceView<T, 1>, 3> coord) -> DomainPartition;
 
-  inline auto groups() const -> const std::vector<Group>& { return groupsHost_; }
+  inline auto groups() const -> const std::vector<PartitionGroup>& { return groupsHost_; }
 
   inline auto num_elements() const -> std::size_t {
     return permut_.size() ? permut_.size() : groupsHost_[0].size;
@@ -67,15 +63,15 @@ public:
 
 private:
   explicit DomainPartition(std::shared_ptr<ContextInternal> ctx, DeviceArray<std::size_t, 1> permut,
-                           std::vector<Group> groupsHost)
+                           std::vector<PartitionGroup> groupsHost)
       : ctx_(std::move(ctx)), permut_(std::move(permut)), groupsHost_(std::move(groupsHost)) {}
 
-  explicit DomainPartition(std::shared_ptr<ContextInternal> ctx, std::vector<Group> groupsHost)
+  explicit DomainPartition(std::shared_ptr<ContextInternal> ctx, std::vector<PartitionGroup> groupsHost)
       : ctx_(std::move(ctx)), groupsHost_(std::move(groupsHost)) {}
 
   std::shared_ptr<ContextInternal> ctx_;
   DeviceArray<std::size_t, 1> permut_;
-  std::vector<Group> groupsHost_;
+  std::vector<PartitionGroup> groupsHost_;
   DeviceArray<char,1> workBufferDevice_;
 };
 

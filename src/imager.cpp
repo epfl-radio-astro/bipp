@@ -11,6 +11,7 @@
 #include "host/nufft_synthesis.hpp"
 #include "host/standard_synthesis.hpp"
 #include "memory/copy.hpp"
+#include "synthesis_factory.hpp"
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/eigensolver.hpp"
@@ -38,83 +39,54 @@ static auto center_vector(std::size_t n, const T* __restrict__ in, T* __restrict
 
 template <typename T>
 auto Imager<T>::standard_synthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nLevel,
+                                   ConstView<BippFilter, 1> filter, ConstView<T, 1> pixelX,
+                                   ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ) -> Imager<T> {
+  assert(ctx);
+  return Imager(SynthesisFactory<T>::create_standard_synthesis(std::move(ctx), nLevel, filter,
+                                                               pixelX, pixelY, pixelZ));
+}
+
+template <typename T>
+auto Imager<T>::nufft_synthesis(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
+                                std::size_t nLevel, ConstView<BippFilter, 1> filter,
+                                ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
+                                ConstView<T, 1> pixelZ) -> Imager<T> {
+  assert(ctx);
+  return Imager(SynthesisFactory<T>::create_nufft_synthesis(std::move(ctx), std::move(opt), nLevel,
+                                                            filter, pixelX, pixelY, pixelZ));
+}
+
+#ifdef BIPP_MPI
+template <typename T>
+auto Imager<T>::distributed_standard_synthesis(std::shared_ptr<CommunicatorInternal> comm,
+                                             std::shared_ptr<ContextInternal> ctx,
+                                             std::size_t nLevel, ConstView<BippFilter, 1> filter,
+                                             ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
+                                             ConstView<T, 1> pixelZ) -> Imager<T> {
+  assert(comm);
+  assert(ctx);
+  return Imager(SynthesisFactory<T>::create_distributed_standard_synthesis(
+      std::move(comm), std::move(ctx), nLevel, filter, pixelX, pixelY, pixelZ));
+}
+
+template <typename T>
+auto Imager<T>::distributed_nufft_synthesis(std::shared_ptr<CommunicatorInternal> comm,
+                                          std::shared_ptr<ContextInternal> ctx,
+                                          NufftSynthesisOptions opt, std::size_t nLevel,
                                           ConstView<BippFilter, 1> filter, ConstView<T, 1> pixelX,
-                                          ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ)
-    -> Imager<T> {
-      assert(pixelX.size() == pixelY.size());
-      assert(pixelX.size() == pixelZ.size());
-
-      assert(ctx);
-      if(ctx->processing_unit() == BIPP_PU_GPU) {
-#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-      auto& queue = ctx->gpu_queue();
-      // Syncronize with default stream.
-      queue.sync_with_stream(nullptr);
-      // syncronize with stream to be synchronous with host before exiting
-      auto syncGuard = queue.sync_guard();
-
-      auto filterArray = queue.create_host_array<BippFilter, 1>(filter.size());
-      copy(queue, filter, filterArray);
-      queue.sync();  // make sure filters are available
-
-      auto pixelArray = queue.create_device_array<T, 2>({pixelX.size(), 3});
-      copy(queue, pixelX, pixelArray.slice_view(0));
-      copy(queue, pixelY, pixelArray.slice_view(1));
-      copy(queue, pixelZ, pixelArray.slice_view(2));
-
-      return Imager(std::make_unique<gpu::StandardSynthesis<T>>(ctx, nLevel, std::move(filterArray),
-                                                                std::move(pixelArray)));
-#else
-      throw GPUSupportError();
+                                          ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ) -> Imager<T> {
+  assert(comm);
+  assert(ctx);
+  return Imager(SynthesisFactory<T>::create_distributed_nufft_synthesis(
+      std::move(comm), std::move(ctx), std::move(opt), nLevel, filter, pixelX, pixelY, pixelZ));
+}
 #endif
-      }
-      return Imager(std::make_unique<host::StandardSynthesis<T>>(
-          std::move(ctx), nLevel, ConstHostView<BippFilter, 1>(filter), ConstHostView<T, 1>(pixelX),
-          ConstHostView<T, 1>(pixelY), ConstHostView<T, 1>(pixelZ)));
-    }
-
-    template <typename T>
-    auto Imager<T>::nufft_synthesis(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
-                                    std::size_t nLevel, ConstView<BippFilter, 1> filter,
-                                    ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
-                                    ConstView<T, 1> pixelZ) -> Imager<T> {
-      assert(pixelX.size() == pixelY.size());
-      assert(pixelX.size() == pixelZ.size());
-
-      assert(ctx);
-      if(ctx->processing_unit() == BIPP_PU_GPU) {
-#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-      auto& queue = ctx->gpu_queue();
-      // Syncronize with default stream.
-      queue.sync_with_stream(nullptr);
-      // syncronize with stream to be synchronous with host before exiting
-      auto syncGuard = queue.sync_guard();
-
-      auto filterArray = queue.create_host_array<BippFilter, 1>(filter.size());
-      copy(queue, filter, filterArray);
-      queue.sync();  // make sure filters are available
-
-      auto pixelArray = queue.create_device_array<T, 2>({pixelX.size(), 3});
-      copy(queue, pixelX, pixelArray.slice_view(0));
-      copy(queue, pixelY, pixelArray.slice_view(1));
-      copy(queue, pixelZ, pixelArray.slice_view(2));
-
-      return Imager(std::make_unique<gpu::NufftSynthesis<T>>(
-          ctx, std::move(opt), nLevel, std::move(filterArray), std::move(pixelArray)));
-#else
-      throw GPUSupportError();
-#endif
-      }
-      return Imager(std::make_unique<host::NufftSynthesis<T>>(
-          std::move(ctx), opt, nLevel, ConstHostView<BippFilter, 1>(filter),
-          ConstHostView<T, 1>(pixelX), ConstHostView<T, 1>(pixelY), ConstHostView<T, 1>(pixelZ)));
-    }
 
 template <typename T>
 auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
                         ConstView<std::complex<T>, 2> s, ConstView<std::complex<T>, 2> w,
                         ConstView<T, 2> xyz, ConstView<T, 2> uvw) -> void {
-  if(!synthesis_) throw InternalError();
+  if (!synthesis_) throw InternalError();
 
   const auto nAntenna = w.shape(0);
   const auto nBeam = w.shape(1);
@@ -161,7 +133,7 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
     auto dHostArray = queue.create_pinned_array<T, 1>(nEig);
 
     copy(queue, d, dHostArray);
-    queue.sync(); // make sure d is on host
+    queue.sync();  // make sure d is on host
 
     auto dMaskedArray = HostArray<T, 2>(ctx.host_alloc(), {d.size(), nLevel});
 
@@ -179,8 +151,8 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
 #endif
 
   } else {
-    auto sHost = ConstHostView<std::complex<T>,2>(s);
-    auto wHost = ConstHostView<std::complex<T>,2>(w);
+    auto sHost = ConstHostView<std::complex<T>, 2>(s);
+    auto wHost = ConstHostView<std::complex<T>, 2>(w);
     auto xyzHost = ConstHostView<T, 2>(xyz);
     auto uvwHost = ConstHostView<T, 2>(uvw);
 
@@ -190,7 +162,7 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
 
     // Center coordinates for much better performance of cos / sin in standard synthesis
     auto xyzCentered = HostArray<T, 2>();
-    if(synthesis_->type() == SynthesisType::Standard) {
+    if (synthesis_->type() == SynthesisType::Standard) {
       xyzCentered = HostArray<T, 2>(ctx.host_alloc(), {nAntenna, 3});
       center_vector(nAntenna, xyzHost.slice_view(0).data(), xyzCentered.data());
       center_vector(nAntenna, xyzHost.slice_view(1).data(), xyzCentered.slice_view(1).data());

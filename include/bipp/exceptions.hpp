@@ -110,6 +110,13 @@ public:
   BippError error_code() const noexcept override { return BippError::BIPP_GPU_BLAS_ERROR; }
 };
 
+class BIPP_EXPORT MPIError : public GPUError {
+public:
+  MPIError() : GPUError("BIPP: MPI Error") {}
+
+  BippError error_code() const noexcept override { return BippError::BIPP_MPI_ERROR; }
+};
+
 /*! \cond PRIVATE */
 }  // namespace bipp
 /*! \endcond */

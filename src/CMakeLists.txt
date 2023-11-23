@@ -6,6 +6,7 @@ set(BIPP_SOURCE_FILES
 	nufft_synthesis.cpp
 	logger.cpp
 	imager.cpp
+	synthesis_factory.cpp
 	memory/allocator_factory.cpp
 	host/eigensolver.cpp
 	host/gram_matrix.cpp
@@ -16,6 +17,15 @@ set(BIPP_SOURCE_FILES
 	host/kernels/nuft_sum.cpp
 	host/standard_synthesis.cpp
 	)
+
+if(BIPP_MPI)
+	list(APPEND BIPP_SOURCE_FILES
+		communicator_internal.cpp
+		communicator.cpp
+		distributed_synthesis.cpp
+	        )
+endif()
+
 
 if(BIPP_CUDA OR BIPP_ROCM)
 	list(APPEND BIPP_SOURCE_FILES

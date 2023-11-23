@@ -1,15 +1,22 @@
 #pragma once
 
 #include <bipp/config.h>
-#include <bipp/enums.h>
 
+#include <bipp/enums.h>
 #include <bipp/context.hpp>
 #include <bipp/exceptions.hpp>
 #include <bipp/nufft_synthesis.hpp>
 #include <bipp/standard_synthesis.hpp>
+
+#ifdef BIPP_MPI
+#include <bipp/communicator.hpp>
+#endif
+
 #include <complex>
 #include <cstddef>
 #include <type_traits>
+
+
 
 /*! \cond PRIVATE */
 namespace bipp {
