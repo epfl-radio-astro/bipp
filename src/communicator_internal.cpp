@@ -105,6 +105,7 @@ auto StatusMessage::send_create_standard_synthesis(const MPICommHandle& comm, st
   StatusMessage m;
   m.messageIndex = StatusMessage::CreateSynthesis::index;
 
+  m.create.synthType = SynthesisType::Standard;
   m.create.id = id;
   m.create.nLevel = nLevel;
   m.create.nFilter = nFilter;
@@ -120,6 +121,7 @@ auto StatusMessage::send_create_nufft_synthesis(const MPICommHandle& comm, std::
   StatusMessage m;
   m.messageIndex = StatusMessage::CreateSynthesis::index;
 
+  m.create.synthType = SynthesisType::NUFFT;
   m.create.id = id;
   m.create.nLevel = nLevel;
   m.create.nFilter = nFilter;
@@ -175,7 +177,6 @@ auto send_synthesis_init_data(const MPICommHandle& comm, ConstHostView<BippFilte
                               ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
                               ConstView<T, 1> pixelZ, ConstHostView<PartitionGroup, 1> groups)
     -> void {
-  printf("send init\n");
 
   assert(comm.rank() == 0);
   // Scatter group to each worker
@@ -228,7 +229,6 @@ template <typename T>
 auto recv_synthesis_init_data(const MPICommHandle& comm, std::shared_ptr<ContextInternal> ctx,
                               const StatusMessage::CreateSynthesis& info)
     -> std::unique_ptr<SynthesisInterface<T>> {
-  printf("recv init\n");
   assert(comm.rank() != 0);
   PartitionGroup myGroup;
   mpi_check_status(MPI_Scatterv(nullptr, nullptr, nullptr, MPI_BYTE, &myGroup,
@@ -323,7 +323,6 @@ auto broadcast_synthesis_collect_data(const MPICommHandle& comm, HostView<std::c
 template <typename T>
 auto send_synthesis_collect_data(const MPICommHandle& comm, ConstHostView<std::complex<T>, 2> vView,
                                    ConstHostView<T, 2> dMasked, ConstHostView<T, 2> xyzUvwView) -> void {
-  printf("send collect\n");
   assert(comm.rank() == 0);
 
   // Broadcast will not modify root data
@@ -339,7 +338,6 @@ template <typename T>
 auto recv_synthesis_collect_data(const MPICommHandle& comm,
                                  const StatusMessage::SynthesisStep& info,
                                  SynthesisInterface<T>& syn) -> void {
-  printf("recv collect\n");
   auto& ctx = syn.context();
 
   auto v = HostArray<std::complex<T>, 2>();
@@ -423,10 +421,8 @@ CommunicatorInternal::~CommunicatorInternal() {
   try {
     if (is_root()) {
       StatusMessage::send_root_comm_destroyed(comm_);
-      printf("send destroyed\n\n");
     } else if (!rootDestroyed) {
       auto m = StatusMessage::recv(comm_);
-      printf("recv destroyed\n\n");
       assert(std::holds_alternative<StatusMessage::RootCommDestroyed>(m));
     }
   } catch (...) {
