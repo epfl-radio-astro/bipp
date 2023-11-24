@@ -30,6 +30,8 @@ public:
 
   auto type() const -> SynthesisType override { return SynthesisType::NUFFT; }
 
+  auto filter(std::size_t idx) const -> BippFilter override { return filter_[idx]; }
+
   auto context() -> ContextInternal& override { return *ctx_; }
 
   auto gpu_enabled() const -> bool override { return false; }

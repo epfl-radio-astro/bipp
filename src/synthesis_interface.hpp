@@ -22,6 +22,8 @@ public:
 
   virtual auto type() const -> SynthesisType = 0;
 
+  virtual auto filter(std::size_t idx) const -> BippFilter = 0;
+
   virtual auto context() -> ContextInternal& = 0;
 
   virtual auto gpu_enabled() const -> bool = 0;

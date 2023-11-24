@@ -31,7 +31,9 @@ public:
 
   auto get(BippFilter f, View<T, 2> out) -> void override;
 
-  auto type() const -> SynthesisType override { return SynthesisType::Standard; }
+  auto type() const -> SynthesisType override { return type_; }
+
+  auto filter(std::size_t idx) const -> BippFilter override { return filter_[idx]; }
 
   auto context() -> ContextInternal& override { return *ctx_; }
 
@@ -43,9 +45,11 @@ private:
   std::shared_ptr<CommunicatorInternal> comm_;
   std::shared_ptr<ContextInternal> ctx_;
   std::size_t id_;
-  std::size_t count_;
+  std::size_t totalCollectCount_;
   HostArray<T, 3> img_;
+  HostArray<BippFilter, 1> filter_;
   host::DomainPartition imgPartition_;
+  SynthesisType type_;
 
 };
 

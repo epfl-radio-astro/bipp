@@ -51,6 +51,12 @@ class CommunicatorInternal {
                                 ConstHostView<T, 2> dMasked, ConstHostView<T, 2> xyzUvwView)
         -> void;
 
+    // Must only be called by root
+    template <typename T,
+              typename = std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double>>>
+    auto gather_image(std::size_t id, std::size_t idxFilter,
+                      ConstHostView<PartitionGroup, 1> groups, HostView<T, 2> img) -> void;
+
     ~CommunicatorInternal();
 
   private:

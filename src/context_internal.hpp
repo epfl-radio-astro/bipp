@@ -3,6 +3,7 @@
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 
 #include "bipp/bipp.h"
@@ -22,12 +23,28 @@
 #if !defined(BIPP_MAGMA) && defined(BIPP_CUDA)
 #include <cusolverDn.h>
 #endif
+
+#ifdef BIPP_MPI
+#include <mpi.h>
+
+#include "mpi_util/mpi_check_status.hpp"
+#include "mpi_util/mpi_init_guard.hpp"
+#endif
+
 namespace bipp {
 
 class ContextInternal {
 public:
   explicit ContextInternal(BippProcessingUnit pu)
       : hostAlloc_(AllocatorFactory::host()), log_(BIPP_LOG_LEVEL_OFF) {
+#ifdef BIPP_MPI
+    initialize_mpi_init_guard();
+    int myRank = 0;
+    mpi_check_status(MPI_Comm_rank(MPI_COMM_WORLD, &myRank));
+#else
+    int myRank = 0;
+#endif
+
     if (pu == BIPP_PU_AUTO) {
       // select GPU if available
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
@@ -54,19 +71,30 @@ public:
       logOut = logOutEnv;
     }
 
+    std::string logRankString = "0";
+    if(const char* logRankEnv = std::getenv("BIPP_LOG_RANK")) {
+      logRankString = logRankEnv;
+    }
+    const int logRank = std::stoi(logRankString);
+
+    auto logLevel = BIPP_LOG_LEVEL_OFF;
 
     // Set initial log level if environment variable is set
     if(const char* envLog = std::getenv("BIPP_LOG_LEVEL")) {
       if (!std::strcmp(envLog, "off") || !std::strcmp(envLog, "OFF"))
-        log_ = Logger(BIPP_LOG_LEVEL_OFF, logOut);
+        logLevel = BIPP_LOG_LEVEL_OFF;
       else if (!std::strcmp(envLog, "debug") || !std::strcmp(envLog, "DEBUG"))
-        log_ = Logger(BIPP_LOG_LEVEL_DEBUG, logOut);
+        logLevel = BIPP_LOG_LEVEL_DEBUG;
       else if (!std::strcmp(envLog, "info") || !std::strcmp(envLog, "INFO"))
-        log_ = Logger(BIPP_LOG_LEVEL_INFO, logOut);
+        logLevel = BIPP_LOG_LEVEL_INFO;
       else if (!std::strcmp(envLog, "warn") || !std::strcmp(envLog, "WARN"))
-        log_ = Logger(BIPP_LOG_LEVEL_WARN, logOut);
+        logLevel = BIPP_LOG_LEVEL_WARN;
       else if (!std::strcmp(envLog, "error") || !std::strcmp(envLog, "ERROR"))
-        log_ = Logger(BIPP_LOG_LEVEL_ERROR, logOut);
+        logLevel = BIPP_LOG_LEVEL_ERROR;
+    }
+
+    if(logRank == myRank) {
+        log_ = Logger(logLevel, logOut);
     }
 
     if(pu_== BIPP_PU_CPU)
