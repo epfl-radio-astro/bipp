@@ -131,7 +131,7 @@ auto NufftSynthesis<T>::collect(T wl, ConstView<std::complex<T>, 2> vView,
 
   collectPoints_ += nAntenna * nAntenna;
   ++totalCollectCount_;
-  ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "collect count: {}", collectPoints_);
+  ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "collect count: {}", collectPoints_);
 }
 
 template <typename T>

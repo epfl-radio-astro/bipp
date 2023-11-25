@@ -172,6 +172,13 @@ auto Logger::convert_level(BippLogLevel l) -> spdlog::level::level_enum {
   return spdlog::level::debug;
 }
 
+auto Logger::log_timings(BippLogLevel level) -> void {
+  if (level > level_ || timer_.empty()) return;
+    const auto result = timer_.process();
+    auto msg = result.print();
+    log(level, "\n {} \n", msg);
+}
+
 auto Logger::log_matrix(BippLogLevel level, const std::string_view& s, std::size_t m, std::size_t n,
                    const float* array, std::size_t ld) -> void {
   if (level <= level_) {

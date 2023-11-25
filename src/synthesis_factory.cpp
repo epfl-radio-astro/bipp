@@ -36,8 +36,10 @@ auto SynthesisFactory<T>::create_standard_synthesis(std::shared_ptr<ContextInter
     -> std::unique_ptr<SynthesisInterface<T>> {
   assert(pixelX.size() == pixelY.size());
   assert(pixelX.size() == pixelZ.size());
-
   assert(ctx);
+
+  auto t = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "Create StandardSynthesis");
+
   if (ctx->processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     auto& queue = ctx->gpu_queue();
@@ -76,8 +78,10 @@ auto SynthesisFactory<T>::create_nufft_synthesis(std::shared_ptr<ContextInternal
     -> std::unique_ptr<SynthesisInterface<T>> {
   assert(pixelX.size() == pixelY.size());
   assert(pixelX.size() == pixelZ.size());
-
   assert(ctx);
+
+  auto t = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "Create NUFFTSynthesis");
+
   if (ctx->processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     auto& queue = ctx->gpu_queue();
@@ -117,8 +121,10 @@ auto SynthesisFactory<T>::create_distributed_standard_synthesis(
     ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ) -> std::unique_ptr<SynthesisInterface<T>> {
   assert(pixelX.size() == pixelY.size());
   assert(pixelX.size() == pixelZ.size());
-
   assert(ctx);
+
+  auto t = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "Create Distributed StandardSynthesis");
+
   if (ctx->processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     auto& queue = ctx->gpu_queue();
@@ -157,8 +163,10 @@ auto SynthesisFactory<T>::create_distributed_nufft_synthesis(
     -> std::unique_ptr<SynthesisInterface<T>> {
   assert(pixelX.size() == pixelY.size());
   assert(pixelX.size() == pixelZ.size());
-
   assert(ctx);
+
+  auto t = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "Create Distributed NufftSynthesis");
+
   if (ctx->processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     auto& queue = ctx->gpu_queue();

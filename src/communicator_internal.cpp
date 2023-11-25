@@ -24,6 +24,7 @@
 #include "mpi_util/mpi_comm_handle.hpp"
 #include "mpi_util/mpi_data_type.hpp"
 #include "mpi_util/mpi_init_guard.hpp"
+#include "synthesis_factory.hpp"
 #include "synthesis_interface.hpp"
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
@@ -250,6 +251,9 @@ auto recv_synthesis_init_data(const MPICommHandle& comm, std::shared_ptr<Context
                               const StatusMessage::CreateSynthesis& info)
     -> std::unique_ptr<SynthesisInterface<T>> {
   assert(comm.rank() != 0);
+
+  auto t = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "recv init data");
+
   PartitionGroup myGroup;
   mpi_check_status(MPI_Scatterv(nullptr, nullptr, nullptr, MPI_BYTE, &myGroup,
                                 sizeof(PartitionGroup), MPI_BYTE, 0, comm.get()));
@@ -294,30 +298,20 @@ auto recv_synthesis_init_data(const MPICommHandle& comm, std::shared_ptr<Context
 
   for (std::size_t i = 0; i < filter.size(); ++i) filter[i] = BippFilter(filterInt[i]);
 
+  // stop mpi communication timing
+  t.stop();
 
-  // Create synthesis
-  if(ctx->processing_unit() == BIPP_PU_GPU) {
-#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-    if (info.synthType == SynthesisType::NUFFT)
-      return std::make_unique<gpu::NufftSynthesis<T>>(ctx, info.opt.get(), info.nLevel, filter,
-                                                      pixel.slice_view(0), pixel.slice_view(1),
-                                                      pixel.slice_view(2));
-
-    return std::make_unique<gpu::StandardSynthesis<T>>(
-        ctx, info.nLevel, filter, pixel.slice_view(0), pixel.slice_view(1), pixel.slice_view(2));
-#else
-    throw GPUSupportError();
-#endif
-  }
+  auto t2 = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "distributed synthesis create");
 
   if (info.synthType == SynthesisType::NUFFT)
-    return std::make_unique<host::NufftSynthesis<T>>(std::move(ctx), info.opt.get(), info.nLevel,
-                                                     filter, pixel.slice_view(0),
-                                                     pixel.slice_view(1), pixel.slice_view(2));
+    return SynthesisFactory<T>::create_nufft_synthesis(std::move(ctx), info.opt.get(), info.nLevel,
+                                                       filter, pixel.slice_view(0),
+                                                       pixel.slice_view(1), pixel.slice_view(2));
 
-  return std::make_unique<host::StandardSynthesis<T>>(std::move(ctx), info.nLevel, filter,
-                                                      pixel.slice_view(0), pixel.slice_view(1),
-                                                      pixel.slice_view(2));
+  return SynthesisFactory<T>::create_standard_synthesis(std::move(ctx), info.nLevel, filter,
+                                                        pixel.slice_view(0), pixel.slice_view(1),
+                                                        pixel.slice_view(2));
+
 }
 
 template <typename T>
@@ -360,6 +354,9 @@ auto recv_synthesis_collect_data(const MPICommHandle& comm,
                                  SynthesisInterface<T>& syn) -> void {
   auto& ctx = syn.context();
 
+  auto t =
+      ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(&syn) + " recv collect data");
+
   auto v = HostArray<std::complex<T>, 2>();
   auto dMasked = HostArray<T, 2>();
   auto xyzUvw = HostArray<T, 2>();
@@ -384,6 +381,11 @@ auto recv_synthesis_collect_data(const MPICommHandle& comm,
   }
 
   broadcast_synthesis_collect_data<T>(comm, v, dMasked, xyzUvw);
+
+  t.stop();
+
+  auto t2 = ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO,
+                                               pointer_to_string(&syn) + " collect");
   syn.collect(info.wl, v, dMasked, xyzUvw);
 }
 
@@ -394,10 +396,13 @@ auto send_img_data(const MPICommHandle& comm,const StatusMessage::GatherImage& i
 
   assert(comm.rank() != 0);
 
+
   auto& ctx = syn.context();
+
 
   HostArray<T, 2> imgArray;
 
+  auto t1 = ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "synthesis get image");
   if (ctx.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     auto& queue = ctx.gpu_queue();
@@ -412,6 +417,8 @@ auto send_img_data(const MPICommHandle& comm,const StatusMessage::GatherImage& i
     syn.get(syn.filter(info.idxFilter), imgArray);
   }
 
+  t1.stop();
+  auto t2 = ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "distributed image gather");
   T dummy;
   for(std::size_t idxLevel = 0; idxLevel < imgArray.shape(1); ++idxLevel) {
     auto imgSlice = imgArray.slice_view(idxLevel);
@@ -508,8 +515,11 @@ auto CommunicatorInternal::attach_non_root(std::shared_ptr<ContextInternal> ctx)
   std::unordered_map<std::size_t, std::unique_ptr<SynthesisInterface<float>>> synthesisFloat;
   std::unordered_map<std::size_t, std::unique_ptr<SynthesisInterface<double>>> synthesisDouble;
 
+  auto t1 = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "attach");
   while (!rootDestroyed) {
+    auto t2 = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "recv status");
     const auto m = StatusMessage::recv(comm_);
+    t2.stop();
     std::visit(
         [&](auto&& info) {
           using T = std::decay_t<decltype(info)>;

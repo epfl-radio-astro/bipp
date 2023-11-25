@@ -119,6 +119,7 @@ public:
 
   ~ContextInternal() {
     try {
+      log_.log_timings(BIPP_LOG_LEVEL_INFO);
       log_.log(BIPP_LOG_LEVEL_INFO, "{} Context destroyed", static_cast<const void*>(this));
     } catch (...) {
     }

@@ -7,6 +7,7 @@ set(BIPP_SOURCE_FILES
 	logger.cpp
 	imager.cpp
 	synthesis_factory.cpp
+	rt_graph.cpp
 	memory/allocator_factory.cpp
 	host/eigensolver.cpp
 	host/gram_matrix.cpp
