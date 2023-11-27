@@ -137,10 +137,12 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         self._visibilities.append(S)
         self._grams.append(G)
 
-    def infer_parameters(self, fne=True):
+    def infer_parameters(self, fne: bool=True):
         """
         Estimate parameters given ingested data.
-
+        Args
+            fne : bool
+                Filter negative eigenvalues (default is True to only keep positive ones)
         Returns
             N_eig : int
                 Number of eigenpairs to use.
@@ -175,8 +177,10 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
                 N = D[D <= 0.0]
                 D = D[D > 0.0]
                 if fne:
+                    D = D[np.argsort(D)[::-1]]
                     idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
                     D = D[idx]
+                    D = D[np.argsort(D)]
                 D_all[i, : len(D)] = D                    
                 D_all_neg[i, : len(N)] = N
                 
