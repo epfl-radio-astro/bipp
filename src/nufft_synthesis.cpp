@@ -105,6 +105,10 @@ struct NufftSynthesisInternal {
 
     const auto start = std::chrono::high_resolution_clock::now();
 
+#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+    if (planGPU_ && gpu::is_device_ptr(s))
+      throw InvalidPointerError();
+#endif
     // Count number of non-zero elements in visibility matrix if passed
     std::size_t nz_vis = {0};
     if (s) {
