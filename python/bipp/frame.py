@@ -53,6 +53,13 @@ def make_grids(grid_size, FoV, field_center):
             (3, grid_size, grid_size) image grid
     """
     lim = np.sin(FoV / 2)
+    # Offsetting the grid by half a pixel to match WSClean/CASA grid setup.
+    # Otherwise point sources simulated at pixel centers in WSClean/CASA grids
+    # are located at the common corners of 4 pixels and appear as blurred over
+    # these 4 pixels.
+    #            |                       -----
+    # Bluebild - s -   vs  WSClean/CASA  | s |
+    #            |                       -----
     offset = lim / (grid_size / 2) * 0.5
     grid_slice1 = np.linspace(-lim - offset, lim - offset, grid_size)
     grid_slice2 = np.linspace(-lim + offset, lim + offset, grid_size)
