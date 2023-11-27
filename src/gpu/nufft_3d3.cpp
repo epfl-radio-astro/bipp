@@ -47,7 +47,7 @@ Nufft3d3<float>::Nufft3d3(int iflag, float tol, std::size_t numTrans, std::size_
                           const float* t, const float* u) {
   cufinufft_opts opts;
   cufinufftf_default_opts(3, 3, &opts);
-  opts.gpu_method = 1;
+  if (tol < 1e-3) opts.gpu_method = 1;
 
   cufinufftf_plan p;
   if (cufinufftf_makeplan(3, 3, nullptr, iflag, numTrans, tol, numTrans, &p, &opts))
