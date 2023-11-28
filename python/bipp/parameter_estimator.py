@@ -202,7 +202,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
             N_eig = max(int(np.ceil(len(D_all) / N_data)), self._N_level)
         else:
             N_eig = max(int(np.ceil((len(D_all) + len(D_all_neg)) / N_data)), self._N_level)
-            intervals = np.append(intervals, [[np.finfo("f").min, 0]], axis=0)
+            intervals = np.append(intervals, [[np.finfo("f").min, -np.finfo("f").tiny]], axis=0)
 
         return N_eig, intervals
 
