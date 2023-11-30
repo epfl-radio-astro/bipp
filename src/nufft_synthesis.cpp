@@ -41,13 +41,22 @@ NufftSynthesis<T>::NufftSynthesis(Communicator& comm, Context& ctx, NufftSynthes
                                   std::size_t nLevel, std::size_t nFilter, const BippFilter* filter,
                                   std::size_t nPixel, const T* lmnX, const T* lmnY, const T* lmnZ) {
   try {
-    plan_ = decltype(plan_)(
-        new Imager<T>(Imager<T>::distributed_nufft_synthesis(
-            InternalCommunicatorAccessor::get(comm), InternalContextAccessor::get(ctx),
-            std::move(opt), nLevel, ConstView<BippFilter, 1>(filter, nFilter, 1),
-            ConstView<T, 1>(lmnX, nPixel, 1), ConstView<T, 1>(lmnY, nPixel, 1),
-            ConstView<T, 1>(lmnZ, nPixel, 1))),
-        [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
+    const auto& commInt =  InternalCommunicatorAccessor::get(comm);
+    if(commInt->comm().size() <= 1) {
+      plan_ = decltype(plan_)(
+          new Imager<T>(Imager<T>::nufft_synthesis(
+              InternalContextAccessor::get(ctx), std::move(opt), nLevel,
+              ConstView<BippFilter, 1>(filter, nFilter, 1), ConstView<T, 1>(lmnX, nPixel, 1),
+              ConstView<T, 1>(lmnY, nPixel, 1), ConstView<T, 1>(lmnZ, nPixel, 1))),
+          [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
+    } else {
+      plan_ = decltype(plan_)(
+          new Imager<T>(Imager<T>::distributed_nufft_synthesis(
+              commInt, InternalContextAccessor::get(ctx), std::move(opt), nLevel,
+              ConstView<BippFilter, 1>(filter, nFilter, 1), ConstView<T, 1>(lmnX, nPixel, 1),
+              ConstView<T, 1>(lmnY, nPixel, 1), ConstView<T, 1>(lmnZ, nPixel, 1))),
+          [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
+    }
   } catch (const std::exception& e) {
     try {
       InternalContextAccessor::get(ctx)->logger().log(

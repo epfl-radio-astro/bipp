@@ -195,6 +195,7 @@ template <typename T>
 auto Imager<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
   auto img = synthesis_->image();
   auto& ctx = synthesis_->context();
+  auto& queue = ctx.gpu_queue();
   auto t =
       ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(this) + " get");
 

@@ -130,21 +130,25 @@ auto SynthesisFactory<T>::create_distributed_standard_synthesis(
     auto& queue = ctx->gpu_queue();
     // Syncronize with default stream.
     queue.sync_with_stream(nullptr);
-    // syncronize with stream to be synchronous with host before exiting
-    auto syncGuard = queue.sync_guard();
 
-    // auto filterArray = queue.create_host_array<BippFilter, 1>(filter.size());
-    // copy(queue, filter, filterArray);
-    // queue.sync();  // make sure filters are available
+    auto filterArray = queue.create_host_array<BippFilter, 1>(filter.size());
+    copy(queue, filter, filterArray);
+    queue.sync();  // make sure filters are available
 
-    // auto pixelArray = queue.create_device_array<T, 2>({pixelX.size(), 3});
-    // copy(queue, pixelX, pixelArray.slice_view(0));
-    // copy(queue, pixelY, pixelArray.slice_view(1));
-    // copy(queue, pixelZ, pixelArray.slice_view(2));
+    auto pixelArray = queue.create_device_array<T, 2>({pixelX.size(), 3});
+    copy(queue, pixelX, pixelArray.slice_view(0));
+    copy(queue, pixelY, pixelArray.slice_view(1));
+    copy(queue, pixelZ, pixelArray.slice_view(2));
 
-    //TODO
-    return std::make_unique<gpu::StandardSynthesis<T>>(
-        std::move(comm), ctx, nLevel, std::move(filterArray), std::move(pixelArray));
+    ConstHostAccessor<BippFilter, 1> filterHost(queue, filter);
+    ConstHostAccessor<T, 1> pixelXHost(queue, pixelX);
+    ConstHostAccessor<T, 1> pixelYHost(queue, pixelY);
+    ConstHostAccessor<T, 1> pixelZHost(queue, pixelZ);
+    queue.sync();
+
+    return std::make_unique<DistributedSynthesis<T>>(std::move(comm), std::move(ctx), std::nullopt,
+                                                     nLevel, filterHost.view(), pixelXHost.view(),
+                                                     pixelYHost.view(), pixelZHost.view());
 #else
     throw GPUSupportError();
 #endif
@@ -172,21 +176,25 @@ auto SynthesisFactory<T>::create_distributed_nufft_synthesis(
     auto& queue = ctx->gpu_queue();
     // Syncronize with default stream.
     queue.sync_with_stream(nullptr);
-    // syncronize with stream to be synchronous with host before exiting
-    auto syncGuard = queue.sync_guard();
 
-    // auto filterArray = queue.create_host_array<BippFilter, 1>(filter.size());
-    // copy(queue, filter, filterArray);
-    // queue.sync();  // make sure filters are available
+    auto filterArray = queue.create_host_array<BippFilter, 1>(filter.size());
+    copy(queue, filter, filterArray);
+    queue.sync();  // make sure filters are available
 
-    // auto pixelArray = queue.create_device_array<T, 2>({pixelX.size(), 3});
-    // copy(queue, pixelX, pixelArray.slice_view(0));
-    // copy(queue, pixelY, pixelArray.slice_view(1));
-    // copy(queue, pixelZ, pixelArray.slice_view(2));
+    auto pixelArray = queue.create_device_array<T, 2>({pixelX.size(), 3});
+    copy(queue, pixelX, pixelArray.slice_view(0));
+    copy(queue, pixelY, pixelArray.slice_view(1));
+    copy(queue, pixelZ, pixelArray.slice_view(2));
 
-    //TODO
-    return std::make_unique<gpu::NufftSynthesis<T>>(std::move(comm), ctx, std::move(opt), nLevel,
-                                                    std::move(filterArray), std::move(pixelArray));
+    ConstHostAccessor<BippFilter, 1> filterHost(queue, filter);
+    ConstHostAccessor<T, 1> pixelXHost(queue, pixelX);
+    ConstHostAccessor<T, 1> pixelYHost(queue, pixelY);
+    ConstHostAccessor<T, 1> pixelZHost(queue, pixelZ);
+    queue.sync();
+
+    return std::make_unique<DistributedSynthesis<T>>(std::move(comm), std::move(ctx), opt, nLevel,
+                                                     filterHost.view(), pixelXHost.view(),
+                                                     pixelYHost.view(), pixelZHost.view());
 #else
     throw GPUSupportError();
 #endif

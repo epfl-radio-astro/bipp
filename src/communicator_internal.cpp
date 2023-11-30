@@ -364,10 +364,9 @@ auto recv_synthesis_collect_data(const MPICommHandle& comm,
   if (ctx.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     auto& queue = ctx.gpu_queue();
-    v = queue.create_pinned_array<std::complex<T>, 2>({info.nAntenna, info.nEig});
-    dMasked = queue.create_pinned_array<T, 2>({info.nEig, syn.image().shape(1)});
-    xyzUvw = queue.create_pinned_array<T, 2>(
-        ctx.host_alloc(),
+    v = queue.template create_pinned_array<std::complex<T>, 2>({info.nAntenna, info.nEig});
+    dMasked = queue.template create_pinned_array<T, 2>({info.nEig, syn.image().shape(1)});
+    xyzUvw = queue.template create_pinned_array<T, 2>(
         {syn.type() == SynthesisType::Standard ? info.nAntenna : info.nAntenna * info.nAntenna, 3});
 #else
     throw GPUSupportError();
@@ -406,7 +405,7 @@ auto send_img_data(const MPICommHandle& comm,const StatusMessage::GatherImage& i
   if (ctx.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     auto& queue = ctx.gpu_queue();
-    imgArray = queue.create_pinned_array<T, 2>(syn.image().slice_view(0).shape());
+    imgArray = queue.template create_pinned_array<T, 2>(syn.image().slice_view(0).shape());
     syn.get(syn.filter(info.idxFilter), imgArray);
     queue.sync();
 #else

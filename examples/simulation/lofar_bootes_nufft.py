@@ -28,9 +28,16 @@ import time as tt
 import matplotlib.pyplot as plt
 
 
+comm = bipp.Communicator()
+
 # Create context with selected processing unit.
 # Options are "AUTO", "CPU" and "GPU".
 ctx = bipp.Context("AUTO")
+
+if not comm.is_root:
+    comm.attach_non_root(ctx)
+    exit(0)
+
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
@@ -96,6 +103,7 @@ for t in ProgressBar(time[::200]):
 
 # Imaging
 imager = bipp.NufftSynthesis(
+    comm,
     ctx,
     opt,
     N_level,
