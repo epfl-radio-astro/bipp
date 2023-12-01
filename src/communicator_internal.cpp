@@ -91,7 +91,7 @@ struct StatusMessage {
                                           std::size_t typeSize, const NufftSynthesisOptions& opt)
       -> void;
 
-  static auto send_synthesis_collect(const MPICommHandle& comm, std::size_t id,
+  static auto send_synthesis_collect(const MPICommHandle& comm, std::size_t id, double wl,
                                      std::size_t nAntenna, std::size_t nEig) -> void;
 
   static auto send_gather_image(const MPICommHandle& comm, std::size_t id, std::size_t idxFilter)
@@ -140,13 +140,14 @@ auto StatusMessage::send_create_nufft_synthesis(const MPICommHandle& comm, std::
   send_message(comm, m);
 }
 
-auto StatusMessage::send_synthesis_collect(const MPICommHandle& comm, std::size_t id,
+auto StatusMessage::send_synthesis_collect(const MPICommHandle& comm, std::size_t id, double wl,
                                         std::size_t nAntenna,  std::size_t nEig)
     -> void {
   StatusMessage m;
   m.messageIndex = StatusMessage::SynthesisCollect::index;
 
   m.step.id = id;
+  m.step.wl = wl;
   m.step.nAntenna = nAntenna;
   m.step.nEig = nEig;
 
@@ -588,11 +589,11 @@ auto CommunicatorInternal::send_synthesis_init(std::optional<NufftSynthesisOptio
 }
 
 template <typename T, typename>
-auto CommunicatorInternal::send_synthesis_collect(std::size_t id,
+auto CommunicatorInternal::send_synthesis_collect(std::size_t id, T wl,
                                                   ConstHostView<std::complex<T>, 2> vView,
                                                   ConstHostView<T, 2> dMasked,
                                                   ConstHostView<T, 2> xyzUvwView) -> void {
-  StatusMessage::send_synthesis_collect(comm_, id, vView.shape(0), vView.shape(1));
+  StatusMessage::send_synthesis_collect(comm_, id, wl, vView.shape(0), vView.shape(1));
   send_synthesis_collect_data<T>(comm_, vView, dMasked, xyzUvwView);
 }
 
@@ -614,12 +615,12 @@ template auto CommunicatorInternal::send_synthesis_init<double>(std::optional<Nu
     ConstHostView<PartitionGroup, 1> groups) -> std::size_t;
 
 template auto CommunicatorInternal::send_synthesis_collect<float>(
-    std::size_t id, ConstHostView<std::complex<float>, 2> vView, ConstHostView<float, 2> dMasked,
+    std::size_t id, float wl, ConstHostView<std::complex<float>, 2> vView, ConstHostView<float, 2> dMasked,
     ConstHostView<float, 2> xyzUvwView) -> void;
 
 template auto CommunicatorInternal::send_synthesis_collect<double>(
-    std::size_t id, ConstHostView<std::complex<double>, 2> vView, ConstHostView<double, 2> dMasked,
-    ConstHostView<double, 2> xyzUvwView) -> void;
+    std::size_t id, double wl, ConstHostView<std::complex<double>, 2> vView,
+    ConstHostView<double, 2> dMasked, ConstHostView<double, 2> xyzUvwView) -> void;
 
 template auto CommunicatorInternal::gather_image<float>(std::size_t id, std::size_t idxFilter,
                                                         ConstHostView<PartitionGroup, 1> groups,

@@ -1,6 +1,9 @@
 #pragma once
 
 #include <bipp/config.h>
+#ifdef BIPP_MPI
+#include <bipp/communicator.hpp>
+#endif
 
 #include <bipp/context.hpp>
 #include <complex>
@@ -34,6 +37,25 @@ public:
   StandardSynthesis(Context& ctx, std::size_t nIntervals,
                     std::size_t nFilter, const BippFilter* filter, std::size_t nPixel,
                     const T* lmnX, const T* lmnY, const T* lmnZ);
+
+#ifdef BIPP_MPI
+  /**
+   * Create a distributed standard synthesis plan. Must only be called from root process.
+   *
+   * @param[in] comm Communicator handle.
+   * @param[in] ctx Context handle.
+   * @param[in] nIntervals Number of intervals.
+   * @param[in] nFilter Number of filter.
+   * @param[in] filter Array of filters of size nFilter.
+   * @param[in] nPixel Number of image pixels.
+   * @param[in] lmnX Array of image x coordinates of size nPixel.
+   * @param[in] lmnY Array of image y coordinates of size nPixel.
+   * @param[in] lmnZ Array of image z coordinates of size nPixel.
+   */
+  StandardSynthesis(Communicator& comm, Context& ctx, std::size_t nIntervals, std::size_t nFilter,
+                    const BippFilter* filter, std::size_t nPixel, const T* lmnX, const T* lmnY,
+                    const T* lmnZ);
+#endif
 
   /**
    * Collect radio data.

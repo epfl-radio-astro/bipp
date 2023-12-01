@@ -47,7 +47,7 @@ class CommunicatorInternal {
     // Must only be called by root
     template <typename T,
               typename = std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double>>>
-    auto send_synthesis_collect(std::size_t id, ConstHostView<std::complex<T>, 2> vView,
+    auto send_synthesis_collect(std::size_t id, T wl, ConstHostView<std::complex<T>, 2> vView,
                                 ConstHostView<T, 2> dMasked, ConstHostView<T, 2> xyzUvwView)
         -> void;
 

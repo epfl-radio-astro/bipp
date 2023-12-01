@@ -65,14 +65,14 @@ auto DistributedSynthesis<T>::collect(T wl, ConstView<std::complex<T>, 2> vView,
     auto v = vDevice.view();
     auto xyzUvw = xyzUvwDevice.view();
     queue.sync();
-    comm_->send_synthesis_collect<T>(id_, v, dMasked, xyzUvw);
+    comm_->send_synthesis_collect<T>(id_, wl, v, dMasked, xyzUvw);
 #else
     throw GPUSupportError();
 #endif
   } else {
     auto v = ConstHostView<std::complex<T>, 2>(vView);
     auto xyzUvw = ConstHostView<T, 2>(xyzUvwView);
-    comm_->send_synthesis_collect<T>(id_, v, dMasked, xyzUvw);
+    comm_->send_synthesis_collect<T>(id_, wl, v, dMasked, xyzUvw);
   }
   ++totalCollectCount_;
 }

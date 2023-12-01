@@ -10,6 +10,10 @@
 #include "memory/view.hpp"
 #include "imager.hpp"
 
+#ifdef BIPP_MPI
+#include "communicator_internal.hpp"
+#endif
+
 namespace bipp {
 
 template <typename T>
@@ -32,6 +36,40 @@ StandardSynthesis<T>::StandardSynthesis(Context& ctx, std::size_t nLevel, std::s
     throw;
   }
 }
+
+#ifdef BIPP_MPI
+template <typename T>
+StandardSynthesis<T>::StandardSynthesis(Communicator& comm, Context& ctx, std::size_t nLevel,
+                                        std::size_t nFilter, const BippFilter* filter,
+                                        std::size_t nPixel, const T* lmnX, const T* lmnY,
+                                        const T* lmnZ) {
+  try {
+    const auto& commInt =  InternalCommunicatorAccessor::get(comm);
+    if(commInt->comm().size() <= 1) {
+      plan_ = decltype(plan_)(
+          new Imager<T>(Imager<T>::standard_synthesis(
+              InternalContextAccessor::get(ctx), nLevel,
+              ConstView<BippFilter, 1>(filter, nFilter, 1), ConstView<T, 1>(lmnX, nPixel, 1),
+              ConstView<T, 1>(lmnY, nPixel, 1), ConstView<T, 1>(lmnZ, nPixel, 1))),
+          [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
+    } else {
+      plan_ = decltype(plan_)(
+          new Imager<T>(Imager<T>::distributed_standard_synthesis(
+              commInt, InternalContextAccessor::get(ctx), nLevel,
+              ConstView<BippFilter, 1>(filter, nFilter, 1), ConstView<T, 1>(lmnX, nPixel, 1),
+              ConstView<T, 1>(lmnY, nPixel, 1), ConstView<T, 1>(lmnZ, nPixel, 1))),
+          [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
+    }
+  } catch (const std::exception& e) {
+    try {
+      InternalContextAccessor::get(ctx)->logger().log(
+          BIPP_LOG_LEVEL_ERROR, "NufftSynthesis creation error: {}", e.what());
+    } catch (...) {
+    }
+    throw;
+  }
+}
+#endif
 
 template <typename T>
 auto StandardSynthesis<T>::collect(
