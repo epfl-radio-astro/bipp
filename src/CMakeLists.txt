@@ -17,6 +17,7 @@ set(BIPP_SOURCE_FILES
 	host/kernels/gemmexp.cpp
 	host/kernels/nuft_sum.cpp
 	host/standard_synthesis.cpp
+	host/collector.cpp
 	)
 
 if(BIPP_MPI)

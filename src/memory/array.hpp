@@ -33,11 +33,11 @@ public:
 
   HostArray(const HostArray&) = delete;
 
-  HostArray(HostArray&&) = default;
+  HostArray(HostArray&&) noexcept = default;
 
   auto operator=(const HostArray&) -> HostArray& = delete;
 
-  auto operator=(HostArray&& b) -> HostArray& = default;
+  auto operator=(HostArray&& b) noexcept -> HostArray& = default;
 
   HostArray(std::shared_ptr<Allocator> alloc, const IndexType& shape)
       : BaseType(nullptr, shape, shape_to_stride(shape)) {
@@ -57,6 +57,11 @@ public:
   inline auto view() -> HostView<T, DIM> { return *this; }
 
   inline auto view() const -> ConstHostView<T, DIM> { return *this; }
+
+  inline auto shrink(const IndexType& newShape) -> HostArray<T, DIM>& {
+    this->shrink_impl(newShape);
+    return *this;
+  }
 
 private:
   static inline auto shape_to_stride(const IndexType& shape) -> IndexType {
@@ -93,11 +98,11 @@ public:
 
   DeviceArray(const DeviceArray&) = delete;
 
-  DeviceArray(DeviceArray&&) = default;
+  DeviceArray(DeviceArray&&) noexcept = default;
 
   auto operator=(const DeviceArray&) -> DeviceArray& = delete;
 
-  auto operator=(DeviceArray&& b) -> DeviceArray& = default;
+  auto operator=(DeviceArray&& b) noexcept -> DeviceArray& = default;
 
   DeviceArray(std::shared_ptr<Allocator> alloc, const IndexType& shape)
       : BaseType(nullptr, shape, shape_to_stride(shape)) {
@@ -117,6 +122,11 @@ public:
   inline auto view() -> DeviceView<T, DIM> { return *this; }
 
   inline auto view() const -> ConstDeviceView<T, DIM> { return *this; }
+
+  inline auto shrink(const IndexType& newShape) -> DeviceArray<T, DIM>& {
+    this->shrink_impl(newShape);
+    return *this;
+  }
 
 private:
   static inline auto shape_to_stride(const IndexType& shape) -> IndexType {

@@ -168,6 +168,11 @@ public:
     return this->template sub_view_impl<ConstView<T, DIM>>(offset, shape);
   }
 
+  inline auto shrink(const IndexType& newShape) -> ConstView<T, DIM>& {
+    this->shrink_impl(newShape);
+    return *this;
+  }
+
 protected:
   friend ConstView<T, DIM + 1>;
 
@@ -215,6 +220,13 @@ protected:
     return VIEW_TYPE{ConstView{constPtr_ + view_index(offset, strides_), shape, strides_}};
   }
 
+  inline auto shrink_impl(const IndexType& newShape) -> void {
+    assert(compare_elements(newShape, shape_, std::less_equal{}));
+
+    totalSize_ = view_size(newShape);
+    shape_ = newShape;
+  }
+
   IndexType shape_;
   IndexType strides_;
   std::size_t totalSize_ = 0;
@@ -247,6 +259,11 @@ public:
 
   auto sub_view(const IndexType& offset, const IndexType& shape) const -> View<T, DIM> {
     return this->template sub_view_impl<View<T, DIM>>(offset, shape);
+  }
+
+  inline auto shrink(const IndexType& newShape) -> View<T, DIM>& {
+    this->shrink_impl(newShape);
+    return *this;
   }
 
 protected:
@@ -299,6 +316,11 @@ public:
     }
   }
 
+  inline auto shrink(const IndexType& newShape) -> HostView<T, DIM>& {
+    this->shrink_impl(newShape);
+    return *this;
+  }
+
 protected:
   friend ConstView<T, DIM>;
   friend ConstView<T, DIM + 1>;
@@ -339,6 +361,11 @@ public:
   auto sub_view(const IndexType& offset, const IndexType& shape) const -> ConstHostView<T, DIM> {
     return this->template sub_view_impl<ConstHostView<T, DIM>>(offset, shape);
   }
+
+  inline auto shrink(const IndexType& newShape) -> ConstHostView<T, DIM>& {
+    this->shrink_impl(newShape);
+    return *this;
+  }
 };
 
 
@@ -365,6 +392,11 @@ public:
 
   auto sub_view(const IndexType& offset, const IndexType& shape) const -> DeviceView<T, DIM> {
     return this->template sub_view_impl<DeviceView<T, DIM>>(offset, shape);
+  }
+
+  inline auto shrink(const IndexType& newShape) -> DeviceView<T, DIM>& {
+    this->shrink_impl(newShape);
+    return *this;
   }
 
 protected:
@@ -400,6 +432,11 @@ public:
 
   auto sub_view(const IndexType& offset, const IndexType& shape) const -> ConstDeviceView<T, DIM> {
     return this->template sub_view_impl<ConstDeviceView<T, DIM>>(offset, shape);
+  }
+
+  inline auto shrink(const IndexType& newShape) -> ConstDeviceView<T, DIM>& {
+    this->shrink_impl(newShape);
+    return *this;
   }
 };
 

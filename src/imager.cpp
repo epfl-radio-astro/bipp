@@ -186,8 +186,14 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
       eigMaskFunc(idxLevel, nEig, dMaskedArray.slice_view(idxLevel).data());
     }
 
-    synthesis_->collect(wl, vUnbeam, dMaskedArray,
-                        synthesis_->type() == SynthesisType::Standard ? xyzHost : uvwHost);
+    std::vector<ProcessData<T>> data;
+    data.emplace_back(wl, vUnbeam, dMaskedArray,
+                      synthesis_->type() == SynthesisType::Standard ? xyzHost : uvwHost);
+
+    synthesis_->process(data);
+
+    // synthesis_->collect(wl, vUnbeam, dMaskedArray,
+    //                     synthesis_->type() == SynthesisType::Standard ? xyzHost : uvwHost);
   }
 }
 

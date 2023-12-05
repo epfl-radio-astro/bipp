@@ -3,6 +3,8 @@
 #include <complex>
 #include <memory>
 #include <optional>
+#include <vector>
+#include <tuple>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
@@ -26,6 +28,8 @@ public:
   auto collect(T wl, ConstView<std::complex<T>, 2> vView, ConstHostView<T, 2> dMasked,
                ConstView<T, 2> xyzUvwView) -> void override;
 
+  auto process(const std::vector<ProcessData<T>>& data) -> void override;
+
   auto get(BippFilter f, View<T, 2> out) -> void override;
 
   auto type() const -> SynthesisType override { return SynthesisType::NUFFT; }
@@ -39,7 +43,6 @@ public:
   auto image() -> View<T, 3> override { return img_; }
 
 private:
-  auto computeNufft() -> void;
 
   std::shared_ptr<ContextInternal> ctx_;
   NufftSynthesisOptions opt_;
@@ -48,8 +51,7 @@ private:
   HostArray<T, 2> pixel_;
   DomainPartition imgPartition_;
 
-  std::size_t collectPoints_, totalCollectCount_;
-  HostArray<std::complex<T>, 3> virtualVis_;
+  std::size_t totalCollectCount_;
   HostArray<T, 2> uvw_;
   HostArray<T, 3> img_;
 };
