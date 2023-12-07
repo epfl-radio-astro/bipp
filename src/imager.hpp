@@ -7,6 +7,7 @@
 #include "bipp/config.h"
 #include "bipp/enums.h"
 #include "bipp/nufft_synthesis.hpp"
+#include "collector_interface.hpp"
 #include "context_internal.hpp"
 #include "memory/view.hpp"
 #include "synthesis_interface.hpp"
@@ -52,12 +53,13 @@ public:
 
   auto get(BippFilter f, T* out, std::size_t ld) -> void;
 
-  auto context() -> ContextInternal& { return synthesis_->context(); };
+  auto context() -> ContextInternal& { return *synthesis_->context(); };
 
 private:
-  explicit Imager(std::unique_ptr<SynthesisInterface<T>> syn) : synthesis_(std::move(syn)) {}
+  Imager(std::shared_ptr<ContextInternal> ctx, std::unique_ptr<SynthesisInterface<T>> syn);
 
   std::unique_ptr<SynthesisInterface<T>> synthesis_;
+  std::unique_ptr<CollectorInterface<T>> collector_;
 };
 
 }  // namespace bipp

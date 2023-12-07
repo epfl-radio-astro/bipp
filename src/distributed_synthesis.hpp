@@ -29,13 +29,15 @@ public:
   auto collect(T wl, ConstView<std::complex<T>, 2> vView, ConstHostView<T, 2> dMasked,
                ConstView<T, 2> xyzUvwView) -> void override;
 
+  auto process(CollectorInterface<T>& collector) -> void override;
+
   auto get(BippFilter f, View<T, 2> out) -> void override;
 
   auto type() const -> SynthesisType override { return type_; }
 
   auto filter(std::size_t idx) const -> BippFilter override { return filter_[idx]; }
 
-  auto context() -> ContextInternal& override { return *ctx_; }
+  auto context() -> const std::shared_ptr<ContextInternal>& override { return ctx_; }
 
   auto gpu_enabled() const -> bool override { return ctx_->processing_unit() == BIPP_PU_GPU; }
 

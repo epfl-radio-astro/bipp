@@ -134,15 +134,17 @@ auto NufftSynthesis<T>::collect(T wl, ConstView<std::complex<T>, 2> vView,
 }
 
 template <typename T>
-auto NufftSynthesis<T>::process(const std::vector<ProcessData<T>>& data) -> void {
+auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
   ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "computing nufft for collected data");
+
+  auto data = collector.get_data();
+  if (data.empty()) return;
 
   std::size_t collectPoints = 0;
   for (const auto& s : data) {
     collectPoints += s.xyzUvw.shape(0);
     assert(s.v.shape(0) * s.v.shape(0) == s.xyzUvw.shape(0));
   }
-
 
   // compute virtual visibilities
   HostArray<std::complex<T>, 3> virtualVis(ctx_->host_alloc(), {collectPoints, nLevel_, nFilter_});
@@ -153,7 +155,8 @@ auto NufftSynthesis<T>::process(const std::vector<ProcessData<T>>& data) -> void
       auto virtVisCurrent =
           virtualVis.sub_view({currentCount, 0, 0},
                               {nAntenna * nAntenna, virtualVis.shape(1), virtualVis.shape(2)});
-      virtual_vis<T>(*ctx_, filter_, s.dMasked, s.v, virtVisCurrent);
+      virtual_vis<T>(*ctx_, filter_, s.dMasked, ConstHostView<std::complex<T>, 2>(s.v),
+                     virtVisCurrent);
       currentCount += s.xyzUvw.shape(0);
     }
   }
@@ -163,7 +166,7 @@ auto NufftSynthesis<T>::process(const std::vector<ProcessData<T>>& data) -> void
   {
     std::size_t currentCount = 0;
     for (const auto& s : data) {
-      copy(s.xyzUvw, uvw.sub_view({currentCount, 0}, {s.xyzUvw.shape(0), 3}));
+      copy(ConstHostView<T, 2>(s.xyzUvw), uvw.sub_view({currentCount, 0}, {s.xyzUvw.shape(0), 3}));
       currentCount += s.xyzUvw.shape(0);
     }
   }

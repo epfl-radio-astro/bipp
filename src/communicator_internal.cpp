@@ -4,11 +4,12 @@
 #include <cassert>
 #include <complex>
 #include <cstddef>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <unordered_map>
 #include <variant>
-#include <optional>
 #include <vector>
 
 #include "bipp/bipp.h"
@@ -16,6 +17,7 @@
 
 #ifdef BIPP_MPI
 #include "context_internal.hpp"
+#include "host/collector.hpp"
 #include "host/nufft_synthesis.hpp"
 #include "host/standard_synthesis.hpp"
 #include "memory/array.hpp"
@@ -74,8 +76,7 @@ struct StatusMessage {
   } create;
   struct SynthesisCollect {
     constexpr static std::size_t index = 3;
-    std::size_t id, nAntenna, nEig;
-    double wl;
+    std::size_t id, bufferSize;
   } step;
   struct GatherImage {
     constexpr static std::size_t index = 4;
@@ -91,8 +92,8 @@ struct StatusMessage {
                                           std::size_t typeSize, const NufftSynthesisOptions& opt)
       -> void;
 
-  static auto send_synthesis_collect(const MPICommHandle& comm, std::size_t id, double wl,
-                                     std::size_t nAntenna, std::size_t nEig) -> void;
+  static auto send_synthesis_collect(const MPICommHandle& comm, std::size_t id,
+                                     std::size_t bufferSize) -> void;
 
   static auto send_gather_image(const MPICommHandle& comm, std::size_t id, std::size_t idxFilter)
       -> void;
@@ -140,16 +141,13 @@ auto StatusMessage::send_create_nufft_synthesis(const MPICommHandle& comm, std::
   send_message(comm, m);
 }
 
-auto StatusMessage::send_synthesis_collect(const MPICommHandle& comm, std::size_t id, double wl,
-                                        std::size_t nAntenna,  std::size_t nEig)
+auto StatusMessage::send_synthesis_collect(const MPICommHandle& comm, std::size_t id, std::size_t bufferSize)
     -> void {
   StatusMessage m;
   m.messageIndex = StatusMessage::SynthesisCollect::index;
 
   m.step.id = id;
-  m.step.wl = wl;
-  m.step.nAntenna = nAntenna;
-  m.step.nEig = nEig;
+  m.step.bufferSize = bufferSize;
 
   send_message(comm, m);
 }
@@ -316,37 +314,13 @@ auto recv_synthesis_init_data(const MPICommHandle& comm, std::shared_ptr<Context
 }
 
 template <typename T>
-auto broadcast_synthesis_collect_data(const MPICommHandle& comm, HostView<std::complex<T>, 2> vView,
-                                   HostView<T, 2> dMasked, HostView<T, 2> xyzUvwView) -> void {
-  std::array<MPI_Request, 3> requests;
-  std::array<MPI_Status, 3> statuses;
-
-  auto vDataType = MPIDatatypeHandle::create(vView);
-  mpi_check_status(MPI_Ibcast(vView.data(), 1, vDataType.get(), 0, comm.get(), &requests[0]));
-
-  auto dMaskedDataType = MPIDatatypeHandle::create(dMasked);
-  mpi_check_status(
-      MPI_Ibcast(dMasked.data(), 1, dMaskedDataType.get(), 0, comm.get(), &requests[1]));
-
-  auto xyzUvwDataType = MPIDatatypeHandle::create(xyzUvwView);
-  mpi_check_status(
-      MPI_Ibcast(xyzUvwView.data(), 1, xyzUvwDataType.get(), 0, comm.get(), &requests[2]));
-
-  mpi_check_status(MPI_Waitall(requests.size(), requests.data(), statuses.data()));
-}
-
-template <typename T>
-auto send_synthesis_collect_data(const MPICommHandle& comm, ConstHostView<std::complex<T>, 2> vView,
-                                   ConstHostView<T, 2> dMasked, ConstHostView<T, 2> xyzUvwView) -> void {
+auto send_synthesis_collect_data(const MPICommHandle& comm, ConstHostView<char, 1> ser) -> void {
   assert(comm.rank() == 0);
 
-  // Broadcast will not modify root data
-  broadcast_synthesis_collect_data<T>(
-      comm,
-      HostView<std::complex<T>, 2>(const_cast<std::complex<T>*>(vView.data()), vView.shape(),
-                                   vView.strides()),
-      HostView<T, 2>(const_cast<T*>(dMasked.data()), dMasked.shape(), dMasked.strides()),
-      HostView<T, 2>(const_cast<T*>(xyzUvwView.data()), xyzUvwView.shape(), xyzUvwView.strides()));
+  // will not modify input
+  // TODO: handle large buffer (larger than int)
+  mpi_check_status(
+      MPI_Bcast(const_cast<char*>(ser.data()), ser.size(), MPIType<char>::get(), 0, comm.get()));
 }
 
 template <typename T>
@@ -355,38 +329,37 @@ auto recv_synthesis_collect_data(const MPICommHandle& comm,
                                  SynthesisInterface<T>& syn) -> void {
   auto& ctx = syn.context();
 
-  auto t =
-      ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(&syn) + " recv collect data");
+  auto t = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO,
+                                              pointer_to_string(&syn) + " recv collect data");
 
-  auto v = HostArray<std::complex<T>, 2>();
-  auto dMasked = HostArray<T, 2>();
-  auto xyzUvw = HostArray<T, 2>();
+  std::unique_ptr<CollectorInterface<T>> collector;
+  HostArray<char, 1> ser;
 
-  if (ctx.processing_unit() == BIPP_PU_GPU) {
+  if (ctx->processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     auto& queue = ctx.gpu_queue();
-    v = queue.template create_pinned_array<std::complex<T>, 2>({info.nAntenna, info.nEig});
-    dMasked = queue.template create_pinned_array<T, 2>({info.nEig, syn.image().shape(1)});
-    xyzUvw = queue.template create_pinned_array<T, 2>(
-        {syn.type() == SynthesisType::Standard ? info.nAntenna : info.nAntenna * info.nAntenna, 3});
+    throw InternalError("NOT implemented");
 #else
     throw GPUSupportError();
 #endif
   } else {
-    v = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {info.nAntenna, info.nEig});
-    dMasked = HostArray<T, 2>(ctx.host_alloc(), {info.nEig, syn.image().shape(1)});
-    xyzUvw = HostArray<T, 2>(
-        ctx.host_alloc(),
-        {syn.type() == SynthesisType::Standard ? info.nAntenna : info.nAntenna * info.nAntenna, 3});
+    collector = std::make_unique<host::Collector<T>>(ctx);
+    ser = HostArray<char, 1>(ctx->host_alloc(), info.bufferSize);
   }
 
-  broadcast_synthesis_collect_data<T>(comm, v, dMasked, xyzUvw);
+  // TODO: handle large buffer (larger than int)
+  mpi_check_status(
+      MPI_Bcast(const_cast<char*>(ser.data()), ser.size(), MPIType<char>::get(), 0, comm.get()));
+
 
   t.stop();
 
-  auto t2 = ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO,
-                                               pointer_to_string(&syn) + " collect");
-  syn.collect(info.wl, v, dMasked, xyzUvw);
+  auto t2 = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO,
+                                                pointer_to_string(&syn) + " collect");
+
+  collector->deserialize(ser);
+
+  syn.process(*collector);
 }
 
 
@@ -396,9 +369,7 @@ auto send_img_data(const MPICommHandle& comm,const StatusMessage::GatherImage& i
 
   assert(comm.rank() != 0);
 
-
-  auto& ctx = syn.context();
-
+  auto& ctx = *syn.context();
 
   HostArray<T, 2> imgArray;
 
@@ -589,12 +560,11 @@ auto CommunicatorInternal::send_synthesis_init(std::optional<NufftSynthesisOptio
 }
 
 template <typename T, typename>
-auto CommunicatorInternal::send_synthesis_collect(std::size_t id, T wl,
-                                                  ConstHostView<std::complex<T>, 2> vView,
-                                                  ConstHostView<T, 2> dMasked,
-                                                  ConstHostView<T, 2> xyzUvwView) -> void {
-  StatusMessage::send_synthesis_collect(comm_, id, wl, vView.shape(0), vView.shape(1));
-  send_synthesis_collect_data<T>(comm_, vView, dMasked, xyzUvwView);
+auto CommunicatorInternal::send_synthesis_collect(std::size_t id,
+                                                  const CollectorInterface<T>& collector) -> void {
+  auto ser = collector.serialize();
+  StatusMessage::send_synthesis_collect(comm_, id, ser.size());
+  send_synthesis_collect_data<T>(comm_, ser);
 }
 
 template <typename T, typename>
@@ -615,12 +585,10 @@ template auto CommunicatorInternal::send_synthesis_init<double>(std::optional<Nu
     ConstHostView<PartitionGroup, 1> groups) -> std::size_t;
 
 template auto CommunicatorInternal::send_synthesis_collect<float>(
-    std::size_t id, float wl, ConstHostView<std::complex<float>, 2> vView, ConstHostView<float, 2> dMasked,
-    ConstHostView<float, 2> xyzUvwView) -> void;
+    std::size_t id, const CollectorInterface<float>& collector) -> void;
 
 template auto CommunicatorInternal::send_synthesis_collect<double>(
-    std::size_t id, double wl, ConstHostView<std::complex<double>, 2> vView,
-    ConstHostView<double, 2> dMasked, ConstHostView<double, 2> xyzUvwView) -> void;
+    std::size_t id, const CollectorInterface<double>& collector) -> void;
 
 template auto CommunicatorInternal::gather_image<float>(std::size_t id, std::size_t idxFilter,
                                                         ConstHostView<PartitionGroup, 1> groups,

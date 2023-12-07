@@ -3,6 +3,7 @@
 #include <complex>
 #include <cstddef>
 #include <type_traits>
+#include <vector>
 
 #include "bipp/config.h"
 #include "bipp/enums.h"
@@ -34,7 +35,11 @@ public:
 
   virtual auto deserialize(ConstHostView<char, 1> serialData) -> void = 0;
 
-  virtual auto get_data(std::size_t idx) const -> typename CollectorInterface<T>::Data = 0;
+  virtual auto get_data() const -> std::vector<typename CollectorInterface<T>::Data> = 0;
+
+  virtual auto size() const -> std::size_t = 0;
+
+  virtual auto clear() -> void = 0;
 
   virtual ~CollectorInterface() = default;
 };

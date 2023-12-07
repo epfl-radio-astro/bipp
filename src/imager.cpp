@@ -7,6 +7,7 @@
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
+#include "host/collector.hpp"
 #include "host/eigensolver.hpp"
 #include "host/nufft_synthesis.hpp"
 #include "host/standard_synthesis.hpp"
@@ -42,8 +43,8 @@ auto Imager<T>::standard_synthesis(std::shared_ptr<ContextInternal> ctx, std::si
                                    ConstView<BippFilter, 1> filter, ConstView<T, 1> pixelX,
                                    ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ) -> Imager<T> {
   assert(ctx);
-  return Imager(SynthesisFactory<T>::create_standard_synthesis(std::move(ctx), nLevel, filter,
-                                                               pixelX, pixelY, pixelZ));
+  return Imager(ctx, SynthesisFactory<T>::create_standard_synthesis(ctx, nLevel, filter, pixelX,
+                                                                    pixelY, pixelZ));
 }
 
 template <typename T>
@@ -52,8 +53,8 @@ auto Imager<T>::nufft_synthesis(std::shared_ptr<ContextInternal> ctx, NufftSynth
                                 ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
                                 ConstView<T, 1> pixelZ) -> Imager<T> {
   assert(ctx);
-  return Imager(SynthesisFactory<T>::create_nufft_synthesis(std::move(ctx), std::move(opt), nLevel,
-                                                            filter, pixelX, pixelY, pixelZ));
+  return Imager(ctx, SynthesisFactory<T>::create_nufft_synthesis(ctx, std::move(opt), nLevel,
+                                                                 filter, pixelX, pixelY, pixelZ));
 }
 
 #ifdef BIPP_MPI
@@ -65,8 +66,8 @@ auto Imager<T>::distributed_standard_synthesis(std::shared_ptr<CommunicatorInter
                                              ConstView<T, 1> pixelZ) -> Imager<T> {
   assert(comm);
   assert(ctx);
-  return Imager(SynthesisFactory<T>::create_distributed_standard_synthesis(
-      std::move(comm), std::move(ctx), nLevel, filter, pixelX, pixelY, pixelZ));
+  return Imager(ctx, SynthesisFactory<T>::create_distributed_standard_synthesis(
+      std::move(comm), ctx, nLevel, filter, pixelX, pixelY, pixelZ));
 }
 
 template <typename T>
@@ -77,10 +78,22 @@ auto Imager<T>::distributed_nufft_synthesis(std::shared_ptr<CommunicatorInternal
                                           ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ) -> Imager<T> {
   assert(comm);
   assert(ctx);
-  return Imager(SynthesisFactory<T>::create_distributed_nufft_synthesis(
-      std::move(comm), std::move(ctx), std::move(opt), nLevel, filter, pixelX, pixelY, pixelZ));
+  return Imager(ctx,
+                SynthesisFactory<T>::create_distributed_nufft_synthesis(
+                    std::move(comm), ctx, std::move(opt), nLevel, filter, pixelX, pixelY, pixelZ));
 }
 #endif
+
+template <typename T>
+Imager<T>::Imager(std::shared_ptr<ContextInternal> ctx, std::unique_ptr<SynthesisInterface<T>> syn)
+    : synthesis_(std::move(syn)) {
+  if (ctx->processing_unit() == BIPP_PU_GPU) {
+    // TODO
+    throw InternalError("not implemented");
+  } else {
+    collector_ = std::make_unique<host::Collector<T>>(std::move(ctx));
+  }
+}
 
 template <typename T>
 auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
@@ -92,7 +105,7 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
   const auto nBeam = w.shape(1);
   const auto nLevel = synthesis_->image().shape(1);
 
-  auto& ctx = synthesis_->context();
+  auto& ctx = *synthesis_->context();
 
   auto t =
       ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(this) + " collect");
@@ -186,21 +199,18 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
       eigMaskFunc(idxLevel, nEig, dMaskedArray.slice_view(idxLevel).data());
     }
 
-    std::vector<ProcessData<T>> data;
-    data.emplace_back(wl, vUnbeam, dMaskedArray,
-                      synthesis_->type() == SynthesisType::Standard ? xyzHost : uvwHost);
+    collector_->collect(wl, vUnbeam, dMaskedArray,
+                        synthesis_->type() == SynthesisType::Standard ? xyzHost : uvwHost);
 
-    synthesis_->process(data);
-
-    // synthesis_->collect(wl, vUnbeam, dMaskedArray,
-    //                     synthesis_->type() == SynthesisType::Standard ? xyzHost : uvwHost);
+    synthesis_->process(*collector_);
+    collector_->clear();
   }
 }
 
 template <typename T>
 auto Imager<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
   auto img = synthesis_->image();
-  auto& ctx = synthesis_->context();
+  auto& ctx = *synthesis_->context();
   auto t =
       ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(this) + " get");
 

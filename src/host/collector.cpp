@@ -29,12 +29,23 @@ struct SerialInfo {
 }  // namespace
 
 template <typename T>
-Collector<T>::Collector(std::shared_ptr<ContextInternal> ctx, std::size_t numReserveSteps)
-    : ctx_(std::move(ctx)) {
-  wlData_.reserve(numReserveSteps);
-  vData_.reserve(numReserveSteps);
-  dMaskedData_.reserve(numReserveSteps);
-  xyzUvwData_.reserve(numReserveSteps);
+Collector<T>::Collector(std::shared_ptr<ContextInternal> ctx) : ctx_(std::move(ctx)) {
+  wlData_.reserve(100);
+  vData_.reserve(100);
+  dMaskedData_.reserve(100);
+  xyzUvwData_.reserve(100);
+}
+
+template <typename T>
+auto Collector<T>::clear() -> void {
+  wlData_.clear();
+  vData_.clear();
+  dMaskedData_.clear();
+  xyzUvwData_.clear();
+  wlData_.reserve(100);
+  vData_.reserve(100);
+  dMaskedData_.reserve(100);
+  xyzUvwData_.reserve(100);
 }
 
 template <typename T>
@@ -54,11 +65,14 @@ auto Collector<T>::collect(T wl, ConstView<std::complex<T>, 2> v, ConstHostView<
 }
 
 template <typename T>
-auto Collector<T>::get_data(std::size_t idx) const -> typename CollectorInterface<T>::Data {
-  using returnType = typename CollectorInterface<T>::Data;
-  assert(idx < wlData_.size());
-  return returnType(wlData_[idx], vData_[idx], dMaskedData_[idx], xyzUvwData_[idx]);
-
+auto Collector<T>::get_data() const -> std::vector<typename CollectorInterface<T>::Data> {
+  using DataType = typename CollectorInterface<T>::Data;
+  std::vector<DataType> data;
+  data.reserve(this->size());
+  for(std::size_t i = 0; i < this->size(); ++i) {
+    data.emplace_back(wlData_[i], vData_[i], dMaskedData_[i], xyzUvwData_[i]);
+  }
+  return data;
 }
 
 template <typename T>
@@ -148,6 +162,8 @@ auto Collector<T>::deserialize(ConstHostView<char, 1> serialData) -> void {
 
     std::memcpy(&info, serialData.data() + currentOffset, sizeof(decltype(info)));
     currentOffset += sizeof(SerialInfo<T>);
+
+    wlData_.emplace_back(info.wl);
 
     vData_.emplace_back(
         HostArray<std::complex<T>, 2>(ctx_->host_alloc(), {info.vShape[0], info.vShape[1]}));

@@ -12,6 +12,7 @@
 #include "bipp/communicator.hpp"
 
 #ifdef BIPP_MPI
+#include "collector_interface.hpp"
 #include "context_internal.hpp"
 #include "host/domain_partition.hpp"
 #include "memory/view.hpp"
@@ -47,9 +48,7 @@ class CommunicatorInternal {
     // Must only be called by root
     template <typename T,
               typename = std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double>>>
-    auto send_synthesis_collect(std::size_t id, T wl, ConstHostView<std::complex<T>, 2> vView,
-                                ConstHostView<T, 2> dMasked, ConstHostView<T, 2> xyzUvwView)
-        -> void;
+    auto send_synthesis_collect(std::size_t id, const CollectorInterface<T>& collector) -> void;
 
     // Must only be called by root
     template <typename T,

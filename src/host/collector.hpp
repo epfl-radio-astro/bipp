@@ -18,7 +18,7 @@ namespace host {
 template <typename T>
 class Collector : public CollectorInterface<T> {
 public:
-  Collector(std::shared_ptr<ContextInternal> ctx, std::size_t numReserveSteps);
+  explicit Collector(std::shared_ptr<ContextInternal> ctx);
 
   auto collect(T wl, ConstView<std::complex<T>, 2> v, ConstHostView<T, 2> dMasked,
                ConstView<T, 2> xyzUvw) -> void override;
@@ -27,7 +27,11 @@ public:
 
   auto deserialize(ConstHostView<char, 1> serialData) -> void override;
 
-  auto get_data(std::size_t idx) const -> typename CollectorInterface<T>::Data override;
+  auto get_data() const -> std::vector<typename CollectorInterface<T>::Data> override;
+
+  auto size() const -> std::size_t override { return wlData_.size(); }
+
+  auto clear() -> void override;
 
 private:
   std::shared_ptr<ContextInternal> ctx_;

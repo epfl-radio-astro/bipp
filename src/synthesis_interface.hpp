@@ -2,11 +2,13 @@
 
 #include <complex>
 #include <cstddef>
+#include <memory>
 
 #include "bipp/config.h"
 #include "bipp/enums.h"
-#include "memory/view.hpp"
+#include "collector_interface.hpp"
 #include "context_internal.hpp"
+#include "memory/view.hpp"
 
 namespace bipp {
 
@@ -31,7 +33,7 @@ public:
   virtual auto collect(T wl, ConstView<std::complex<T>, 2> vView, ConstHostView<T, 2> dMasked,
                        ConstView<T, 2> xyzUvwView) -> void = 0;
 
-  virtual auto process(const std::vector<ProcessData<T>>& data) -> void {}
+  virtual auto process(CollectorInterface<T>& collector) -> void {}
 
   virtual auto get(BippFilter f, View<T, 2> out) -> void = 0;
 
@@ -39,7 +41,7 @@ public:
 
   virtual auto filter(std::size_t idx) const -> BippFilter = 0;
 
-  virtual auto context() -> ContextInternal& = 0;
+  virtual auto context() -> const std::shared_ptr<ContextInternal>& = 0;
 
   virtual auto gpu_enabled() const -> bool = 0;
 

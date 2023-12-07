@@ -27,7 +27,7 @@ public:
 
   auto filter(std::size_t idx) const -> BippFilter override { return filter_[idx]; }
 
-  auto context() -> ContextInternal& override { return *ctx_; }
+  auto context() -> const std::shared_ptr<ContextInternal>& override { return ctx_; }
 
   auto gpu_enabled() const -> bool override { return false; }
 

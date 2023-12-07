@@ -43,10 +43,25 @@ StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx,
   img_.zero();
 }
 
-
 template <typename T>
 auto StandardSynthesis<T>::collect(T wl, ConstView<std::complex<T>, 2> vView,
                                    ConstHostView<T, 2> dMasked, ConstView<T, 2> xyzUvwView)
+    -> void {
+      //TODO remove
+}
+
+template <typename T>
+auto StandardSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
+  auto data = collector.get_data();
+
+  for (const auto& s : data) {
+    this->process_single(s.wl, s.v, s.dMasked, s.xyzUvw);
+  }
+}
+
+template <typename T>
+auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vView,
+                                          ConstHostView<T, 2> dMasked, ConstView<T, 2> xyzUvwView)
     -> void {
   HostArray<std::complex<T>, 2> v(ctx_->host_alloc(),vView.shape());
   copy(ConstHostView<std::complex<T>, 2>(vView), v);
