@@ -114,7 +114,7 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
   auto t =
       ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(this) + " collect");
 
-  if (synthesis_->gpu_enabled()) {
+  if (ctx.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     gpu::Queue& queue = ctx.gpu_queue();
     // Syncronize with default stream.
@@ -231,7 +231,7 @@ auto Imager<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
       ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(this) + " get");
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-  if (synthesis_->gpu_enabled()) {
+  if (ctx.processing_unit() == BIPP_PU_GPU) {
     auto& queue = ctx.gpu_queue();
     // Syncronize with default stream.
     queue.sync_with_stream(nullptr);
@@ -241,7 +241,7 @@ auto Imager<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
   synthesis_->get(f, View<T, 2>(out, {img.shape(0), img.shape(1)}, {1, ld}));
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-  if (synthesis_->gpu_enabled()) {
+  if (ctx.processing_unit() == BIPP_PU_GPU) {
     gpu::Queue& queue = synthesis_->context()->gpu_queue();
     queue.sync();
   }

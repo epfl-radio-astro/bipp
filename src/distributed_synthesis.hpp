@@ -36,8 +36,6 @@ public:
 
   auto context() -> const std::shared_ptr<ContextInternal>& override { return ctx_; }
 
-  auto gpu_enabled() const -> bool override { return ctx_->processing_unit() == BIPP_PU_GPU; }
-
   auto image() -> View<T, 3> override { return img_; }
 
 private:

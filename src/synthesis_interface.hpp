@@ -40,8 +40,6 @@ public:
 
   virtual auto context() -> const std::shared_ptr<ContextInternal>& = 0;
 
-  virtual auto gpu_enabled() const -> bool = 0;
-
   virtual auto image() -> View<T, 3> = 0;
 
   virtual ~SynthesisInterface() = default;
