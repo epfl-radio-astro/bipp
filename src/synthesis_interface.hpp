@@ -30,9 +30,6 @@ struct ProcessData {
 template <typename T>
 class SynthesisInterface {
 public:
-  virtual auto collect(T wl, ConstView<std::complex<T>, 2> vView, ConstHostView<T, 2> dMasked,
-                       ConstView<T, 2> xyzUvwView) -> void = 0;
-
   virtual auto process(CollectorInterface<T>& collector) -> void {}
 
   virtual auto get(BippFilter f, View<T, 2> out) -> void = 0;

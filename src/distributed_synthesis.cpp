@@ -53,32 +53,6 @@ DistributedSynthesis<T>::DistributedSynthesis(
 }
 
 template <typename T>
-auto DistributedSynthesis<T>::collect(T wl, ConstView<std::complex<T>, 2> vView,
-                                      ConstHostView<T, 2> dMasked, ConstView<T, 2> xyzUvwView)
-    -> void {
-//   if (ctx_->processing_unit() == BIPP_PU_GPU) {
-// #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-//     auto& queue = ctx_->gpu_queue();
-//     ConstHostAccessor<T, 2> xyzUvwDevice(queue, xyzUvwView);
-//     ConstHostAccessor<std::complex<T>, 2> vDevice(queue, vView);
-
-//     auto v = vDevice.view();
-//     auto xyzUvw = xyzUvwDevice.view();
-//     queue.sync();
-//     comm_->send_synthesis_collect<T>(id_, wl, v, dMasked, xyzUvw);
-// #else
-//     throw GPUSupportError();
-// #endif
-//   } else {
-//     auto v = ConstHostView<std::complex<T>, 2>(vView);
-//     auto xyzUvw = ConstHostView<T, 2>(xyzUvwView);
-//     comm_->send_synthesis_collect<T>(id_, wl, v, dMasked, xyzUvw);
-//   }
-
-//   ++totalCollectCount_;
-}
-
-template <typename T>
 auto DistributedSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
   totalCollectCount_ += collector.size();
   comm_->send_synthesis_collect<T>(id_, collector);

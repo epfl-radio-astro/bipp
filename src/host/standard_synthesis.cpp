@@ -44,13 +44,6 @@ StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx,
 }
 
 template <typename T>
-auto StandardSynthesis<T>::collect(T wl, ConstView<std::complex<T>, 2> vView,
-                                   ConstHostView<T, 2> dMasked, ConstView<T, 2> xyzUvwView)
-    -> void {
-      //TODO remove
-}
-
-template <typename T>
 auto StandardSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
   auto data = collector.get_data();
 

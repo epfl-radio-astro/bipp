@@ -26,9 +26,6 @@ public:
                        ConstHostView<BippFilter, 1> filter, ConstHostView<T, 1> pixelX,
                        ConstHostView<T, 1> pixelY, ConstHostView<T, 1> pixelZ);
 
-  auto collect(T wl, ConstView<std::complex<T>, 2> vView, ConstHostView<T, 2> dMasked,
-               ConstView<T, 2> xyzUvwView) -> void override;
-
   auto process(CollectorInterface<T>& collector) -> void override;
 
   auto get(BippFilter f, View<T, 2> out) -> void override;

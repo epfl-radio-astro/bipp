@@ -15,6 +15,7 @@
 #include "synthesis_factory.hpp"
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+#include "gpu/collector.hpp"
 #include "gpu/eigensolver.hpp"
 #include "gpu/kernels/center_vector.hpp"
 #include "gpu/nufft_synthesis.hpp"
@@ -88,8 +89,11 @@ template <typename T>
 Imager<T>::Imager(std::shared_ptr<ContextInternal> ctx, std::unique_ptr<SynthesisInterface<T>> syn)
     : synthesis_(std::move(syn)) {
   if (ctx->processing_unit() == BIPP_PU_GPU) {
-    // TODO
-    throw InternalError("not implemented");
+#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+    collector_ = std::make_unique<gpu::Collector<T>>(std::move(ctx));
+#else
+    throw GPUSupportError();
+#endif
   } else {
     collector_ = std::make_unique<host::Collector<T>>(std::move(ctx));
   }
@@ -158,10 +162,14 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
       eigMaskFunc(idxLevel, nEig, dMaskedArray.slice_view(idxLevel).data());
     }
 
-    synthesis_->collect(
+    collector_->collect(
         wl, vUnbeamCast, dMaskedArray,
         synthesis_->type() == SynthesisType::Standard ? xyzCentered : uvwDevice.view());
 
+    if (collector_->size() >= 10) {
+      synthesis_->process(*collector_);
+      collector_->clear();
+    }
 #else
     throw GPUSupportError();
 #endif
@@ -202,13 +210,21 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
     collector_->collect(wl, vUnbeam, dMaskedArray,
                         synthesis_->type() == SynthesisType::Standard ? xyzHost : uvwHost);
 
-    synthesis_->process(*collector_);
-    collector_->clear();
+    if (collector_->size() >= 10) {
+      synthesis_->process(*collector_);
+      collector_->clear();
+    }
   }
 }
 
 template <typename T>
 auto Imager<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
+  if(collector_->size()) {
+    synthesis_->process(*collector_);
+    collector_->clear();
+  }
+
+
   auto img = synthesis_->image();
   auto& ctx = *synthesis_->context();
   auto t =
@@ -226,7 +242,7 @@ auto Imager<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
   if (synthesis_->gpu_enabled()) {
-    gpu::Queue& queue = synthesis_->context().gpu_queue();
+    gpu::Queue& queue = synthesis_->context()->gpu_queue();
     queue.sync();
   }
 #endif

@@ -18,7 +18,7 @@ public:
   static_assert(std::is_same_v<T, float> || std::is_same_v<T, double>);
 
   struct Data {
-    Data(T wl, ConstHostView<std::complex<T>, 2> v, ConstHostView<T, 2> dMasked,
+    Data(T wl, ConstView<std::complex<T>, 2> v, ConstHostView<T, 2> dMasked,
          ConstHostView<T, 2> xyzUvw)
         : wl(wl), v(v), dMasked(dMasked), xyzUvw(xyzUvw) {}
 

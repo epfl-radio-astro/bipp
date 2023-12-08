@@ -75,65 +75,6 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
 }
 
 template <typename T>
-auto NufftSynthesis<T>::collect(T wl, ConstView<std::complex<T>, 2> vView,
-                                ConstHostView<T, 2> dMasked, ConstView<T, 2> xyzUvwView) -> void {
-  // ConstHostView<std::complex<T>, 2> v(vView);
-  // ConstHostView<T, 2> uvw(xyzUvwView);
-
-  // assert(uvw.shape(1) == 3);
-  // assert(v.shape(0) * v.shape(0) == uvw.shape(0));
-  // assert(v.shape(1) == dMasked.shape(0));
-  // assert(img_.shape(1) == dMasked.shape(1));
-
-  // const auto nEig = dMasked.shape(0);
-  // const auto nAntenna = v.shape(0);
-
-  // // allocate initial memory if not yet done
-  // if (uvw_.shape(0) <= collectPoints_ + nAntenna * nAntenna) {
-  //   this->computeNufft();
-
-  //   const std::size_t minSizeUvw = 3 * nAntenna * nAntenna;
-  //   const std::size_t minSizeVirtVis = nLevel_ * nFilter_ * nAntenna * nAntenna;
-  //   const double memFracUvw =
-  //       double(minSizeUvw * sizeof(T)) /
-  //       double(minSizeUvw * sizeof(T) + minSizeVirtVis * sizeof(std::complex<T>));
-
-  //   const auto systemMemory = system_memory();
-
-  //   const std::size_t requestedMem =
-  //       std::max(0.0f, std::min(opt_.collectMemory, 1.0f)) * systemMemory;
-
-  //   const std::size_t requestedMemUvw = std::size_t(memFracUvw * requestedMem);
-
-  //   const std::size_t requestedSizeMultiplier =
-  //       std::max<std::size_t>(1, requestedMemUvw / (3 * nAntenna * nAntenna * sizeof(T)));
-
-  //   const std::size_t maxPoints = requestedSizeMultiplier * nAntenna * nAntenna;
-
-  //   // free up existing memory first
-  //   virtualVis_ = decltype(virtualVis_)();
-  //   uvw_ = decltype(uvw_)();
-
-  //   virtualVis_ = HostArray<std::complex<T>, 3>(ctx_->host_alloc(), {maxPoints, nLevel_, nFilter_});
-  //   uvw_ = HostArray<T, 2>(ctx_->host_alloc(), {maxPoints, 3});
-  // }
-
-  // // store coordinates
-  // copy(uvw, uvw_.sub_view({collectPoints_, 0}, {nAntenna * nAntenna, 3}));
-
-  // // slice virtual visibility for current step
-  // auto virtVisCurrent = virtualVis_.sub_view(
-  //     {collectPoints_, 0, 0}, {nAntenna * nAntenna, virtualVis_.shape(1), virtualVis_.shape(2)});
-
-  // // compute virtual visibilities
-  // virtual_vis<T>(*ctx_, filter_, dMasked, v, virtVisCurrent);
-
-  // collectPoints_ += nAntenna * nAntenna;
-  // ++totalCollectCount_;
-  // ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "collect count: {}", collectPoints_);
-}
-
-template <typename T>
 auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
   ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "computing nufft for collected data");
 

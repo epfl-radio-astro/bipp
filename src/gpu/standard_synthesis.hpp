@@ -16,8 +16,7 @@ public:
   StandardSynthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nLevel,
                     HostArray<BippFilter, 1> filter, DeviceArray<T, 2> pixel);
 
-  auto collect(T wl, ConstView<std::complex<T>, 2> vView, ConstHostView<T, 2> dMasked,
-               ConstView<T, 2> xyzUvwView) -> void override;
+  auto process(CollectorInterface<T>& collector) -> void override;
 
   auto get(BippFilter f, View<T, 2> out) -> void override;
 
@@ -32,6 +31,9 @@ public:
   auto image() -> View<T, 3> override { return img_; }
 
 private:
+  auto process_single(T wl, ConstView<std::complex<T>, 2> vView, ConstHostView<T, 2> dMasked,
+                      ConstView<T, 2> xyzUvwView) -> void;
+
   std::shared_ptr<ContextInternal> ctx_;
   const std::size_t nFilter_, nPixel_, nLevel_;
   std::size_t count_;

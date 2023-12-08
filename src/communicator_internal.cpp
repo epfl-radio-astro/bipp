@@ -30,6 +30,7 @@
 #include "synthesis_interface.hpp"
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+#include "gpu/collector.hpp"
 #include "gpu/nufft_synthesis.hpp"
 #include "gpu/standard_synthesis.hpp"
 #include "gpu/util/device_accessor.hpp"
@@ -337,8 +338,9 @@ auto recv_synthesis_collect_data(const MPICommHandle& comm,
 
   if (ctx->processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-    auto& queue = ctx.gpu_queue();
-    throw InternalError("NOT implemented");
+    auto& queue = ctx->gpu_queue();
+    collector = std::make_unique<gpu::Collector<T>>(ctx);
+    ser = queue.template create_pinned_array<char, 1>(info.bufferSize);
 #else
     throw GPUSupportError();
 #endif

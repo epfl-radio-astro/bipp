@@ -44,10 +44,19 @@ StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx,
 }
 
 template <typename T>
-auto StandardSynthesis<T>::collect(T wl, ConstView<std::complex<T>, 2> vView,
-                                   ConstHostView<T, 2> dMasked, ConstView<T, 2> xyzUvwView)
-    -> void {
+auto StandardSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
+  auto data = collector.get_data();
 
+  for (const auto& s : data) {
+    this->process_single(s.wl, s.v, s.dMasked, s.xyzUvw);
+    ctx_->gpu_queue().sync();  // make sure memory inside process_single is available again
+  }
+}
+
+template <typename T>
+auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vView,
+                                          ConstHostView<T, 2> dMasked, ConstView<T, 2> xyzUvwView)
+    -> void {
   const auto nAntenna = vView.shape(0);
   const auto nEig = dMasked.shape(0);
 

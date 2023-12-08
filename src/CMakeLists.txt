@@ -38,6 +38,7 @@ if(BIPP_CUDA OR BIPP_ROCM)
 		gpu/virtual_vis.cpp
 		gpu/standard_synthesis.cpp
 		gpu/domain_partition.cu
+		gpu/collector.cpp
 		gpu/util/solver_api.cpp
 		gpu/kernels/gram.cu
 		gpu/kernels/scale_matrix.cu
