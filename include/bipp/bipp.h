@@ -60,14 +60,15 @@ BIPP_EXPORT BippError bipp_ns_options_destroy(BippNufftSynthesisOptions* opt);
 BIPP_EXPORT BippError bipp_ns_options_set_tolerance(BippNufftSynthesisOptions opt, float tol);
 
 /**
- * Set the collection memory fraction.
+ * Set number of collected data packages to be processed together. Larger size will increase memory
+ * usage but improve performance.
  *
  * @param[in] opt Options handle.
- * @param[in] fraction Fraction of system / device memory between 0.0 and 1.0
+ * @param[in] size Group size.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_ns_options_set_collect_memory(BippNufftSynthesisOptions opt,
-                                                         float fraction);
+BIPP_EXPORT BippError bipp_ns_options_set_collect_group_size(BippNufftSynthesisOptions opt,
+                                                             size_t size);
 
 /**
  * Set Nufft Synthesis image partition method to "auto".

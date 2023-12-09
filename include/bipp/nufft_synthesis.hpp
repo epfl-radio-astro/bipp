@@ -53,10 +53,10 @@ struct NufftSynthesisOptions {
   float tolerance = 0.001f;
 
   /**
-   * Fraction of system or device memory used to collect time step data for grouped processing.
-   * Higher value might improve performance but requires more memory.
+   * The maximum number of collected datasets processed together. Larger number typically improves
+   * performance but requires more memory. Internal heuristic is used if unset.
    */
-  float collectMemory = 0.2;
+  std::optional<std::size_t> collectGroupSize = std::nullopt;
 
   /**
    * The partition method used in the UVW domain. Partitioning decreases memory usage, but may come
@@ -81,12 +81,12 @@ struct NufftSynthesisOptions {
   }
 
   /**
-   * Set the collection memory fraction.
+   * Set the collection group size.
    *
-   * @param[in] fraction Fraction of system / device memory between 0.0 and 1.0
+   * @param[in] size Collection group size.
    */
-  inline auto set_collect_memory(float fraction) -> NufftSynthesisOptions& {
-    collectMemory = fraction;
+  inline auto set_collect_group_size(std::optional<std::size_t> size) -> NufftSynthesisOptions& {
+    collectGroupSize = size;
     return *this;
   }
 

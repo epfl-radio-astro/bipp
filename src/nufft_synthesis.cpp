@@ -153,13 +153,13 @@ BIPP_EXPORT BippError bipp_ns_options_set_tolerance(BippNufftSynthesisOptions op
   return BIPP_SUCCESS;
 }
 
-BIPP_EXPORT BippError bipp_ns_options_set_collect_memory(BippNufftSynthesisOptions opt,
-                                                         float fraction) {
+BIPP_EXPORT BippError bipp_ns_options_set_collect_group_size(BippNufftSynthesisOptions opt,
+                                                             size_t size) {
   if (!opt) {
     return BIPP_INVALID_HANDLE_ERROR;
   }
   try {
-    reinterpret_cast<NufftSynthesisOptions*>(opt)->set_collect_memory(fraction);
+    reinterpret_cast<NufftSynthesisOptions*>(opt)->set_collect_group_size(size);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {

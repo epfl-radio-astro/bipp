@@ -56,10 +56,13 @@ public:
   auto context() -> ContextInternal& { return *synthesis_->context(); };
 
 private:
-  Imager(std::shared_ptr<ContextInternal> ctx, std::unique_ptr<SynthesisInterface<T>> syn);
+  Imager(std::shared_ptr<ContextInternal> ctx, std::unique_ptr<SynthesisInterface<T>> syn,
+         std::size_t collectGroupSize);
 
   std::unique_ptr<SynthesisInterface<T>> synthesis_;
   std::unique_ptr<CollectorInterface<T>> collector_;
+
+  std::size_t collectGroupSize_ = 0;
 };
 
 }  // namespace bipp

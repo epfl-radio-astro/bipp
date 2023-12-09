@@ -53,7 +53,7 @@ struct SerializedPartition {
 
 struct SerializedNufftOptions {
   decltype(NufftSynthesisOptions::tolerance) tolerance = 0;;
-  decltype(NufftSynthesisOptions::collectMemory) collectMemory = 0;
+  std::size_t collectGroupSize = 0;
   SerializedPartition localImagePartition;
   SerializedPartition localUVWPartition;
 
@@ -446,7 +446,7 @@ auto SerializedPartition::get() const -> Partition {
 
 SerializedNufftOptions::SerializedNufftOptions(const NufftSynthesisOptions& opt) {
   tolerance = opt.tolerance;
-  collectMemory = opt.collectMemory;
+  collectGroupSize = opt.collectGroupSize.value_or(0);
   localImagePartition = opt.localImagePartition;
   localUVWPartition = opt.localUVWPartition;
 }
@@ -454,7 +454,10 @@ SerializedNufftOptions::SerializedNufftOptions(const NufftSynthesisOptions& opt)
 auto SerializedNufftOptions::get() const -> NufftSynthesisOptions {
   NufftSynthesisOptions opt;
   opt.tolerance = tolerance;
-  opt.collectMemory = collectMemory;
+  if(collectGroupSize)
+    opt.collectGroupSize = collectGroupSize;
+  else
+    opt.collectGroupSize = std::nullopt;
   opt.localImagePartition = localImagePartition.get();
   opt.localUVWPartition = localUVWPartition.get();
   return opt;
