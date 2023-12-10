@@ -1,4 +1,5 @@
 set(BIPP_SOURCE_FILES
+	context_internal.cpp
 	eigensolver.cpp
 	gram_matrix.cpp
 	standard_synthesis.cpp
