@@ -195,29 +195,44 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
 
   for (const auto& [inputBegin, inputSize] : inputPartition.groups()) {
     if (!inputSize) continue;
-    for (const auto& [imgBegin, imgSize] : imgPartition_.groups()) {
-      if (!imgSize) continue;
+    auto uvwXSlice = uvwX.sub_view(inputBegin, inputSize);
+    auto uvwYSlice = uvwY.sub_view(inputBegin, inputSize);
+    auto uvwZSlice = uvwZ.sub_view(inputBegin, inputSize);
 
-      if (inputSize <= 1024) {
-        ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "nufft size {}, direct evaluation", inputSize);
-        // Direct evaluation of sum for small input sizes
-        for (std::size_t i = 0; i < nFilter_; ++i) {
-          for (std::size_t j = 0; j < nLevel_; ++j) {
-            auto imgPtr = img_.slice_view(i).slice_view(j).data() + imgBegin;
-            nuft_sum<T>(queue.device_prop(), nullptr, 1.0, inputSize,
-                        virtualVis.slice_view(i).slice_view(j).data() + inputBegin,
-                        uvwX.data() + inputBegin, uvwY.data() + inputBegin,
-                        uvwZ.data() + inputBegin, imgSize, pixelX.data() + imgBegin,
-                        pixelY.data() + imgBegin, pixelZ.data() + imgBegin, imgPtr);
-          }
+    if (inputSize <= 1024) {
+      ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "nufft size {}, direct evaluation", inputSize);
+      // Direct evaluation of sum for small input sizes
+      for (std::size_t i = 0; i < nFilter_; ++i) {
+        for (std::size_t j = 0; j < nLevel_; ++j) {
+          auto imgPtr = img_.slice_view(i).slice_view(j).data();
+          auto virtVisCurrentSlice =
+              virtualVis.slice_view(i).slice_view(j).sub_view(inputBegin, inputSize);
+          nuft_sum<T>(queue.device_prop(), nullptr, 1.0, inputSize, virtVisCurrentSlice.data(),
+                      uvwXSlice.data(), uvwYSlice.data(), uvwZSlice.data(), img_.shape(0),
+                      pixelX.data(), pixelY.data(), pixelZ.data(), imgPtr);
         }
-      } else {
+      }
+    } else {
+
+      for (const auto& [imgBegin, imgSize] : imgPartition_.groups()) {
+        if (!imgSize) continue;
+
+        auto pixelXSlice = pixelX.sub_view(imgBegin, imgSize);
+        auto pixelYSlice = pixelY.sub_view(imgBegin, imgSize);
+        auto pixelZSlice = pixelZ.sub_view(imgBegin, imgSize);
+
+        ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT input coordinate x", uvwXSlice);
+        ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT input coordinate y", uvwYSlice);
+        ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT input coordinate z", uvwZSlice);
+        ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output coordinate x", pixelXSlice);
+        ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output coordinate y", pixelYSlice);
+        ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output coordinate z", pixelZSlice);
+
         ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "nufft size {}, calling cuFINUFFT", inputSize);
         // Approximate sum through nufft
-        Nufft3d3<T> transform(1, opt_.tolerance, 1, inputSize, uvwX.data() + inputBegin,
-                              uvwY.data() + inputBegin, uvwZ.data() + inputBegin, imgSize,
-                              pixelX.data() + imgBegin, pixelY.data() + imgBegin,
-                              pixelZ.data() + imgBegin);
+        Nufft3d3<T> transform(1, opt_.tolerance, 1, inputSize, uvwXSlice.data(), uvwYSlice.data(),
+                              uvwZSlice.data(), imgSize, pixelXSlice.data(), pixelYSlice.data(),
+                              pixelZSlice.data());
 
         for (std::size_t i = 0; i < nFilter_; ++i) {
           for (std::size_t j = 0; j < nLevel_; ++j) {
