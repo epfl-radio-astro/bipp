@@ -42,7 +42,6 @@ ContextInternal::ContextInternal(BippProcessingUnit pu)
       gpu::api::get_device_count(&count);
 
       if (count) {
-        deviceId_ = myRank % count;
         pu_ = BIPP_PU_GPU;
       } else {
         pu_ = BIPP_PU_CPU;
@@ -59,6 +58,9 @@ ContextInternal::ContextInternal(BippProcessingUnit pu)
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
   if (pu_ == BIPP_PU_GPU) {
+    int count = 0;
+    gpu::api::get_device_count(&count);
+    deviceId_ = myRank % count;
     gpu::DeviceGuard deviceGuard(deviceId_);
     queue_.emplace();
   }
