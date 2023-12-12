@@ -26,7 +26,7 @@ BIPP_EXPORT auto gram_matrix(Context& ctx, std::size_t nAntenna, std::size_t nBe
   auto& ctxInternal = *InternalContextAccessor::get(ctx);
   if (ctxInternal.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-    gpu::DeviceGuard(ctxInternal.device_id());
+    gpu::DeviceGuard deviceGuard(ctxInternal.device_id());
 
     auto& queue = ctxInternal.gpu_queue();
     // Syncronize with default stream.

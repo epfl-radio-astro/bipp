@@ -59,7 +59,7 @@ ContextInternal::ContextInternal(BippProcessingUnit pu)
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
   if (pu_ == BIPP_PU_GPU) {
-    gpu::DeviceGuard(deviceId_);
+    gpu::DeviceGuard deviceGuard(deviceId_);
     queue_.emplace();
   }
 #endif

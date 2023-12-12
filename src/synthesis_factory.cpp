@@ -43,7 +43,7 @@ auto SynthesisFactory<T>::create_standard_synthesis(std::shared_ptr<ContextInter
 
   if (ctx->processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-    gpu::DeviceGuard(ctx->device_id());
+    gpu::DeviceGuard deviceGuard(ctx->device_id());
 
     auto& queue = ctx->gpu_queue();
     // Syncronize with default stream.
@@ -87,7 +87,7 @@ auto SynthesisFactory<T>::create_nufft_synthesis(std::shared_ptr<ContextInternal
 
   if (ctx->processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-    gpu::DeviceGuard(ctx->device_id());
+    gpu::DeviceGuard deviceGuard(ctx->device_id());
 
     auto& queue = ctx->gpu_queue();
     // Syncronize with default stream.
@@ -132,7 +132,7 @@ auto SynthesisFactory<T>::create_distributed_standard_synthesis(
 
   if (ctx->processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-    gpu::DeviceGuard(ctx->device_id());
+    gpu::DeviceGuard deviceGuard(ctx->device_id());
 
     auto& queue = ctx->gpu_queue();
     // Syncronize with default stream.
@@ -180,7 +180,7 @@ auto SynthesisFactory<T>::create_distributed_nufft_synthesis(
 
   if (ctx->processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-    gpu::DeviceGuard(ctx->device_id());
+    gpu::DeviceGuard deviceGuard(ctx->device_id());
 
     auto& queue = ctx->gpu_queue();
     // Syncronize with default stream.

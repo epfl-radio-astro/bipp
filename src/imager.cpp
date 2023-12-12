@@ -130,7 +130,7 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
 
   if (ctx.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-    gpu::DeviceGuard(ctx.device_id());
+    gpu::DeviceGuard deviceGuard(ctx.device_id());
 
     gpu::Queue& queue = ctx.gpu_queue();
     // Syncronize with default stream.
@@ -247,7 +247,7 @@ auto Imager<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
 
   if (ctx.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-    gpu::DeviceGuard(ctx.device_id());
+    gpu::DeviceGuard deviceGuard(ctx.device_id());
     auto& queue = ctx.gpu_queue();
     // Syncronize with default stream.
     queue.sync_with_stream(nullptr);
