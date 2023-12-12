@@ -16,6 +16,7 @@
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/eigensolver.hpp"
 #include "gpu/util/device_accessor.hpp"
+#include "gpu/util/device_guard.hpp"
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
 #endif
@@ -30,6 +31,8 @@ BIPP_EXPORT auto eigh(Context& ctx, T wl, std::size_t nAntenna, std::size_t nBea
   std::size_t nEig = 0;
   if (ctxInternal.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+    gpu::DeviceGuard(ctxInternal.device_id());
+
     auto& queue = ctxInternal.gpu_queue();
     // Syncronize with default stream.
     queue.sync_with_stream(nullptr);

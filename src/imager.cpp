@@ -21,6 +21,7 @@
 #include "gpu/nufft_synthesis.hpp"
 #include "gpu/standard_synthesis.hpp"
 #include "gpu/util/device_accessor.hpp"
+#include "gpu/util/device_guard.hpp"
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/queue.hpp"
 #include "gpu/util/runtime_api.hpp"
@@ -129,6 +130,8 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
 
   if (ctx.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+    gpu::DeviceGuard(ctxInternal.device_id());
+
     gpu::Queue& queue = ctx.gpu_queue();
     // Syncronize with default stream.
     queue.sync_with_stream(nullptr);
@@ -242,22 +245,20 @@ auto Imager<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
   auto t =
       ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(this) + " get");
 
-#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
   if (ctx.processing_unit() == BIPP_PU_GPU) {
+#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+    gpu::DeviceGuard(ctx.device_id());
     auto& queue = ctx.gpu_queue();
     // Syncronize with default stream.
     queue.sync_with_stream(nullptr);
-  }
-#endif
-
-  synthesis_->get(f, View<T, 2>(out, {img.shape(0), img.shape(1)}, {1, ld}));
-
-#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-  if (ctx.processing_unit() == BIPP_PU_GPU) {
-    gpu::Queue& queue = synthesis_->context()->gpu_queue();
+    synthesis_->get(f, View<T, 2>(out, {img.shape(0), img.shape(1)}, {1, ld}));
     queue.sync();
-  }
+#else
+    throw GPUSupportError();
 #endif
+  } else {
+    synthesis_->get(f, View<T, 2>(out, {img.shape(0), img.shape(1)}, {1, ld}));
+  }
 }
 
 template class Imager<float>;

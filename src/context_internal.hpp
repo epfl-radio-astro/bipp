@@ -33,6 +33,8 @@ public:
 
   auto processing_unit() const -> BippProcessingUnit { return pu_; }
 
+  auto device_id() const -> int { return deviceId_; }
+
   auto host_alloc() const -> const std::shared_ptr<Allocator>& { return hostAlloc_; }
 
   auto set_log(BippLogLevel level, const char* out = "stdout") { log_ = Logger(level, out); }
@@ -45,6 +47,7 @@ private:
   BippProcessingUnit pu_;
   Logger log_;
   std::shared_ptr<Allocator> hostAlloc_;
+  int deviceId_ = 0;
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
   std::optional<gpu::Queue> queue_;

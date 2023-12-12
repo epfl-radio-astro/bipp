@@ -10,6 +10,7 @@
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/util/blas_api.hpp"
+#include "gpu/util/device_guard.hpp"
 #include "gpu/util/queue.hpp"
 #include "gpu/util/runtime_api.hpp"
 #endif
@@ -24,7 +25,7 @@
 namespace bipp {
 
 ContextInternal::ContextInternal(BippProcessingUnit pu)
-    : hostAlloc_(AllocatorFactory::host()), log_(BIPP_LOG_LEVEL_OFF) {
+    : hostAlloc_(AllocatorFactory::host()), log_(BIPP_LOG_LEVEL_OFF), deviceId_(0) {
 #ifdef BIPP_MPI
   initialize_mpi_init_guard();
   int myRank = 0;
@@ -37,9 +38,15 @@ ContextInternal::ContextInternal(BippProcessingUnit pu)
     // select GPU if available
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     try {
-      int deviceId = 0;
-      gpu::api::get_device(&deviceId);
-      pu_ = BIPP_PU_GPU;
+      int count = 0;
+      gpu::api::get_device_count(&count);
+
+      if (count) {
+        deviceId_ = myRank % count;
+        pu_ = BIPP_PU_GPU;
+      } else {
+        pu_ = BIPP_PU_CPU;
+      }
     } catch (const GPUError& e) {
       pu_ = BIPP_PU_CPU;
     }
@@ -51,7 +58,10 @@ ContextInternal::ContextInternal(BippProcessingUnit pu)
   }
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-  if (pu_ == BIPP_PU_GPU) queue_.emplace();
+  if (pu_ == BIPP_PU_GPU) {
+    gpu::DeviceGuard(deviceId_);
+    queue_.emplace();
+  }
 #endif
 
   const char* logOut = "stdout";
