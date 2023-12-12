@@ -130,7 +130,7 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
 
   if (ctx.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-    gpu::DeviceGuard(ctxInternal.device_id());
+    gpu::DeviceGuard(ctx.device_id());
 
     gpu::Queue& queue = ctx.gpu_queue();
     // Syncronize with default stream.
