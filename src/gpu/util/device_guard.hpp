@@ -9,7 +9,7 @@ namespace gpu {
 class DeviceGuard {
 public:
   explicit DeviceGuard(const int deviceId) : targetDeviceId_(deviceId), originalDeviceId_(0) {
-    gpu::get_device(&originalDeviceId_);
+    api::get_device(&originalDeviceId_);
     if (originalDeviceId_ != deviceId) {
       api::set_device(deviceId);
     }
