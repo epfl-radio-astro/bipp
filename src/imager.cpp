@@ -41,27 +41,26 @@ static auto center_vector(std::size_t n, const T* __restrict__ in, T* __restrict
 }
 
 template <typename T>
-auto Imager<T>::standard_synthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nLevel,
-                                   ConstView<BippFilter, 1> filter, ConstView<T, 1> pixelX,
+auto Imager<T>::standard_synthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nImages,
+                                    ConstView<T, 1> pixelX,
                                    ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ) -> Imager<T> {
   assert(ctx);
   const std::size_t collectGroupSize = 1;
   return Imager(
-      ctx,
-      SynthesisFactory<T>::create_standard_synthesis(ctx, nLevel, filter, pixelX, pixelY, pixelZ),
+      ctx, SynthesisFactory<T>::create_standard_synthesis(ctx, nImages, pixelX, pixelY, pixelZ),
       collectGroupSize);
 }
 
 template <typename T>
 auto Imager<T>::nufft_synthesis(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
-                                std::size_t nLevel, ConstView<BippFilter, 1> filter,
+                                std::size_t nImages, 
                                 ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
                                 ConstView<T, 1> pixelZ) -> Imager<T> {
   assert(ctx);
   const std::size_t collectGroupSize = opt.collectGroupSize.value_or(10);
   return Imager(ctx,
-                SynthesisFactory<T>::create_nufft_synthesis(ctx, std::move(opt), nLevel, filter,
-                                                            pixelX, pixelY, pixelZ),
+                SynthesisFactory<T>::create_nufft_synthesis(ctx, std::move(opt), nImages, pixelX,
+                                                            pixelY, pixelZ),
                 collectGroupSize);
 }
 
@@ -69,7 +68,7 @@ auto Imager<T>::nufft_synthesis(std::shared_ptr<ContextInternal> ctx, NufftSynth
 template <typename T>
 auto Imager<T>::distributed_standard_synthesis(std::shared_ptr<CommunicatorInternal> comm,
                                                std::shared_ptr<ContextInternal> ctx,
-                                               std::size_t nLevel, ConstView<BippFilter, 1> filter,
+                                               std::size_t nImages, 
                                                ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
                                                ConstView<T, 1> pixelZ) -> Imager<T> {
   assert(comm);
@@ -77,23 +76,22 @@ auto Imager<T>::distributed_standard_synthesis(std::shared_ptr<CommunicatorInter
   const std::size_t collectGroupSize = 10;
   return Imager(ctx,
                 SynthesisFactory<T>::create_distributed_standard_synthesis(
-                    std::move(comm), ctx, nLevel, filter, pixelX, pixelY, pixelZ),
+                    std::move(comm), ctx, nImages, pixelX, pixelY, pixelZ),
                 collectGroupSize);
 }
 
 template <typename T>
 auto Imager<T>::distributed_nufft_synthesis(std::shared_ptr<CommunicatorInternal> comm,
                                             std::shared_ptr<ContextInternal> ctx,
-                                            NufftSynthesisOptions opt, std::size_t nLevel,
-                                            ConstView<BippFilter, 1> filter, ConstView<T, 1> pixelX,
-                                            ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ)
-    -> Imager<T> {
+                                            NufftSynthesisOptions opt, std::size_t nImages,
+                                            ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
+                                            ConstView<T, 1> pixelZ) -> Imager<T> {
   assert(comm);
   assert(ctx);
   const std::size_t collectGroupSize = opt.collectGroupSize.value_or(10);
   return Imager(ctx,
                 SynthesisFactory<T>::create_distributed_nufft_synthesis(
-                    std::move(comm), ctx, std::move(opt), nLevel, filter, pixelX, pixelY, pixelZ),
+                    std::move(comm), ctx, std::move(opt), nImages, pixelX, pixelY, pixelZ),
                 collectGroupSize);
 }
 #endif
@@ -121,7 +119,7 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
 
   const auto nAntenna = w.shape(0);
   const auto nBeam = w.shape(1);
-  const auto nLevel = synthesis_->image().shape(1);
+  const auto nImages = synthesis_->image().shape(1);
 
   auto& ctx = *synthesis_->context();
 
@@ -171,9 +169,9 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
     copy(queue, d, dHostArray);
     queue.sync();  // make sure d is on host
 
-    auto dMaskedArray = HostArray<T, 2>(ctx.host_alloc(), {d.size(), nLevel});
+    auto dMaskedArray = HostArray<T, 2>(ctx.host_alloc(), {d.size(), nImages});
 
-    for (std::size_t idxLevel = 0; idxLevel < nLevel; ++idxLevel) {
+    for (std::size_t idxLevel = 0; idxLevel < nImages; ++idxLevel) {
       copy(dHostArray, dMaskedArray.slice_view(idxLevel));
       eigMaskFunc(idxLevel, nEig, dMaskedArray.slice_view(idxLevel).data());
     }
@@ -216,9 +214,9 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
     auto d = dArray.sub_view(0, nEig);
     auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna, nEig});
 
-    auto dMaskedArray = HostArray<T, 2>(ctx.host_alloc(), {d.size(), nLevel});
+    auto dMaskedArray = HostArray<T, 2>(ctx.host_alloc(), {d.size(), nImages});
 
-    for (std::size_t idxLevel = 0; idxLevel < nLevel; ++idxLevel) {
+    for (std::size_t idxLevel = 0; idxLevel < nImages; ++idxLevel) {
       copy(d, dMaskedArray.slice_view(idxLevel));
       eigMaskFunc(idxLevel, nEig, dMaskedArray.slice_view(idxLevel).data());
     }
@@ -234,7 +232,7 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
 }
 
 template <typename T>
-auto Imager<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
+auto Imager<T>::get(T* out, std::size_t ld) -> void {
   if (collector_->size()) {
     synthesis_->process(*collector_);
     collector_->clear();
@@ -251,13 +249,13 @@ auto Imager<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
     auto& queue = ctx.gpu_queue();
     // Syncronize with default stream.
     queue.sync_with_stream(nullptr);
-    synthesis_->get(f, View<T, 2>(out, {img.shape(0), img.shape(1)}, {1, ld}));
+    synthesis_->get(View<T, 2>(out, {img.shape(0), img.shape(1)}, {1, ld}));
     queue.sync();
 #else
     throw GPUSupportError();
 #endif
   } else {
-    synthesis_->get(f, View<T, 2>(out, {img.shape(0), img.shape(1)}, {1, ld}));
+    synthesis_->get(View<T, 2>(out, {img.shape(0), img.shape(1)}, {1, ld}));
   }
 }
 

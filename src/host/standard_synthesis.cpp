@@ -21,22 +21,18 @@ namespace bipp {
 namespace host {
 
 template <typename T>
-StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx,
-                                        std::size_t nLevel, ConstHostView<BippFilter, 1> filter,
+StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nImages,
                                         ConstHostView<T, 1> pixelX, ConstHostView<T, 1> pixelY,
                                         ConstHostView<T, 1> pixelZ)
     : ctx_(std::move(ctx)),
-      nLevel_(nLevel),
-      nFilter_(filter.size()),
+      nImages_(nImages),
       nPixel_(pixelX.size()),
       count_(0),
-      filter_(ctx_->host_alloc(), filter.shape()),
       pixel_(ctx_->host_alloc(), {pixelX.size(), 3}),
-      img_(ctx_->host_alloc(), {nPixel_, nLevel_, nFilter_}) {
+      img_(ctx_->host_alloc(), {nPixel_, nImages_}) {
   assert(pixelX.size() == pixelY.size());
   assert(pixelX.size() == pixelZ.size());
 
-  copy(filter, filter_);
   copy(pixelX, pixel_.slice_view(0));
   copy(pixelY, pixel_.slice_view(1));
   copy(pixelZ, pixel_.slice_view(2));
@@ -73,7 +69,7 @@ auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vV
 
   auto dCount = HostArray<short, 1>(ctx_->host_alloc(), dMasked.shape(0));
   dCount.zero();
-  for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
+  for (std::size_t idxLevel = 0; idxLevel < nImages_; ++idxLevel) {
     auto mask = dMaskedArray.slice_view(idxLevel);
     for(std::size_t i = 0; i < mask.size(); ++i) {
       dCount[i] |= mask[i] != 0;
@@ -87,7 +83,7 @@ auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vV
     if(dCount[i]) {
       if(nEigRemoved) {
         copy(v.slice_view(i), v.slice_view(i - nEigRemoved));
-        for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
+        for (std::size_t idxLevel = 0; idxLevel < nImages_; ++idxLevel) {
           dMaskedArray[{i - nEigRemoved, idxLevel}] = dMaskedArray[{i, idxLevel}];
         }
       }
@@ -109,26 +105,20 @@ auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vV
           unlayeredStats.strides(1));
   ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gemmexp", unlayeredStats);
 
-  auto dFiltered = HostArray<T, 1>(ctx_->host_alloc(), nEigMasked);
 
   // cluster eigenvalues / vectors based on mask
-  for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
-    for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
-      auto dMaskedSlice = dMaskedReduced.slice_view(idxLevel).sub_view(0, nEigMasked);
+  for (std::size_t idxLevel = 0; idxLevel < nImages_; ++idxLevel) {
+    auto dMaskedSlice = dMaskedReduced.slice_view(idxLevel).sub_view(0, nEigMasked);
 
-      apply_filter(filter_[idxFilter], nEigMasked, dMaskedSlice.data(), dFiltered.data());
+    auto imgCurrent = img_.slice_view(idxLevel);
+    for (std::size_t idxEig = 0; idxEig < dMaskedSlice.size(); ++idxEig) {
+      if (dMaskedSlice[idxEig]) {
+        const auto scale = dMaskedSlice[idxEig];
 
-      auto imgCurrent = img_.slice_view(idxFilter).slice_view(idxLevel);
-      for (std::size_t idxEig = 0; idxEig < dMaskedSlice.size(); ++idxEig) {
-        if (dMaskedSlice[idxEig]) {
-          const auto scale = dFiltered[idxEig];
+        ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} (filtered {}) to bin {}",
+                           dMaskedSlice[{idxEig}], scale, idxLevel);
 
-          ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
-                             "Assigning eigenvalue {} (filtered {}) to bin {}",
-                             dMaskedSlice[{idxEig}], scale, idxLevel);
-
-          blas::axpy(nPixel_, scale, &unlayeredStats[{0, idxEig}], 1, imgCurrent.data(), 1);
-        }
+        blas::axpy(nPixel_, scale, &unlayeredStats[{0, idxEig}], 1, imgCurrent.data(), 1);
       }
     }
   }
@@ -137,30 +127,21 @@ auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vV
 }
 
 template <typename T>
-auto StandardSynthesis<T>::get(BippFilter f, View<T, 2> out) -> void {
+auto StandardSynthesis<T>::get(View<T, 2> out) -> void {
   assert(out.shape(0) == nPixel_);
-  assert(out.shape(1) == nLevel_);
+  assert(out.shape(1) == nImages_);
 
   HostView<T, 2> outHost(out);
 
-  std::size_t index = nFilter_;
-  for (std::size_t i = 0; i < nFilter_; ++i) {
-    if (filter_[{i}] == f) {
-      index = i;
-      break;
-    }
-  }
-  if (index == nFilter_) throw InvalidParameterError();
-
-  for (std::size_t i = 0; i < nLevel_; ++i) {
-    const T* __restrict__ localImg = &img_[{0, i, index}];
+  for (std::size_t i = 0; i < nImages_; ++i) {
+    const T* __restrict__ localImg = &img_[{0, i}];
     T* __restrict__ outputImg = &outHost[{0, i}];
     const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
 
     for (std::size_t j = 0; j < nPixel_; ++j) {
       outputImg[j] = scale * localImg[j];
     }
-    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", outHost.slice_view(i));
+    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", out.slice_view(i));
   }
 }
 

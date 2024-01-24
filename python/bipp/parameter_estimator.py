@@ -117,6 +117,7 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         self._sigma = sigma
 
         # Collected data.
+        self._intervals = []
         self._d_all = []
         self._ctx = ctx
         self._inferred = False
@@ -138,6 +139,11 @@ class IntensityFieldParameterEstimator(ParameterEstimator):
         D = D[idx]
         self._d_all.append(D)
         self._inferred = False
+
+    def num_level(self):
+        if len(self._intervals) == 0:
+            return 0
+        return self._intervals.shape[0]
 
     def __call__(self, level, D):
         if not self._inferred:

@@ -22,28 +22,26 @@ namespace bipp {
 template <typename T>
 class Imager {
 public:
-  static auto standard_synthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nLevel,
-                                 ConstView<BippFilter, 1> filter, ConstView<T, 1> pixelX,
+  static auto standard_synthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nImages,
+                                 ConstView<T, 1> pixelX,
                                  ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ) -> Imager<T>;
 
   static auto nufft_synthesis(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
-                              std::size_t nLevel, ConstView<BippFilter, 1> filter,
-                              ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
+                              std::size_t nImages, ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
                               ConstView<T, 1> pixelZ) -> Imager<T>;
 
 #ifdef BIPP_MPI
   static auto distributed_standard_synthesis(std::shared_ptr<CommunicatorInternal> comm,
                                              std::shared_ptr<ContextInternal> ctx,
-                                             std::size_t nLevel, ConstView<BippFilter, 1> filter,
-                                             ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
-                                             ConstView<T, 1> pixelZ) -> Imager<T>;
+                                             std::size_t nImages, ConstView<T, 1> pixelX,
+                                             ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ)
+      -> Imager<T>;
 
   static auto distributed_nufft_synthesis(std::shared_ptr<CommunicatorInternal> comm,
                                           std::shared_ptr<ContextInternal> ctx,
-                                          NufftSynthesisOptions opt, std::size_t nLevel,
-                                          ConstView<BippFilter, 1> filter, ConstView<T, 1> pixelX,
-                                          ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ)
-      -> Imager<T>;
+                                          NufftSynthesisOptions opt, std::size_t nImages,
+                                          ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
+                                          ConstView<T, 1> pixelZ) -> Imager<T>;
 #endif
 
 
@@ -51,7 +49,7 @@ public:
                ConstView<std::complex<T>, 2> s, ConstView<std::complex<T>, 2> w,
                ConstView<T, 2> xyz, ConstView<T, 2> uvw) -> void;
 
-  auto get(BippFilter f, T* out, std::size_t ld) -> void;
+  auto get(T* out, std::size_t ld) -> void;
 
   auto context() -> ContextInternal& { return *synthesis_->context(); };
 

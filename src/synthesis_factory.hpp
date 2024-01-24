@@ -17,27 +17,27 @@ namespace bipp {
 
 template <typename T>
 struct SynthesisFactory {
-  static auto create_standard_synthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nLevel,
-                                        ConstView<BippFilter, 1> filter, ConstView<T, 1> pixelX,
-                                        ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ)
+  static auto create_standard_synthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nImages,
+                                        ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
+                                        ConstView<T, 1> pixelZ)
       -> std::unique_ptr<SynthesisInterface<T>>;
 
   static auto create_nufft_synthesis(std::shared_ptr<ContextInternal> ctx,
-                                     NufftSynthesisOptions opt, std::size_t nLevel,
-                                     ConstView<BippFilter, 1> filter, ConstView<T, 1> pixelX,
-                                     ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ)
+                                     NufftSynthesisOptions opt, std::size_t nImages,
+                                     ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
+                                     ConstView<T, 1> pixelZ)
       -> std::unique_ptr<SynthesisInterface<T>>;
 
 #ifdef BIPP_MPI
-  static auto create_distributed_standard_synthesis(
-      std::shared_ptr<CommunicatorInternal> comm, std::shared_ptr<ContextInternal> ctx,
-      std::size_t nLevel, ConstView<BippFilter, 1> filter, ConstView<T, 1> pixelX,
-      ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ) -> std::unique_ptr<SynthesisInterface<T>>;
+  static auto create_distributed_standard_synthesis(std::shared_ptr<CommunicatorInternal> comm,
+                                                    std::shared_ptr<ContextInternal> ctx,
+                                                    std::size_t nImages, ConstView<T, 1> pixelX,
+                                                    ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ)
+      -> std::unique_ptr<SynthesisInterface<T>>;
 
   static auto create_distributed_nufft_synthesis(std::shared_ptr<CommunicatorInternal> comm,
                                                  std::shared_ptr<ContextInternal> ctx,
-                                                 NufftSynthesisOptions opt, std::size_t nLevel,
-                                                 ConstView<BippFilter, 1> filter,
+                                                 NufftSynthesisOptions opt, std::size_t nImages,
                                                  ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
                                                  ConstView<T, 1> pixelZ)
       -> std::unique_ptr<SynthesisInterface<T>>;

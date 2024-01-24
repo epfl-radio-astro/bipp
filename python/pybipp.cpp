@@ -69,16 +69,6 @@ auto string_to_processing_unit(const std::string& pu) -> BippProcessingUnit {
   throw InvalidParameterError();
 }
 
-auto string_to_filter(const std::string& f) -> BippFilter {
-  if (f == "LSQ" || f == "lsq") return BIPP_FILTER_LSQ;
-  if (f == "STD" || f == "std") return BIPP_FILTER_STD;
-  if (f == "SQRT" || f == "sqrt") return BIPP_FILTER_SQRT;
-  if (f == "INV" || f == "inv") return BIPP_FILTER_INV;
-  if (f == "INV_SQ" || f == "inv_sq") return BIPP_FILTER_INV_SQ;
-
-  throw InvalidParameterError();
-}
-
 auto processing_unit_to_string(BippProcessingUnit pu) -> std::string {
   if (pu == BIPP_PU_CPU) return "CPU";
   if (pu == BIPP_PU_GPU) return "GPU";
@@ -131,15 +121,10 @@ auto call_eigh(Context& ctx, T wl, const py::array_t<std::complex<T>, py::array:
 }
 
 struct StandardSynthesisDispatcher {
-  StandardSynthesisDispatcher(Context& ctx, std::size_t nLevel,
-                              const std::vector<std::string>& filter, const py::array& pixelX,
+  StandardSynthesisDispatcher(Context& ctx, std::size_t nImages, const py::array& pixelX,
                               const py::array& pixelY, const py::array& pixelZ,
                               const std::string& precision)
-      : nLevel_(nLevel), nPixel_(pixelX.shape(0)) {
-    std::vector<BippFilter> filterEnums;
-    for (const auto& f : filter) {
-      filterEnums.emplace_back(string_to_filter(f));
-    }
+      : nImages_(nImages), nPixel_(pixelX.shape(0)) {
     if (precision == "single" || precision == "SINGLE") {
       py::array_t<float, pybind11::array::f_style | py::array::forcecast> pixelXArray(pixelX);
       py::array_t<float, pybind11::array::f_style | py::array::forcecast> pixelYArray(pixelY);
@@ -147,9 +132,8 @@ struct StandardSynthesisDispatcher {
       check_1d_array(pixelXArray);
       check_1d_array(pixelYArray, pixelXArray.shape(0));
       check_1d_array(pixelZArray, pixelXArray.shape(0));
-      plan_ = StandardSynthesis<float>(
-          ctx, nLevel, filterEnums.size(), filterEnums.data(),
-          pixelXArray.shape(0), pixelXArray.data(0), pixelYArray.data(0), pixelZArray.data(0));
+      plan_ = StandardSynthesis<float>(ctx, nImages, pixelXArray.shape(0), pixelXArray.data(0),
+                                       pixelYArray.data(0), pixelZArray.data(0));
     } else if (precision == "double" || precision == "DOUBLE") {
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> pixelXArray(pixelX);
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> pixelYArray(pixelY);
@@ -157,8 +141,7 @@ struct StandardSynthesisDispatcher {
       check_1d_array(pixelXArray);
       check_1d_array(pixelYArray, pixelXArray.shape(0));
       check_1d_array(pixelZArray, pixelXArray.shape(0));
-      plan_ = StandardSynthesis<double>(ctx, nLevel, filterEnums.size(), filterEnums.data(),
-                                        pixelXArray.shape(0), pixelXArray.data(0),
+      plan_ = StandardSynthesis<double>(ctx, nImages, pixelXArray.shape(0), pixelXArray.data(0),
                                         pixelYArray.data(0), pixelZArray.data(0));
     } else {
       throw InvalidParameterError();
@@ -166,15 +149,10 @@ struct StandardSynthesisDispatcher {
   }
 
 #ifdef BIPP_MPI
-  StandardSynthesisDispatcher(Communicator& comm, Context& ctx, 
-                              std::size_t nLevel, const std::vector<std::string>& filter,
+  StandardSynthesisDispatcher(Communicator& comm, Context& ctx, std::size_t nImages,
                               const py::array& lmnX, const py::array& lmnY, const py::array& lmnZ,
                               const std::string& precision)
-      : nLevel_(nLevel), nPixel_(lmnX.shape(0)) {
-    std::vector<BippFilter> filterEnums;
-    for (const auto& f : filter) {
-      filterEnums.emplace_back(string_to_filter(f));
-    }
+      : nImages_(nImages), nPixel_(lmnX.shape(0)) {
     if (precision == "single" || precision == "SINGLE") {
       py::array_t<float, pybind11::array::f_style | py::array::forcecast> lmnXArray(lmnX);
       py::array_t<float, pybind11::array::f_style | py::array::forcecast> lmnYArray(lmnY);
@@ -182,9 +160,8 @@ struct StandardSynthesisDispatcher {
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = StandardSynthesis<float>(comm, ctx, nLevel, filterEnums.size(), filterEnums.data(),
-                                       lmnXArray.shape(0), lmnXArray.data(0), lmnYArray.data(0),
-                                       lmnZArray.data(0));
+      plan_ = StandardSynthesis<float>(comm, ctx, nImages, lmnXArray.shape(0), lmnXArray.data(0),
+                                       lmnYArray.data(0), lmnZArray.data(0));
     } else if (precision == "double" || precision == "DOUBLE") {
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnXArray(lmnX);
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnYArray(lmnY);
@@ -192,9 +169,8 @@ struct StandardSynthesisDispatcher {
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = StandardSynthesis<double>(comm, ctx, nLevel, filterEnums.size(), filterEnums.data(),
-                                        lmnXArray.shape(0), lmnXArray.data(0), lmnYArray.data(0),
-                                        lmnZArray.data(0));
+      plan_ = StandardSynthesis<double>(comm, ctx, nImages, lmnXArray.shape(0), lmnXArray.data(0),
+                                        lmnYArray.data(0), lmnZArray.data(0));
     } else {
       throw InvalidParameterError();
     }
@@ -251,20 +227,19 @@ struct StandardSynthesisDispatcher {
         plan_);
   }
 
-  auto get(const std::string& fString) -> py::array {
-    const auto f = string_to_filter(fString);
+  auto get() -> py::array {
     return std::visit(
         [&](auto&& arg) -> pybind11::array {
           using T = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<T, StandardSynthesis<double>>) {
-            py::array_t<double> out({nLevel_, nPixel_});
+            py::array_t<double> out({nImages_, nPixel_});
             std::get<StandardSynthesis<double>>(plan_).get(
-                f, out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
+                out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
             return out;
           } else if constexpr (std::is_same_v<T, StandardSynthesis<float>>) {
-            py::array_t<float> out({nLevel_, nPixel_});
+            py::array_t<float> out({nImages_, nPixel_});
             std::get<StandardSynthesis<float>>(plan_).get(
-                f, out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
+                out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
             return out;
           } else {
             throw InternalError();
@@ -275,19 +250,14 @@ struct StandardSynthesisDispatcher {
   }
 
   std::variant<std::monostate, StandardSynthesis<float>, StandardSynthesis<double>> plan_;
-  std::size_t nLevel_, nPixel_;
+  std::size_t nImages_, nPixel_;
 };
 
 struct NufftSynthesisDispatcher {
-  NufftSynthesisDispatcher(Context& ctx, NufftSynthesisOptions opt, std::size_t nLevel,
-                           const std::vector<std::string>& filter, const py::array& lmnX,
-                           const py::array& lmnY, const py::array& lmnZ,
+  NufftSynthesisDispatcher(Context& ctx, NufftSynthesisOptions opt, std::size_t nImages,
+                           const py::array& lmnX, const py::array& lmnY, const py::array& lmnZ,
                            const std::string& precision)
-      : nLevel_(nLevel), nPixel_(lmnX.shape(0)) {
-    std::vector<BippFilter> filterEnums;
-    for (const auto& f : filter) {
-      filterEnums.emplace_back(string_to_filter(f));
-    }
+      : nImages_(nImages), nPixel_(lmnX.shape(0)) {
     if (precision == "single" || precision == "SINGLE") {
       py::array_t<float, pybind11::array::f_style | py::array::forcecast> lmnXArray(lmnX);
       py::array_t<float, pybind11::array::f_style | py::array::forcecast> lmnYArray(lmnY);
@@ -295,9 +265,8 @@ struct NufftSynthesisDispatcher {
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = NufftSynthesis<float>(ctx, std::move(opt), nLevel, filterEnums.size(),
-                                    filterEnums.data(), lmnXArray.shape(0), lmnXArray.data(0),
-                                    lmnYArray.data(0), lmnZArray.data(0));
+      plan_ = NufftSynthesis<float>(ctx, std::move(opt), nImages, lmnXArray.shape(0),
+                                    lmnXArray.data(0), lmnYArray.data(0), lmnZArray.data(0));
     } else if (precision == "double" || precision == "DOUBLE") {
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnXArray(lmnX);
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnYArray(lmnY);
@@ -305,24 +274,18 @@ struct NufftSynthesisDispatcher {
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = NufftSynthesis<double>(ctx, std::move(opt), nLevel, filterEnums.size(),
-                                     filterEnums.data(), lmnXArray.shape(0), lmnXArray.data(0),
-                                     lmnYArray.data(0), lmnZArray.data(0));
+      plan_ = NufftSynthesis<double>(ctx, std::move(opt), nImages, lmnXArray.shape(0),
+                                     lmnXArray.data(0), lmnYArray.data(0), lmnZArray.data(0));
     } else {
       throw InvalidParameterError();
     }
   }
 
 #ifdef BIPP_MPI
-  NufftSynthesisDispatcher(Communicator& comm,Context& ctx, NufftSynthesisOptions opt, std::size_t nLevel,
-                           const std::vector<std::string>& filter, const py::array& lmnX,
-                           const py::array& lmnY, const py::array& lmnZ,
-                           const std::string& precision)
-      : nLevel_(nLevel), nPixel_(lmnX.shape(0)) {
-    std::vector<BippFilter> filterEnums;
-    for (const auto& f : filter) {
-      filterEnums.emplace_back(string_to_filter(f));
-    }
+  NufftSynthesisDispatcher(Communicator& comm, Context& ctx, NufftSynthesisOptions opt,
+                           std::size_t nImages, const py::array& lmnX, const py::array& lmnY,
+                           const py::array& lmnZ, const std::string& precision)
+      : nImages_(nImages), nPixel_(lmnX.shape(0)) {
     if (precision == "single" || precision == "SINGLE") {
       py::array_t<float, pybind11::array::f_style | py::array::forcecast> lmnXArray(lmnX);
       py::array_t<float, pybind11::array::f_style | py::array::forcecast> lmnYArray(lmnY);
@@ -330,9 +293,8 @@ struct NufftSynthesisDispatcher {
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = NufftSynthesis<float>(comm, ctx, std::move(opt), nLevel, filterEnums.size(),
-                                    filterEnums.data(), lmnXArray.shape(0), lmnXArray.data(0),
-                                    lmnYArray.data(0), lmnZArray.data(0));
+      plan_ = NufftSynthesis<float>(comm, ctx, std::move(opt), nImages, lmnXArray.shape(0),
+                                    lmnXArray.data(0), lmnYArray.data(0), lmnZArray.data(0));
     } else if (precision == "double" || precision == "DOUBLE") {
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnXArray(lmnX);
       py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnYArray(lmnY);
@@ -340,9 +302,8 @@ struct NufftSynthesisDispatcher {
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = NufftSynthesis<double>(comm, ctx, std::move(opt), nLevel, filterEnums.size(),
-                                     filterEnums.data(), lmnXArray.shape(0), lmnXArray.data(0),
-                                     lmnYArray.data(0), lmnZArray.data(0));
+      plan_ = NufftSynthesis<double>(comm, ctx, std::move(opt), nImages, lmnXArray.shape(0),
+                                     lmnXArray.data(0), lmnYArray.data(0), lmnZArray.data(0));
     } else {
       throw InvalidParameterError();
     }
@@ -405,20 +366,19 @@ struct NufftSynthesisDispatcher {
         plan_);
   }
 
-  auto get(const std::string& fString) -> py::array {
-    const auto f = string_to_filter(fString);
+  auto get() -> py::array {
     return std::visit(
         [&](auto&& arg) -> pybind11::array {
           using T = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<T, NufftSynthesis<double>>) {
-            py::array_t<double> out({nLevel_, nPixel_});
+            py::array_t<double> out({nImages_, nPixel_});
             std::get<NufftSynthesis<double>>(plan_).get(
-                f, out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
+                out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
             return out;
           } else if constexpr (std::is_same_v<T, NufftSynthesis<float>>) {
-            py::array_t<float> out({nLevel_, nPixel_});
+            py::array_t<float> out({nImages_, nPixel_});
             std::get<NufftSynthesis<float>>(plan_).get(
-                f, out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
+                out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
             return out;
           } else {
             throw InternalError();
@@ -429,7 +389,7 @@ struct NufftSynthesisDispatcher {
   }
 
   std::variant<std::monostate, NufftSynthesis<float>, NufftSynthesis<double>> plan_;
-  std::size_t nLevel_, nPixel_;
+  std::size_t nImages_, nPixel_;
 };
 
 }  // namespace
@@ -484,42 +444,39 @@ PYBIND11_MODULE(pybipp, m) {
       .def("set_local_uvw_partition", &NufftSynthesisOptions::set_local_uvw_partition);
 
   pybind11::class_<NufftSynthesisDispatcher>(m, "NufftSynthesis")
-      .def(pybind11::init<Context&, NufftSynthesisOptions, std::size_t,
-                          const std::vector<std::string>&, const py::array&, const py::array&,
-                          const py::array&, const std::string&>(),
+      .def(pybind11::init<Context&, NufftSynthesisOptions, std::size_t, const py::array&,
+                          const py::array&, const py::array&, const std::string&>(),
            pybind11::arg("ctx"), pybind11::arg("opt"), pybind11::arg("n_level"),
-           pybind11::arg("filter"), pybind11::arg("lmn_x"), pybind11::arg("lmn_y"),
-           pybind11::arg("lmn_y"), pybind11::arg("precision"))
+           pybind11::arg("lmn_x"), pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
+           pybind11::arg("precision"))
 #ifdef BIPP_MPI
       .def(pybind11::init<Communicator&, Context&, NufftSynthesisOptions, std::size_t,
-                          const std::vector<std::string>&, const py::array&, const py::array&,
-                          const py::array&, const std::string&>(),
+                          const py::array&, const py::array&, const py::array&,
+                          const std::string&>(),
            pybind11::arg("comm"), pybind11::arg("ctx"), pybind11::arg("opt"),
-           pybind11::arg("n_level"), pybind11::arg("filter"), pybind11::arg("lmn_x"),
-           pybind11::arg("lmn_y"), pybind11::arg("lmn_y"), pybind11::arg("precision"))
+           pybind11::arg("n_level"), pybind11::arg("lmn_x"), pybind11::arg("lmn_y"),
+           pybind11::arg("lmn_y"), pybind11::arg("precision"))
 #endif
       .def("collect", &NufftSynthesisDispatcher::collect, pybind11::arg("wl"),
            pybind11::arg("mask"), pybind11::arg("s"), pybind11::arg("w"), pybind11::arg("xyz"),
            pybind11::arg("uvw"))
-      .def("get", &NufftSynthesisDispatcher::get, pybind11::arg("f"));
+      .def("get", &NufftSynthesisDispatcher::get);
 
   pybind11::class_<StandardSynthesisDispatcher>(m, "StandardSynthesis")
-      .def(pybind11::init<Context&, std::size_t, const std::vector<std::string>&, const py::array&,
-                          const py::array&, const py::array&, const std::string&>(),
-           pybind11::arg("ctx"), pybind11::arg("n_level"), pybind11::arg("filter"),
+      .def(pybind11::init<Context&, std::size_t, const py::array&, const py::array&,
+                          const py::array&, const std::string&>(),
+           pybind11::arg("ctx"), pybind11::arg("n_level"), pybind11::arg("lmn_x"),
+           pybind11::arg("lmn_y"), pybind11::arg("lmn_y"), pybind11::arg("precision"))
+#ifdef BIPP_MPI
+      .def(pybind11::init<Communicator&, Context&, std::size_t, const py::array&, const py::array&,
+                          const py::array&, const std::string&>(),
+           pybind11::arg("comm"), pybind11::arg("ctx"), pybind11::arg("n_level"),
            pybind11::arg("lmn_x"), pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
            pybind11::arg("precision"))
-#ifdef BIPP_MPI
-      .def(pybind11::init<Communicator&, Context&, std::size_t, const std::vector<std::string>&,
-                          const py::array&, const py::array&, const py::array&,
-                          const std::string&>(),
-           pybind11::arg("comm"), pybind11::arg("ctx"), pybind11::arg("n_level"),
-           pybind11::arg("filter"), pybind11::arg("lmn_x"), pybind11::arg("lmn_y"),
-           pybind11::arg("lmn_y"), pybind11::arg("precision"))
 #endif
       .def("collect", &StandardSynthesisDispatcher::collect, pybind11::arg("wl"),
            pybind11::arg("mask"), pybind11::arg("s"), pybind11::arg("w"), pybind11::arg("xyz"))
-      .def("get", &StandardSynthesisDispatcher::get, pybind11::arg("f"));
+      .def("get", &StandardSynthesisDispatcher::get);
 
   m.def(
        "gram_matrix",

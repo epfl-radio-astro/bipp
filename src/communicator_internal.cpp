@@ -72,7 +72,7 @@ struct StatusMessage {
   struct CreateSynthesis {
     constexpr static std::size_t index = 2;
     SynthesisType synthType;
-    std::size_t id, nLevel, nFilter, typeSize;
+    std::size_t id, nLevel, typeSize;
     SerializedNufftOptions opt;
   } create;
   struct SynthesisCollect {
@@ -81,22 +81,20 @@ struct StatusMessage {
   } step;
   struct GatherImage {
     constexpr static std::size_t index = 4;
-    std::size_t id, idxFilter;
+    std::size_t id;
   } gather;
 
   static auto send_create_standard_synthesis(const MPICommHandle& comm, std::size_t id,
-                                             std::size_t nLevel, std::size_t nFilter,
-                                             std::size_t typeSize) -> void;
+                                             std::size_t nLevel, std::size_t typeSize) -> void;
 
   static auto send_create_nufft_synthesis(const MPICommHandle& comm, std::size_t id,
-                                          std::size_t nLevel, std::size_t nFilter,
-                                          std::size_t typeSize, const NufftSynthesisOptions& opt)
-      -> void;
+                                          std::size_t nLevel, std::size_t typeSize,
+                                          const NufftSynthesisOptions& opt) -> void;
 
   static auto send_synthesis_collect(const MPICommHandle& comm, std::size_t id,
                                      std::size_t bufferSize) -> void;
 
-  static auto send_gather_image(const MPICommHandle& comm, std::size_t id, std::size_t idxFilter)
+  static auto send_gather_image(const MPICommHandle& comm, std::size_t id)
       -> void;
 
   static auto send_root_comm_destroyed(const MPICommHandle& comm) -> void;
@@ -111,23 +109,21 @@ auto send_message(const MPICommHandle& comm, StatusMessage& m) {
 }
 
 auto StatusMessage::send_create_standard_synthesis(const MPICommHandle& comm, std::size_t id,
-                                                   std::size_t nLevel, std::size_t nFilter,
-                                                   std::size_t typeSize) -> void {
+                                                   std::size_t nLevel, std::size_t typeSize)
+    -> void {
   StatusMessage m;
   m.messageIndex = StatusMessage::CreateSynthesis::index;
 
   m.create.synthType = SynthesisType::Standard;
   m.create.id = id;
   m.create.nLevel = nLevel;
-  m.create.nFilter = nFilter;
   m.create.typeSize = typeSize;
 
   send_message(comm, m);
 }
 
 auto StatusMessage::send_create_nufft_synthesis(const MPICommHandle& comm, std::size_t id,
-                                                 std::size_t nLevel,
-                                                std::size_t nFilter, std::size_t typeSize,
+                                                std::size_t nLevel, std::size_t typeSize,
                                                 const NufftSynthesisOptions& opt) -> void {
   StatusMessage m;
   m.messageIndex = StatusMessage::CreateSynthesis::index;
@@ -135,7 +131,6 @@ auto StatusMessage::send_create_nufft_synthesis(const MPICommHandle& comm, std::
   m.create.synthType = SynthesisType::NUFFT;
   m.create.id = id;
   m.create.nLevel = nLevel;
-  m.create.nFilter = nFilter;
   m.create.typeSize = typeSize;
   m.create.opt = opt;
 
@@ -160,12 +155,10 @@ auto StatusMessage::send_root_comm_destroyed(const MPICommHandle& comm) -> void 
   send_message(comm, m);
 }
 
-auto StatusMessage::send_gather_image(const MPICommHandle& comm, std::size_t id,
-                                      std::size_t idxFilter) -> void {
+auto StatusMessage::send_gather_image(const MPICommHandle& comm, std::size_t id) -> void {
   StatusMessage m;
   m.messageIndex = StatusMessage::GatherImage::index;
   m.gather.id = id;
-  m.gather.idxFilter = idxFilter;
 
   send_message(comm, m);
 }
@@ -194,11 +187,9 @@ auto StatusMessage::recv(const MPICommHandle& comm)
 }
 
 template <typename T>
-auto send_synthesis_init_data(const MPICommHandle& comm, ConstHostView<BippFilter, 1> filter,
-                              ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
-                              ConstView<T, 1> pixelZ, ConstHostView<PartitionGroup, 1> groups)
-    -> void {
-
+auto send_synthesis_init_data(const MPICommHandle& comm, ConstView<T, 1> pixelX,
+                              ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ,
+                              ConstHostView<PartitionGroup, 1> groups) -> void {
   assert(comm.rank() == 0);
   // Scatter group to each worker
   {
@@ -235,13 +226,6 @@ auto send_synthesis_init_data(const MPICommHandle& comm, ConstHostView<BippFilte
     }
   }
 
-  // Broadcast filter
-  std::vector<int> filterInt(filter.size());
-  for (std::size_t i = 0; i < filter.size(); ++i) filterInt[i] = filter[i];
-
-  mpi_check_status(
-      MPI_Ibcast(filterInt.data(), filterInt.size(), MPIType<int>::get(), 0, comm.get(), &requests[3]));
-
   // Finalize all
   mpi_check_status(MPI_Waitall(requests.size(), requests.data(), statuses.data()));
 }
@@ -263,12 +247,10 @@ auto recv_synthesis_init_data(const MPICommHandle& comm, std::shared_ptr<Context
 
   if(ctx->processing_unit() == BIPP_PU_CPU) {
     pixel = HostArray<T, 2>(ctx->host_alloc(), {myGroup.size, 3});
-    filter = HostArray<BippFilter, 1>(ctx->host_alloc(), info.nFilter);
   }
   else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     pixel = ctx->gpu_queue().create_pinned_array<T, 2>({myGroup.size, 3});
-    filter = ctx->gpu_queue().create_host_array<BippFilter, 1>(info.nFilter);
 #else
     throw GPUSupportError();
 #endif
@@ -305,13 +287,11 @@ auto recv_synthesis_init_data(const MPICommHandle& comm, std::shared_ptr<Context
 
   if (info.synthType == SynthesisType::NUFFT)
     return SynthesisFactory<T>::create_nufft_synthesis(std::move(ctx), info.opt.get(), info.nLevel,
-                                                       filter, pixel.slice_view(0),
-                                                       pixel.slice_view(1), pixel.slice_view(2));
+                                                       pixel.slice_view(0), pixel.slice_view(1),
+                                                       pixel.slice_view(2));
 
-  return SynthesisFactory<T>::create_standard_synthesis(std::move(ctx), info.nLevel, filter,
-                                                        pixel.slice_view(0), pixel.slice_view(1),
-                                                        pixel.slice_view(2));
-
+  return SynthesisFactory<T>::create_standard_synthesis(
+      std::move(ctx), info.nLevel, pixel.slice_view(0), pixel.slice_view(1), pixel.slice_view(2));
 }
 
 template <typename T>
@@ -379,15 +359,15 @@ auto send_img_data(const MPICommHandle& comm,const StatusMessage::GatherImage& i
   if (ctx.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     auto& queue = ctx.gpu_queue();
-    imgArray = queue.template create_pinned_array<T, 2>(syn.image().slice_view(0).shape());
-    syn.get(syn.filter(info.idxFilter), imgArray);
+    imgArray = queue.template create_pinned_array<T, 2>(syn.image().shape());
+    syn.get(imgArray);
     queue.sync();
 #else
     throw GPUSupportError();
 #endif
   } else {
-    imgArray = HostArray<T, 2>(ctx.host_alloc(), syn.image().slice_view(0).shape());
-    syn.get(syn.filter(info.idxFilter), imgArray);
+    imgArray = HostArray<T, 2>(ctx.host_alloc(), syn.image().shape());
+    syn.get(imgArray);
   }
 
   t1.stop();
@@ -546,20 +526,18 @@ auto CommunicatorInternal::attach_non_root(std::shared_ptr<ContextInternal> ctx)
 template <typename T, typename>
 auto CommunicatorInternal::send_synthesis_init(std::optional<NufftSynthesisOptions> nufftOpt,
                                                std::size_t nLevel,
-                                               ConstHostView<BippFilter, 1> filter,
                                                ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
                                                ConstView<T, 1> pixelZ,
                                                ConstHostView<PartitionGroup, 1> groups)
     -> std::size_t {
   const auto id = this->generate_local_id();
   if(nufftOpt) {
-    StatusMessage::send_create_nufft_synthesis(comm_, id, nLevel, filter.size(), sizeof(T),
-                                               nufftOpt.value());
+    StatusMessage::send_create_nufft_synthesis(comm_, id, nLevel, sizeof(T), nufftOpt.value());
   } else {
-    StatusMessage::send_create_standard_synthesis(comm_, id, nLevel, filter.size(), sizeof(T));
+    StatusMessage::send_create_standard_synthesis(comm_, id, nLevel, sizeof(T));
   }
 
-  send_synthesis_init_data<T>(comm_, filter, pixelX, pixelY, pixelZ, groups);
+  send_synthesis_init_data<T>(comm_, pixelX, pixelY, pixelZ, groups);
 
   return id;
 }
@@ -573,19 +551,19 @@ auto CommunicatorInternal::send_synthesis_collect(std::size_t id,
 }
 
 template <typename T, typename>
-auto CommunicatorInternal::gather_image(std::size_t id, std::size_t idxFilter, ConstHostView<PartitionGroup, 1> groups,
+auto CommunicatorInternal::gather_image(std::size_t id, ConstHostView<PartitionGroup, 1> groups,
                   HostView<T, 2> img) -> void {
-  StatusMessage::send_gather_image(comm_, id, idxFilter);
+  StatusMessage::send_gather_image(comm_, id);
   recv_img_data<T>(comm_, groups, img);
 }
 
-template auto CommunicatorInternal::send_synthesis_init<float>(std::optional<NufftSynthesisOptions> nufftOpt,
-    std::size_t nLevel, ConstHostView<BippFilter, 1> filter, ConstView<float, 1> pixelX,
+template auto CommunicatorInternal::send_synthesis_init<float>(
+    std::optional<NufftSynthesisOptions> nufftOpt, std::size_t nLevel, ConstView<float, 1> pixelX,
     ConstView<float, 1> pixelY, ConstView<float, 1> pixelZ, ConstHostView<PartitionGroup, 1> groups)
     -> std::size_t;
 
-template auto CommunicatorInternal::send_synthesis_init<double>(std::optional<NufftSynthesisOptions> nufftOpt,
-    std::size_t nLevel, ConstHostView<BippFilter, 1> filter, ConstView<double, 1> pixelX,
+template auto CommunicatorInternal::send_synthesis_init<double>(
+    std::optional<NufftSynthesisOptions> nufftOpt, std::size_t nLevel, ConstView<double, 1> pixelX,
     ConstView<double, 1> pixelY, ConstView<double, 1> pixelZ,
     ConstHostView<PartitionGroup, 1> groups) -> std::size_t;
 
@@ -595,10 +573,10 @@ template auto CommunicatorInternal::send_synthesis_collect<float>(
 template auto CommunicatorInternal::send_synthesis_collect<double>(
     std::size_t id, const CollectorInterface<double>& collector) -> void;
 
-template auto CommunicatorInternal::gather_image<float>(std::size_t id, std::size_t idxFilter,
+template auto CommunicatorInternal::gather_image<float>(std::size_t id, 
                                                         ConstHostView<PartitionGroup, 1> groups,
                                                         HostView<float, 2> img) -> void;
-template auto CommunicatorInternal::gather_image<double>(std::size_t id, std::size_t idxFilter,
+template auto CommunicatorInternal::gather_image<double>(std::size_t id,
                                                          ConstHostView<PartitionGroup, 1> groups,
                                                          HostView<double, 2> img) -> void;
 

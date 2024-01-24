@@ -86,7 +86,7 @@ protected:
 
   NufftSynthesisLofar() : ctx_(std::get<0>(GetParam())) {}
 
-  auto test_intensity(BippFilter filter, std::string filterString) -> void {
+  auto test_intensity() -> void {
     const auto data = get_lofar_input_json();
     const auto output_data = get_lofar_nufft_output<T>();
 
@@ -98,14 +98,14 @@ protected:
     const std::size_t nIntervals = data["intervals_int"].size();
     const auto intervals = read_json_scalar_2d<T>(data["intervals_int"]);
 
-    const auto imgRef = read_json_scalar_2d<T>(output_data[std::string("int_") + filterString]);
+    const auto imgRef = read_json_scalar_2d<T>(output_data[std::string("int_") + "lsq"]);
     const auto lmnX = read_json_scalar_1d<T>(output_data["lmn_x"]);
     const auto lmnY = read_json_scalar_1d<T>(output_data["lmn_y"]);
     const auto lmnZ = read_json_scalar_1d<T>(output_data["lmn_z"]);
     const std::size_t nPixel = imgRef.size() / nIntervals;
 
-    bipp::NufftSynthesis<T> imager(ctx_, bipp::NufftSynthesisOptions(), nIntervals,
-                                   1, &filter, nPixel, lmnX.data(), lmnY.data(), lmnZ.data());
+    bipp::NufftSynthesis<T> imager(ctx_, bipp::NufftSynthesisOptions(), nIntervals, nPixel,
+                                   lmnX.data(), lmnY.data(), lmnZ.data());
 
     // map intervals to mask
     auto eigMaskFunc = [&](std::size_t idxBin, std::size_t nEigOut, T* d) -> void {
@@ -135,7 +135,7 @@ protected:
     }
 
     std::vector<T> img(imgRef.size());
-    imager.get(filter, img.data(), nPixel);
+    imager.get(img.data(), nPixel);
 
     for (std::size_t i = 0; i < img.size(); ++i) {
       // Single precision is very inaccurate due to different summation orders
@@ -145,79 +145,14 @@ protected:
     }
   }
 
-  /*
-  auto test_sensitivity(BippFilter filter, std::string filterString) -> void {
-    const auto data = get_lofar_input_json();
-    const auto output_data = get_lofar_nufft_output<T>();
-
-    const T wl = ValueType(data["wl"]);
-    const T tol = ValueType(data["eps"]);
-    const std::size_t nAntenna = data["n_antenna"];
-    const std::size_t nBeam = data["n_beam"];
-    const std::size_t nEig = data["n_eig_sen"];
-    const std::size_t nIntervals = data["intervals_sen"].size();
-    const auto intervals = read_json_scalar_2d<T>(data["intervals_sen"]);
-
-    const auto imgRef = read_json_scalar_2d<T>(output_data[std::string("sen_") + filterString]);
-    const auto lmnX = read_json_scalar_1d<T>(output_data["lmn_x"]);
-    const auto lmnY = read_json_scalar_1d<T>(output_data["lmn_y"]);
-    const auto lmnZ = read_json_scalar_1d<T>(output_data["lmn_z"]);
-    const std::size_t nPixel = imgRef.size() / nIntervals;
-
-    bipp::NufftSynthesis<T> imager(ctx_, bipp::NufftSynthesisOptions(), nAntenna, nBeam, nIntervals,
-                                   1, &filter, nPixel, lmnX.data(), lmnY.data(), lmnZ.data());
-
-    std::size_t nEpochs = 0;
-    for (const auto& itData : data["data"]) {
-      auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
-      auto uvw = read_json_scalar_2d<ValueType>(itData["uvw"]);
-      auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
-
-      imager.collect(nEig, wl, intervals.data(), 2, nullptr, 0, w.data(), nAntenna, xyz.data(),
-                     nAntenna, uvw.data(), nAntenna * nAntenna);
-      ++nEpochs;
-    }
-
-    std::vector<T> img(imgRef.size());
-    imager.get(filter, img.data(), nPixel);
-
-    for (std::size_t i = 0; i < img.size(); ++i) {
-      // Single precision is very inaccurate due to different summation orders
-      // Use twice the absolute error for single precision
-      // Note: image reference is not scaling by number of epochs
-      ASSERT_NEAR(img[i] * nEpochs, imgRef[i], 0.05 * (4.0 / sizeof(T)));
-    }
-  }
-*/
-
   bipp::Context ctx_;
 };
 
 using NufftSynthesisLofarSingle = NufftSynthesisLofar<float>;
 using NufftSynthesisLofarDouble = NufftSynthesisLofar<double>;
 
-TEST_P(NufftSynthesisLofarSingle, Intensity_LSQ) { this->test_intensity(BIPP_FILTER_LSQ, "lsq"); }
-TEST_P(NufftSynthesisLofarDouble, Intensity_LSQ) { this->test_intensity(BIPP_FILTER_LSQ, "lsq"); }
-
-TEST_P(NufftSynthesisLofarSingle, Intensity_STD) { this->test_intensity(BIPP_FILTER_STD, "std"); }
-TEST_P(NufftSynthesisLofarDouble, Intensity_STD) { this->test_intensity(BIPP_FILTER_STD, "std"); }
-
-TEST_P(NufftSynthesisLofarSingle, Intensity_INV) { this->test_intensity(BIPP_FILTER_STD, "inv"); }
-TEST_P(NufftSynthesisLofarDouble, Intensity_INV) { this->test_intensity(BIPP_FILTER_STD, "inv"); }
-
-TEST_P(NufftSynthesisLofarSingle, Intensity_SQRT) {
-  this->test_intensity(BIPP_FILTER_SQRT, "sqrt");
-}
-TEST_P(NufftSynthesisLofarDouble, Intensity_SQRT) {
-  this->test_intensity(BIPP_FILTER_SQRT, "sqrt");
-}
-
-// TEST_P(NufftSynthesisLofarSingle, Sensitivity_INV_SQ) {
-//   this->test_sensitivity(BIPP_FILTER_INV_SQ, "inv_sq");
-// }
-// TEST_P(NufftSynthesisLofarDouble, Sensitivity_INV_SQ) {
-//   this->test_sensitivity(BIPP_FILTER_INV_SQ, "inv_sq");
-// }
+TEST_P(NufftSynthesisLofarSingle, Intensity_LSQ) { this->test_intensity(); }
+TEST_P(NufftSynthesisLofarDouble, Intensity_LSQ) { this->test_intensity(); }
 
 static auto param_type_names(const ::testing::TestParamInfo<std::tuple<BippProcessingUnit>>& info)
     -> std::string {

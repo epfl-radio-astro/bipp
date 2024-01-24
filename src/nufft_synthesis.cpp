@@ -15,16 +15,14 @@
 
 namespace bipp {
 template <typename T>
-NufftSynthesis<T>::NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::size_t nLevel,
-                                  std::size_t nFilter, const BippFilter* filter, std::size_t nPixel,
-                                  const T* lmnX, const T* lmnY, const T* lmnZ) {
+NufftSynthesis<T>::NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::size_t nImages,
+                                  std::size_t nPixel, const T* lmnX, const T* lmnY, const T* lmnZ) {
   try {
-    plan_ = decltype(plan_)(
-        new Imager<T>(Imager<T>::nufft_synthesis(
-            InternalContextAccessor::get(ctx), std::move(opt), nLevel,
-            ConstView<BippFilter, 1>(filter, nFilter, 1), ConstView<T, 1>(lmnX, nPixel, 1),
-            ConstView<T, 1>(lmnY, nPixel, 1), ConstView<T, 1>(lmnZ, nPixel, 1))),
-        [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
+    plan_ = decltype(plan_)(new Imager<T>(Imager<T>::nufft_synthesis(
+                                InternalContextAccessor::get(ctx), std::move(opt), nImages,
+                                ConstView<T, 1>(lmnX, nPixel, 1), ConstView<T, 1>(lmnY, nPixel, 1),
+                                ConstView<T, 1>(lmnZ, nPixel, 1))),
+                            [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
   } catch (const std::exception& e) {
     try {
       InternalContextAccessor::get(ctx)->logger().log(
@@ -38,24 +36,24 @@ NufftSynthesis<T>::NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::
 #ifdef BIPP_MPI
 template <typename T>
 NufftSynthesis<T>::NufftSynthesis(Communicator& comm, Context& ctx, NufftSynthesisOptions opt,
-                                  std::size_t nLevel, std::size_t nFilter, const BippFilter* filter,
-                                  std::size_t nPixel, const T* lmnX, const T* lmnY, const T* lmnZ) {
+                                  std::size_t nImages, std::size_t nPixel, const T* lmnX,
+                                  const T* lmnY, const T* lmnZ) {
   try {
     const auto& commInt =  InternalCommunicatorAccessor::get(comm);
     if(commInt->comm().size() <= 1) {
-      plan_ = decltype(plan_)(
-          new Imager<T>(Imager<T>::nufft_synthesis(
-              InternalContextAccessor::get(ctx), std::move(opt), nLevel,
-              ConstView<BippFilter, 1>(filter, nFilter, 1), ConstView<T, 1>(lmnX, nPixel, 1),
-              ConstView<T, 1>(lmnY, nPixel, 1), ConstView<T, 1>(lmnZ, nPixel, 1))),
-          [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
+      plan_ =
+          decltype(plan_)(new Imager<T>(Imager<T>::nufft_synthesis(
+                              InternalContextAccessor::get(ctx), std::move(opt), nImages,
+                              ConstView<T, 1>(lmnX, nPixel, 1), ConstView<T, 1>(lmnY, nPixel, 1),
+                              ConstView<T, 1>(lmnZ, nPixel, 1))),
+                          [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
     } else {
-      plan_ = decltype(plan_)(
-          new Imager<T>(Imager<T>::distributed_nufft_synthesis(
-              commInt, InternalContextAccessor::get(ctx), std::move(opt), nLevel,
-              ConstView<BippFilter, 1>(filter, nFilter, 1), ConstView<T, 1>(lmnX, nPixel, 1),
-              ConstView<T, 1>(lmnY, nPixel, 1), ConstView<T, 1>(lmnZ, nPixel, 1))),
-          [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
+      plan_ =
+          decltype(plan_)(new Imager<T>(Imager<T>::distributed_nufft_synthesis(
+                              commInt, InternalContextAccessor::get(ctx), std::move(opt), nImages,
+                              ConstView<T, 1>(lmnX, nPixel, 1), ConstView<T, 1>(lmnY, nPixel, 1),
+                              ConstView<T, 1>(lmnZ, nPixel, 1))),
+                          [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
     }
   } catch (const std::exception& e) {
     try {
@@ -93,9 +91,9 @@ auto NufftSynthesis<T>::collect(
 }
 
 template <typename T>
-auto NufftSynthesis<T>::get(BippFilter f, T* out, std::size_t ld) -> void {
+auto NufftSynthesis<T>::get(T* out, std::size_t ld) -> void {
   try {
-    reinterpret_cast<Imager<T>*>(plan_.get())->get(f, out, ld);
+    reinterpret_cast<Imager<T>*>(plan_.get())->get(out, ld);
   } catch (const std::exception& e) {
     try {
       reinterpret_cast<Imager<T>*>(plan_.get())
@@ -261,18 +259,16 @@ BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_grid(BippNufftSynt
 }
 
 BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSynthesisOptions opt,
-                                                    size_t nLevel, size_t nFilter,
-                                                    const BippFilter* filter, size_t nPixel,
+                                                    size_t nImages, size_t nPixel,
                                                     const float* lmnX, const float* lmnY,
                                                     const float* lmnZ, BippNufftSynthesisF* plan) {
   if (!ctx) {
     return BIPP_INVALID_HANDLE_ERROR;
   }
   try {
-    *plan = new NufftSynthesis<float>(
-        *reinterpret_cast<Context*>(ctx),
-        *reinterpret_cast<const NufftSynthesisOptions*>(opt),  nLevel, nFilter,
-        filter, nPixel, lmnX, lmnY, lmnZ);
+    *plan = new NufftSynthesis<float>(*reinterpret_cast<Context*>(ctx),
+                                      *reinterpret_cast<const NufftSynthesisOptions*>(opt), nImages,
+                                      nPixel, lmnX, lmnY, lmnZ);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -317,13 +313,12 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_collect_f(BippNufftSynthesisF plan, s
   return BIPP_SUCCESS;
 }
 
-BIPP_EXPORT BippError bipp_nufft_synthesis_get_f(BippNufftSynthesisF plan, BippFilter f, float* img,
-                                                 size_t ld) {
+BIPP_EXPORT BippError bipp_nufft_synthesis_get_f(BippNufftSynthesisF plan, float* img, size_t ld) {
   if (!plan) {
     return BIPP_INVALID_HANDLE_ERROR;
   }
   try {
-    reinterpret_cast<NufftSynthesis<float>*>(plan)->get(f, img, ld);
+    reinterpret_cast<NufftSynthesis<float>*>(plan)->get(img, ld);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -333,8 +328,7 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_get_f(BippNufftSynthesisF plan, BippF
 }
 
 BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, BippNufftSynthesisOptions opt,
-                                                 size_t nLevel,
-                                                  size_t nFilter, const BippFilter* filter,
+                                                 size_t nImages,
                                                   size_t nPixel, const double* lmnX,
                                                   const double* lmnY, const double* lmnZ,
                                                   BippNufftSynthesis* plan) {
@@ -343,8 +337,8 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, BippNufftSynt
   }
   try {
     *plan = new NufftSynthesis<double>(*reinterpret_cast<Context*>(ctx),
-                                       *reinterpret_cast<const NufftSynthesisOptions*>(opt), nLevel,
-                                       nFilter, filter, nPixel, lmnX, lmnY, lmnZ);
+                                       *reinterpret_cast<const NufftSynthesisOptions*>(opt),
+                                       nImages, nPixel, lmnX, lmnY, lmnZ);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -389,13 +383,13 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_collect(BippNufftSynthesis plan, size
   return BIPP_SUCCESS;
 }
 
-BIPP_EXPORT BippError bipp_nufft_synthesis_get(BippNufftSynthesis plan, BippFilter f, double* img,
+BIPP_EXPORT BippError bipp_nufft_synthesis_get(BippNufftSynthesis plan, double* img,
                                                size_t ld) {
   if (!plan) {
     return BIPP_INVALID_HANDLE_ERROR;
   }
   try {
-    reinterpret_cast<NufftSynthesis<double>*>(plan)->get(f, img, ld);
+    reinterpret_cast<NufftSynthesis<double>*>(plan)->get(img, ld);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {

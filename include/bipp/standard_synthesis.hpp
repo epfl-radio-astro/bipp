@@ -26,17 +26,14 @@ public:
    * Create a standard synthesis plan.
    *
    * @param[in] ctx Context handle.
-   * @param[in] nIntervals Number of intervals.
-   * @param[in] nFilter Number of filter.
-   * @param[in] filter Array of filters of size nFilter.
+   * @param[in] nImages Number of images.
    * @param[in] nPixel Number of image pixels.
    * @param[in] lmnX Array of image x coordinates of size nPixel.
    * @param[in] lmnY Array of image y coordinates of size nPixel.
    * @param[in] lmnZ Array of image z coordinates of size nPixel.
    */
-  StandardSynthesis(Context& ctx, std::size_t nIntervals,
-                    std::size_t nFilter, const BippFilter* filter, std::size_t nPixel,
-                    const T* lmnX, const T* lmnY, const T* lmnZ);
+  StandardSynthesis(Context& ctx, std::size_t nImages, std::size_t nPixel, const T* lmnX,
+                    const T* lmnY, const T* lmnZ);
 
 #ifdef BIPP_MPI
   /**
@@ -44,17 +41,14 @@ public:
    *
    * @param[in] comm Communicator handle.
    * @param[in] ctx Context handle.
-   * @param[in] nIntervals Number of intervals.
-   * @param[in] nFilter Number of filter.
-   * @param[in] filter Array of filters of size nFilter.
+   * @param[in] nImages Number of images.
    * @param[in] nPixel Number of image pixels.
    * @param[in] lmnX Array of image x coordinates of size nPixel.
    * @param[in] lmnY Array of image y coordinates of size nPixel.
    * @param[in] lmnZ Array of image z coordinates of size nPixel.
    */
-  StandardSynthesis(Communicator& comm, Context& ctx, std::size_t nIntervals, std::size_t nFilter,
-                    const BippFilter* filter, std::size_t nPixel, const T* lmnX, const T* lmnY,
-                    const T* lmnZ);
+  StandardSynthesis(Communicator& comm, Context& ctx, std::size_t nImages, std::size_t nPixel,
+                    const T* lmnX, const T* lmnY, const T* lmnZ);
 #endif
 
   /**
@@ -80,11 +74,10 @@ public:
   /**
    * Get image.
    *
-   * @param[in] f Filter to get image for.
-   * @param[out] img 2D image array of size (nPixel, nIntervals).
+   * @param[out] img 2D image array of size (nPixel, nImages).
    * @param[in] ld Leading dimension of img.
    */
-  auto get(BippFilter f, T* img, std::size_t ld) -> void;
+  auto get(T* img, std::size_t ld) -> void;
 
 private:
   /*! \cond PRIVATE */

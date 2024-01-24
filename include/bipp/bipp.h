@@ -133,9 +133,7 @@ BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_grid(BippNufftSynt
  *
  * @param[in] ctx Context handle.
  * @param[in] tol Target precision tolorance.
- * @param[in] nIntervals Number of intervals.
- * @param[in] nFilter Number of filter.
- * @param[in] filter Array of filters of size nFilter.
+ * @param[in] nImages Number of images.
  * @param[in] nPixel Number of image pixels.
  * @param[in] lmnX Array of image x coordinates of size nPixel.
  * @param[in] lmnY Array of image y coordinates of size nPixel.
@@ -144,8 +142,7 @@ BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_grid(BippNufftSynt
  * @return Error code or BIPP_SUCCESS.
  */
 BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSynthesisOptions opt,
-                                                    size_t nIntervals, size_t nFilter,
-                                                    const BippFilter* filter, size_t nPixel,
+                                                    size_t nImages, size_t nPixel,
                                                     const float* lmnX, const float* lmnY,
                                                     const float* lmnZ, BippNufftSynthesisF* plan);
 
@@ -154,9 +151,7 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSy
  *
  * @param[in] ctx Context handle.
  * @param[in] tol Target precision tolorance.
- * @param[in] nIntervals Number of intervals.
- * @param[in] nFilter Number of filter.
- * @param[in] filter Array of filters of size nFilter.
+ * @param[in] nImages Number of images.
  * @param[in] nPixel Number of image pixels.
  * @param[in] lmnX Array of image x coordinates of size nPixel.
  * @param[in] lmnY Array of image y coordinates of size nPixel.
@@ -165,8 +160,7 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSy
  * @return Error code or BIPP_SUCCESS.
  */
 BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, BippNufftSynthesisOptions opt,
-                                                  size_t nIntervals, size_t nFilter,
-                                                  const BippFilter* filter, size_t nPixel,
+                                                  size_t nImages, size_t nFilter,
                                                   const double* lmnX, const double* lmnY,
                                                   const double* lmnZ, BippNufftSynthesis* plan);
 
@@ -242,33 +236,27 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_collect(BippNufftSynthesis plan, size
  * Get image.
  *
  * @param[in] plan Plan handle.
- * @param[in] f Filter to get image for.
- * @param[out] img 2D image array of size (nPixel, nIntervals).
+ * @param[out] img 2D image array of size (nPixel, nImages).
  * @param[in] ld Leading dimension of img.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_nufft_synthesis_get_f(BippNufftSynthesisF plan, BippFilter f, float* img,
-                                                 size_t ld);
+BIPP_EXPORT BippError bipp_nufft_synthesis_get_f(BippNufftSynthesisF plan, float* img, size_t ld);
 
 /**
  * Get image.
  *
  * @param[in] plan Plan handle.
- * @param[in] f Filter to get image for.
- * @param[out] img 2D image array of size (nPixel, nIntervals).
+ * @param[out] img 2D image array of size (nPixel, nImages).
  * @param[in] ld Leading dimension of img.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_nufft_synthesis_get(BippNufftSynthesisF plan, BippFilter f, double* img,
-                                               size_t ld);
+BIPP_EXPORT BippError bipp_nufft_synthesis_get(BippNufftSynthesisF plan, double* img, size_t ld);
 
 /**
  * Create a standard synthesis plan.
  *
  * @param[in] ctx Context handle.
- * @param[in] nIntervals Number of intervals.
- * @param[in] nFilter Number of filter.
- * @param[in] filter Array of filters of size nFilter.
+ * @param[in] nImages Number of images.
  * @param[in] nPixel Number of image pixels.
  * @param[in] lmnX Array of image x coordinates of size nPixel.
  * @param[in] lmnY Array of image y coordinates of size nPixel.
@@ -276,8 +264,7 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_get(BippNufftSynthesisF plan, BippFil
  * @param[out] plan The output handle.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t nIntervals,
-                                                       size_t nFilter, const BippFilter* filter,
+BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t nImages,
                                                        size_t nPixel, const float* lmnX,
                                                        const float* lmnY, const float* lmnZ,
                                                        BippStandardSynthesisF* plan);
@@ -288,9 +275,7 @@ BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t n
  * @param[in] ctx Context handle.
  * @param[in] nAntenna Number of antenna.
  * @param[in] nBeam Number of beam.
- * @param[in] nIntervals Number of intervals.
- * @param[in] nFilter Number of filter.
- * @param[in] filter Array of filters of size nFilter.
+ * @param[in] nImages Number of images.
  * @param[in] nPixel Number of image pixels.
  * @param[in] lmnX Array of image x coordinates of size nPixel.
  * @param[in] lmnY Array of image y coordinates of size nPixel.
@@ -298,10 +283,9 @@ BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t n
  * @param[out] plan The output handle.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_standard_synthesis_create(BippContext ctx, size_t nIntervals,
-                                                     size_t nFilter, const BippFilter* filter,
-                                                     size_t nPixel, const double* lmnX,
-                                                     const double* lmnY, const double* lmnZ,
+BIPP_EXPORT BippError bipp_standard_synthesis_create(BippContext ctx, size_t nImages, size_t nPixel,
+                                                     const double* lmnX, const double* lmnY,
+                                                     const double* lmnZ,
                                                      BippStandardSynthesis* plan);
 
 /**
@@ -370,25 +354,23 @@ BIPP_EXPORT BippError bipp_standard_synthesis_collect(BippStandardSynthesis plan
  * Get image.
  *
  * @param[in] plan Plan handle.
- * @param[in] f Filter to get image for.
- * @param[out] img 2D image array of size (nPixel, nIntervals).
+ * @param[out] img 2D image array of size (nPixel, nImages).
  * @param[in] ld Leading dimension of img.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_standard_synthesis_get_f(BippStandardSynthesisF plan, BippFilter f,
-                                                    float* img, size_t ld);
+BIPP_EXPORT BippError bipp_standard_synthesis_get_f(BippStandardSynthesisF plan, float* img,
+                                                    size_t ld);
 
 /**
  * Get image.
  *
  * @param[in] plan Plan handle.
- * @param[in] f Filter to get image for.
- * @param[out] img 2D image array of size (nPixel, nIntervals).
+ * @param[out] img 2D image array of size (nPixel, nImages).
  * @param[in] ld Leading dimension of img.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_standard_synthesis_get(BippStandardSynthesisF plan, BippFilter f,
-                                                  double* img, size_t ld);
+BIPP_EXPORT BippError bipp_standard_synthesis_get(BippStandardSynthesisF plan, double* img,
+                                                  size_t ld);
 
 /**
  * Compute eigenvalues.

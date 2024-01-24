@@ -41,8 +41,7 @@ class CommunicatorInternal {
     template <typename T,
               typename = std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double>>>
     auto send_synthesis_init(std::optional<NufftSynthesisOptions> nufftOpt, std::size_t nLevel,
-                             ConstHostView<BippFilter, 1> filter, ConstView<T, 1> pixelX,
-                             ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ,
+                             ConstView<T, 1> pixelX, ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ,
                              ConstHostView<PartitionGroup, 1> groups) -> std::size_t;
 
     // Must only be called by root
@@ -53,8 +52,8 @@ class CommunicatorInternal {
     // Must only be called by root
     template <typename T,
               typename = std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double>>>
-    auto gather_image(std::size_t id, std::size_t idxFilter,
-                      ConstHostView<PartitionGroup, 1> groups, HostView<T, 2> img) -> void;
+    auto gather_image(std::size_t id, ConstHostView<PartitionGroup, 1> groups, HostView<T, 2> img)
+        -> void;
 
     ~CommunicatorInternal();
 

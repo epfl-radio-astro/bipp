@@ -32,15 +32,13 @@ class SynthesisInterface {
 public:
   virtual auto process(CollectorInterface<T>& collector) -> void {}
 
-  virtual auto get(BippFilter f, View<T, 2> out) -> void = 0;
+  virtual auto get(View<T, 2> out) -> void = 0;
 
   virtual auto type() const -> SynthesisType = 0;
 
-  virtual auto filter(std::size_t idx) const -> BippFilter = 0;
-
   virtual auto context() -> const std::shared_ptr<ContextInternal>& = 0;
 
-  virtual auto image() -> View<T, 3> = 0;
+  virtual auto image() -> View<T, 2> = 0;
 
   virtual ~SynthesisInterface() = default;
 };
