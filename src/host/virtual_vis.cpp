@@ -10,7 +10,6 @@
 #include "bipp/bipp.h"
 #include "bipp/config.h"
 #include "host/blas_api.hpp"
-#include "host/kernels/apply_filter.hpp"
 #include "memory/array.hpp"
 #include "memory/copy.hpp"
 #include "memory/view.hpp"

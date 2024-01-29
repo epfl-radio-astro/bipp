@@ -11,8 +11,8 @@ namespace bipp {
 namespace gpu {
 
 template <typename T>
-auto virtual_vis(ContextInternal& ctx, ConstHostView<BippFilter, 1> filter,
-                 ConstHostView<T, 2> dMasked, ConstDeviceView<api::ComplexType<T>, 2> vAll,
-                 DeviceView<api::ComplexType<T>, 3> virtVis) -> void;
+auto virtual_vis(ContextInternal& ctx, ConstHostView<T, 2> dMasked,
+                 ConstDeviceView<api::ComplexType<T>, 2> vAll,
+                 DeviceView<api::ComplexType<T>, 2> virtVis) -> void;
 }  // namespace gpu
 }  // namespace bipp

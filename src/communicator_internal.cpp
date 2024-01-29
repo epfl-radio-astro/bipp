@@ -243,7 +243,6 @@ auto recv_synthesis_init_data(const MPICommHandle& comm, std::shared_ptr<Context
                                 sizeof(PartitionGroup), MPI_BYTE, 0, comm.get()));
 
   HostArray<T, 2> pixel;
-  HostArray<BippFilter, 1> filter;
 
   if(ctx->processing_unit() == BIPP_PU_CPU) {
     pixel = HostArray<T, 2>(ctx->host_alloc(), {myGroup.size, 3});
@@ -268,17 +267,8 @@ auto recv_synthesis_init_data(const MPICommHandle& comm, std::shared_ptr<Context
                                    comm.get(), &requests[i]));
   }
 
-  // Broadcast filter
-  std::vector<int> filterInt(filter.size());
-  for (std::size_t i = 0; i < filter.size(); ++i) filterInt[i] = filter[i];
-
-  mpi_check_status(
-      MPI_Ibcast(filterInt.data(), filterInt.size(), MPIType<int>::get(), 0, comm.get(), &requests[3]));
-
   // Finalize all
   mpi_check_status(MPI_Waitall(requests.size(), requests.data(), statuses.data()));
-
-  for (std::size_t i = 0; i < filter.size(); ++i) filter[i] = BippFilter(filterInt[i]);
 
   // stop mpi communication timing
   t.stop();

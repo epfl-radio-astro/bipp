@@ -14,30 +14,27 @@ template <typename T>
 class StandardSynthesis : public SynthesisInterface<T> {
 public:
   StandardSynthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nLevel,
-                    HostArray<BippFilter, 1> filter, DeviceArray<T, 2> pixel);
+                    DeviceArray<T, 2> pixel);
 
   auto process(CollectorInterface<T>& collector) -> void override;
 
-  auto get(BippFilter f, View<T, 2> out) -> void override;
+  auto get(View<T, 2> out) -> void override;
 
   auto type() const -> SynthesisType override { return SynthesisType::Standard; }
 
-  auto filter(std::size_t idx) const -> BippFilter override { return filter_[idx]; }
-
   auto context() -> const std::shared_ptr<ContextInternal>& override { return ctx_; }
 
-  auto image() -> View<T, 3> override { return img_; }
+  auto image() -> View<T, 2> override { return img_; }
 
 private:
   auto process_single(T wl, ConstView<std::complex<T>, 2> vView, ConstHostView<T, 2> dMasked,
                       ConstView<T, 2> xyzUvwView) -> void;
 
   std::shared_ptr<ContextInternal> ctx_;
-  const std::size_t nFilter_, nPixel_, nLevel_;
+  const std::size_t nPixel_, nImages_;
   std::size_t count_;
-  HostArray<BippFilter, 1> filter_;
   DeviceArray<T, 2> pixel_;
-  DeviceArray<T, 3> img_;
+  DeviceArray<T, 2> img_;
 };
 
 }  // namespace gpu

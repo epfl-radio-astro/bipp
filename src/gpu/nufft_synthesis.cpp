@@ -29,17 +29,14 @@ namespace gpu {
 
 template <typename T>
 NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
-                                  std::size_t nLevel, HostArray<BippFilter, 1> filter,
-                                  DeviceArray<T, 2> pixel)
+                                  std::size_t nLevel, DeviceArray<T, 2> pixel)
 
     : ctx_(std::move(ctx)),
       opt_(std::move(opt)),
-      nLevel_(nLevel),
-      nFilter_(filter.shape()),
+      nImages_(nLevel),
       nPixel_(pixel.shape(0)),
-      filter_(std::move(filter)),
       pixel_(std::move(pixel)),
-      img_(ctx_->gpu_queue().create_device_array<T, 3>({nPixel_, nLevel_, nFilter_})),
+      img_(ctx_->gpu_queue().create_device_array<T, 2>({nPixel_, nImages_})),
       imgPartition_(DomainPartition::none(ctx_, nPixel_)),
       totalCollectCount_(0) {
   auto& queue = ctx_->gpu_queue();
@@ -80,8 +77,7 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
   }
 
   // compute virtual visibilities
-  auto virtualVis =
-      queue.create_device_array<api::ComplexType<T>, 3>({collectPoints, nLevel_, nFilter_});
+  auto virtualVis = queue.create_device_array<api::ComplexType<T>, 2>({collectPoints, nImages_});
   {
     std::size_t currentCount = 0;
     for (const auto& s : data) {
@@ -92,9 +88,8 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
                      s.v.strides()));
 
       auto virtVisCurrent =
-          virtualVis.sub_view({currentCount, 0, 0},
-                              {nAntenna * nAntenna, virtualVis.shape(1), virtualVis.shape(2)});
-      virtual_vis<T>(*ctx_, filter_, s.dMasked, vDevice.view(), virtVisCurrent);
+          virtualVis.sub_view({currentCount, 0}, {nAntenna * nAntenna, virtualVis.shape(1)});
+      virtual_vis<T>(*ctx_, s.dMasked, vDevice.view(), virtVisCurrent);
       currentCount += s.xyzUvw.shape(0);
     }
   }
@@ -112,7 +107,6 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
   auto uvwX = uvw.slice_view(0).sub_view({0}, {collectPoints});
   auto uvwY = uvw.slice_view(1).sub_view({0}, {collectPoints});
   auto uvwZ = uvw.slice_view(2).sub_view({0}, {collectPoints});
-
 
   auto pixelX = pixel_.slice_view(0);
   auto pixelY = pixel_.slice_view(1);
@@ -179,10 +173,8 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
       },
       opt_.localUVWPartition.method);
 
-  for (std::size_t i = 0; i < nFilter_; ++i) {
-    for (std::size_t j = 0; j < nLevel_; ++j) {
-      inputPartition.apply(virtualVis.slice_view(i).slice_view(j));
-    }
+  for (std::size_t j = 0; j < nImages_; ++j) {
+    inputPartition.apply(virtualVis.slice_view(j));
   }
 
   inputPartition.apply(uvwX);
@@ -202,18 +194,14 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
     if (inputSize <= 1024) {
       ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "nufft size {}, direct evaluation", inputSize);
       // Direct evaluation of sum for small input sizes
-      for (std::size_t i = 0; i < nFilter_; ++i) {
-        for (std::size_t j = 0; j < nLevel_; ++j) {
-          auto imgPtr = img_.slice_view(i).slice_view(j).data();
-          auto virtVisCurrentSlice =
-              virtualVis.slice_view(i).slice_view(j).sub_view(inputBegin, inputSize);
-          nuft_sum<T>(queue.device_prop(), nullptr, 1.0, inputSize, virtVisCurrentSlice.data(),
-                      uvwXSlice.data(), uvwYSlice.data(), uvwZSlice.data(), img_.shape(0),
-                      pixelX.data(), pixelY.data(), pixelZ.data(), imgPtr);
-        }
+      for (std::size_t j = 0; j < nImages_; ++j) {
+        auto imgPtr = img_.slice_view(j).data();
+        auto virtVisCurrentSlice = virtualVis.slice_view(j).sub_view(inputBegin, inputSize);
+        nuft_sum<T>(queue.device_prop(), nullptr, 1.0, inputSize, virtVisCurrentSlice.data(),
+                    uvwXSlice.data(), uvwYSlice.data(), uvwZSlice.data(), img_.shape(0),
+                    pixelX.data(), pixelY.data(), pixelZ.data(), imgPtr);
       }
     } else {
-
       for (const auto& [imgBegin, imgSize] : imgPartition_.groups()) {
         if (!imgSize) continue;
 
@@ -234,17 +222,14 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
                               uvwZSlice.data(), imgSize, pixelXSlice.data(), pixelYSlice.data(),
                               pixelZSlice.data());
 
-        for (std::size_t i = 0; i < nFilter_; ++i) {
-          for (std::size_t j = 0; j < nLevel_; ++j) {
-            auto imgPtr = img_.slice_view(i).slice_view(j).data() + imgBegin;
-            transform.execute(virtualVis.slice_view(i).slice_view(j).data() + inputBegin,
-                              output.data());
-            ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output", imgSize, 1,
-                                      output.data(), imgSize);
+        for (std::size_t j = 0; j < nImages_; ++j) {
+          auto imgPtr = img_.slice_view(j).data() + imgBegin;
+          transform.execute(virtualVis.slice_view(j).data() + inputBegin, output.data());
+          ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output", imgSize, 1, output.data(),
+                                    imgSize);
 
-            add_vector_real_of_complex<T>(queue.device_prop(), nullptr, imgSize, output.data(),
-                                          imgPtr);
-          }
+          add_vector_real_of_complex<T>(queue.device_prop(), nullptr, imgSize, output.data(),
+                                        imgPtr);
         }
       }
     }
@@ -256,34 +241,21 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
 }
 
 template <typename T>
-auto NufftSynthesis<T>::get(BippFilter f, View<T, 2> out) -> void {
+auto NufftSynthesis<T>::get(View<T, 2> out) -> void {
   auto& queue = ctx_->gpu_queue();
 
-
   assert(out.shape(0) == nPixel_);
-  assert(out.shape(1) == nLevel_);
+  assert(out.shape(1) == nImages_);
 
-  DeviceAccessor<T,2> outDevice(queue,out);
-
-  std::size_t index = nFilter_;
-  const BippFilter* filterPtr = filter_.data();
-  for (std::size_t i = 0; i < nFilter_; ++i) {
-    if (filterPtr[i] == f) {
-      index = i;
-      break;
-    }
-  }
-  if (index == nFilter_) throw InvalidParameterError();
+  DeviceAccessor<T, 2> outDevice(queue, out);
 
   const T scale =
       totalCollectCount_ ? static_cast<T>(1.0 / static_cast<double>(totalCollectCount_)) : 0;
 
-  auto filterImg = img_.slice_view(index);
-
   auto outDeviceView = outDevice.view();
 
-  for (std::size_t i = 0; i < nLevel_; ++i) {
-    auto levelImage = filterImg.slice_view(i);
+  for (std::size_t i = 0; i < nImages_; ++i) {
+    auto levelImage = img_.slice_view(i);
     auto levelOut = outDeviceView.slice_view(i);
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image permuted", levelImage);
     imgPartition_.reverse<T>(levelImage, levelOut);

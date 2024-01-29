@@ -11,7 +11,6 @@
 #include "host/blas_api.hpp"
 #include "host/eigensolver.hpp"
 #include "host/gram_matrix.hpp"
-#include "host/kernels/apply_filter.hpp"
 #include "host/kernels/gemmexp.hpp"
 #include "memory/allocator.hpp"
 #include "memory/copy.hpp"

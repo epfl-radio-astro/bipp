@@ -12,7 +12,6 @@
 #include "gpu/eigensolver.hpp"
 #include "gpu/gram_matrix.hpp"
 #include "gpu/kernels/add_vector.hpp"
-#include "gpu/kernels/apply_filter.hpp"
 #include "gpu/kernels/center_vector.hpp"
 #include "gpu/kernels/gemmexp.hpp"
 #include "gpu/kernels/scale_matrix.hpp"
@@ -21,24 +20,20 @@
 #include "gpu/util/device_accessor.hpp"
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
-#include "host/kernels/apply_filter.hpp"
 #include "memory/copy.hpp"
 
 namespace bipp {
 namespace gpu {
 
 template <typename T>
-StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx,
-                                        std::size_t nLevel, HostArray<BippFilter, 1> filter,
+StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nLevel,
                                         DeviceArray<T, 2> pixel)
     : ctx_(std::move(ctx)),
-      nLevel_(nLevel),
-      nFilter_(filter.size()),
+      nImages_(nLevel),
       nPixel_(pixel.shape(0)),
       count_(0),
-      filter_(std::move(filter)),
       pixel_(std::move(pixel)),
-      img_(ctx_->gpu_queue().create_device_array<T, 3>({nPixel_, nLevel_, nFilter_})) {
+      img_(ctx_->gpu_queue().create_device_array<T, 2>({nPixel_, nImages_})) {
   auto& queue = ctx_->gpu_queue();
   api::memset_async(img_.data(), 0, img_.size() * sizeof(T), queue.stream());
 }
@@ -60,7 +55,7 @@ auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vV
   const auto nAntenna = vView.shape(0);
   const auto nEig = dMasked.shape(0);
 
-  assert(dMasked.shape(1) == nLevel_);
+  assert(dMasked.shape(1) == nImages_);
   assert(vView.shape(1) == nEig);
   assert(xyzUvwView.shape(0) == nAntenna);
   assert(xyzUvwView.shape(1) == 3);
@@ -82,9 +77,9 @@ auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vV
 
   auto dCount = queue.create_host_array<short, 1>(dMasked.shape(0));
   dCount.zero();
-  for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
-    auto mask = dMaskedArray.slice_view(idxLevel);
-    for(std::size_t i = 0; i < mask.size(); ++i) {
+  for (std::size_t idxImage = 0; idxImage < nImages_; ++idxImage) {
+    auto mask = dMaskedArray.slice_view(idxImage);
+    for (std::size_t i = 0; i < mask.size(); ++i) {
       dCount[i] |= mask[i] != 0;
     }
   }
@@ -93,11 +88,11 @@ auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vV
   // by copying forward
   std::size_t nEigRemoved = 0;
   for (std::size_t i = 0; i < nEig; ++i) {
-    if(dCount[i]) {
-      if(nEigRemoved) {
+    if (dCount[i]) {
+      if (nEigRemoved) {
         copy(queue, v.slice_view(i), v.slice_view(i - nEigRemoved));
-        for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
-          dMaskedArray[{i - nEigRemoved, idxLevel}] = dMaskedArray[{i, idxLevel}];
+        for (std::size_t idxImage = 0; idxImage < nImages_; ++idxImage) {
+          dMaskedArray[{i - nEigRemoved, idxImage}] = dMaskedArray[{i, idxImage}];
         }
       }
     } else {
@@ -110,35 +105,26 @@ auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vV
   auto unlayeredStats = queue.create_device_array<T, 2>({nPixel_, nEigMasked});
   auto dMaskedReduced = dMaskedArray.sub_view({0, 0}, {nEigMasked, dMaskedArray.shape(1)});
 
-
   T alpha = 2.0 * M_PI / wl;
   gemmexp<T>(queue, nEigMasked, nPixel_, nAntenna, alpha, v.data(), v.strides(1), xyz.data(),
              xyz.strides(1), pixel_.slice_view(0).data(), pixel_.slice_view(1).data(),
              pixel_.slice_view(2).data(), unlayeredStats.data(), unlayeredStats.strides(1));
   ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gemmexp", unlayeredStats);
 
-  auto dFilteredHost = queue.create_host_array<T, 1>(nEigMasked);
-
   // cluster eigenvalues / vectors based on mask
-  for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
-    for (std::size_t idxLevel = 0; idxLevel < nLevel_; ++idxLevel) {
-      auto dMaskedSlice = dMaskedReduced.slice_view(idxLevel);
+  for (std::size_t idxImage = 0; idxImage < nImages_; ++idxImage) {
+    auto dMaskedSlice = dMaskedReduced.slice_view(idxImage);
 
-      host::apply_filter(filter_[idxFilter], nEigMasked, dMaskedSlice.data(),
-                         dFilteredHost.data());
+    auto imgCurrent = img_.slice_view(idxImage);
+    for (std::size_t idxEig = 0; idxEig < dMaskedSlice.size(); ++idxEig) {
+      if (dMaskedSlice[idxEig]) {
+        const auto scale = dMaskedSlice[idxEig];
 
-      auto imgCurrent = img_.slice_view(idxFilter).slice_view(idxLevel);
-      for (std::size_t idxEig = 0; idxEig < dMaskedSlice.size(); ++idxEig) {
-        if (dMaskedSlice[idxEig]) {
-          const auto scale = dFilteredHost[idxEig];
+        ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} (filtered {}) to bin {}",
+                           dMaskedSlice[{idxEig}], scale, idxImage);
 
-          ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
-                             "Assigning eigenvalue {} (filtered {}) to bin {}",
-                             dMaskedSlice[{idxEig}], scale, idxLevel);
-
-          api::blas::axpy(queue.blas_handle(), nPixel_, &scale,
-                          unlayeredStats.slice_view(idxEig).data(), 1, imgCurrent.data(), 1);
-        }
+        api::blas::axpy(queue.blas_handle(), nPixel_, &scale,
+                        unlayeredStats.slice_view(idxEig).data(), 1, imgCurrent.data(), 1);
       }
     }
   }
@@ -147,29 +133,18 @@ auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vV
 }
 
 template <typename T>
-auto StandardSynthesis<T>::get(BippFilter f, View<T, 2> out) -> void {
+auto StandardSynthesis<T>::get(View<T, 2> out) -> void {
   auto& queue = ctx_->gpu_queue();
 
   assert(out.shape(0) == nPixel_);
-  assert(out.shape(1) == nLevel_);
+  assert(out.shape(1) == nImages_);
 
-  DeviceAccessor<T,2> outDevice(queue,out);
-
-  std::size_t index = nFilter_;
-  for (std::size_t i = 0; i < nFilter_; ++i) {
-    if (filter_[{i}] == f) {
-      index = i;
-      break;
-    }
-  }
-  if (index == nFilter_) throw InvalidParameterError();
-
-  auto filterImg = img_.slice_view(index);
+  DeviceAccessor<T, 2> outDevice(queue, out);
 
   const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
-  for (std::size_t i = 0; i < nLevel_; ++i) {
-    scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, filterImg.slice_view(i).data(),
-                    scale, outDevice.view().slice_view(i).data());
+  for (std::size_t i = 0; i < nImages_; ++i) {
+    scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, img_.slice_view(i).data(), scale,
+                    outDevice.view().slice_view(i).data());
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", outDevice.view().slice_view(i));
   }
 

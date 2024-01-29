@@ -49,17 +49,12 @@ auto SynthesisFactory<T>::create_standard_synthesis(std::shared_ptr<ContextInter
     // syncronize with stream to be synchronous with host before exiting
     auto syncGuard = queue.sync_guard();
 
-    auto filterArray = queue.create_host_array<BippFilter, 1>(filter.size());
-    copy(queue, filter, filterArray);
-    queue.sync();  // make sure filters are available
-
     auto pixelArray = queue.create_device_array<T, 2>({pixelX.size(), 3});
     copy(queue, pixelX, pixelArray.slice_view(0));
     copy(queue, pixelY, pixelArray.slice_view(1));
     copy(queue, pixelZ, pixelArray.slice_view(2));
 
-    return std::make_unique<gpu::StandardSynthesis<T>>(ctx, nImages, std::move(filterArray),
-                                                       std::move(pixelArray));
+    return std::make_unique<gpu::StandardSynthesis<T>>(ctx, nImages, std::move(pixelArray));
 #else
     throw GPUSupportError();
 #endif
@@ -92,17 +87,13 @@ auto SynthesisFactory<T>::create_nufft_synthesis(std::shared_ptr<ContextInternal
     // syncronize with stream to be synchronous with host before exiting
     auto syncGuard = queue.sync_guard();
 
-    auto filterArray = queue.create_host_array<BippFilter, 1>(filter.size());
-    copy(queue, filter, filterArray);
-    queue.sync();  // make sure filters are available
-
     auto pixelArray = queue.create_device_array<T, 2>({pixelX.size(), 3});
     copy(queue, pixelX, pixelArray.slice_view(0));
     copy(queue, pixelY, pixelArray.slice_view(1));
     copy(queue, pixelZ, pixelArray.slice_view(2));
 
     return std::make_unique<gpu::NufftSynthesis<T>>(ctx, std::move(opt), nImages,
-                                                    std::move(filterArray), std::move(pixelArray));
+                                                    std::move(pixelArray));
 #else
     throw GPUSupportError();
 #endif
@@ -135,24 +126,19 @@ auto SynthesisFactory<T>::create_distributed_standard_synthesis(
     // Syncronize with default stream.
     queue.sync_with_stream(nullptr);
 
-    auto filterArray = queue.create_host_array<BippFilter, 1>(filter.size());
-    copy(queue, filter, filterArray);
-    queue.sync();  // make sure filters are available
-
     auto pixelArray = queue.create_device_array<T, 2>({pixelX.size(), 3});
     copy(queue, pixelX, pixelArray.slice_view(0));
     copy(queue, pixelY, pixelArray.slice_view(1));
     copy(queue, pixelZ, pixelArray.slice_view(2));
 
-    ConstHostAccessor<BippFilter, 1> filterHost(queue, filter);
     ConstHostAccessor<T, 1> pixelXHost(queue, pixelX);
     ConstHostAccessor<T, 1> pixelYHost(queue, pixelY);
     ConstHostAccessor<T, 1> pixelZHost(queue, pixelZ);
     queue.sync();
 
     return std::make_unique<DistributedSynthesis<T>>(std::move(comm), std::move(ctx), std::nullopt,
-                                                     nImages, filterHost.view(), pixelXHost.view(),
-                                                     pixelYHost.view(), pixelZHost.view());
+                                                     nImages, pixelXHost.view(), pixelYHost.view(),
+                                                     pixelZHost.view());
 #else
     throw GPUSupportError();
 #endif
@@ -182,24 +168,19 @@ auto SynthesisFactory<T>::create_distributed_nufft_synthesis(
     // Syncronize with default stream.
     queue.sync_with_stream(nullptr);
 
-    auto filterArray = queue.create_host_array<BippFilter, 1>(filter.size());
-    copy(queue, filter, filterArray);
-    queue.sync();  // make sure filters are available
-
     auto pixelArray = queue.create_device_array<T, 2>({pixelX.size(), 3});
     copy(queue, pixelX, pixelArray.slice_view(0));
     copy(queue, pixelY, pixelArray.slice_view(1));
     copy(queue, pixelZ, pixelArray.slice_view(2));
 
-    ConstHostAccessor<BippFilter, 1> filterHost(queue, filter);
     ConstHostAccessor<T, 1> pixelXHost(queue, pixelX);
     ConstHostAccessor<T, 1> pixelYHost(queue, pixelY);
     ConstHostAccessor<T, 1> pixelZHost(queue, pixelZ);
     queue.sync();
 
     return std::make_unique<DistributedSynthesis<T>>(std::move(comm), std::move(ctx), opt, nImages,
-                                                     filterHost.view(), pixelXHost.view(),
-                                                     pixelYHost.view(), pixelZHost.view());
+                                                     pixelXHost.view(), pixelYHost.view(),
+                                                     pixelZHost.view());
 #else
     throw GPUSupportError();
 #endif
