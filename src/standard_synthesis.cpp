@@ -17,12 +17,12 @@
 namespace bipp {
 
 template <typename T>
-StandardSynthesis<T>::StandardSynthesis(Context& ctx, std::size_t nLevel, std::size_t nPixel,
+StandardSynthesis<T>::StandardSynthesis(Context& ctx, StandardSynthesisOptions opt, std::size_t nLevel, std::size_t nPixel,
                                         const T* pixelX, const T* pixelY, const T* pixelZ) {
   try {
     plan_ = decltype(plan_)(
         new Imager<T>(Imager<T>::standard_synthesis(
-            InternalContextAccessor::get(ctx), nLevel, ConstView<T, 1>(pixelX, nPixel, 1),
+            InternalContextAccessor::get(ctx), opt, nLevel, ConstView<T, 1>(pixelX, nPixel, 1),
             ConstView<T, 1>(pixelY, nPixel, 1), ConstView<T, 1>(pixelZ, nPixel, 1))),
         [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
   } catch (const std::exception& e) {
@@ -37,7 +37,8 @@ StandardSynthesis<T>::StandardSynthesis(Context& ctx, std::size_t nLevel, std::s
 
 #ifdef BIPP_MPI
 template <typename T>
-StandardSynthesis<T>::StandardSynthesis(Communicator& comm, Context& ctx, std::size_t nLevel,
+StandardSynthesis<T>::StandardSynthesis(Communicator& comm, Context& ctx,
+                                        StandardSynthesisOptions opt, std::size_t nLevel,
                                         std::size_t nPixel, const T* lmnX, const T* lmnY,
                                         const T* lmnZ) {
   try {
@@ -45,15 +46,16 @@ StandardSynthesis<T>::StandardSynthesis(Communicator& comm, Context& ctx, std::s
     if(commInt->comm().size() <= 1) {
       plan_ = decltype(plan_)(
           new Imager<T>(Imager<T>::standard_synthesis(
-              InternalContextAccessor::get(ctx), nLevel, ConstView<T, 1>(lmnX, nPixel, 1),
+              InternalContextAccessor::get(ctx), opt, nLevel, ConstView<T, 1>(lmnX, nPixel, 1),
               ConstView<T, 1>(lmnY, nPixel, 1), ConstView<T, 1>(lmnZ, nPixel, 1))),
           [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
     } else {
-      plan_ = decltype(plan_)(
-          new Imager<T>(Imager<T>::distributed_standard_synthesis(
-              commInt, InternalContextAccessor::get(ctx), nLevel, ConstView<T, 1>(lmnX, nPixel, 1),
-              ConstView<T, 1>(lmnY, nPixel, 1), ConstView<T, 1>(lmnZ, nPixel, 1))),
-          [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
+      plan_ =
+          decltype(plan_)(new Imager<T>(Imager<T>::distributed_standard_synthesis(
+                              commInt, InternalContextAccessor::get(ctx), opt, nLevel,
+                              ConstView<T, 1>(lmnX, nPixel, 1), ConstView<T, 1>(lmnY, nPixel, 1),
+                              ConstView<T, 1>(lmnZ, nPixel, 1))),
+                          [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
     }
   } catch (const std::exception& e) {
     try {
@@ -110,7 +112,8 @@ template class BIPP_EXPORT StandardSynthesis<double>;
 template class BIPP_EXPORT StandardSynthesis<float>;
 
 extern "C" {
-BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t nLevel,
+BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx,
+                                                       BippNufftSynthesisOptions opt, size_t nLevel,
                                                        size_t nPixel, const float* lmnX,
                                                        const float* lmnY, const float* lmnZ,
                                                        BippStandardSynthesisF* plan) {
@@ -118,8 +121,9 @@ BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t n
     return BIPP_INVALID_HANDLE_ERROR;
   }
   try {
-    *plan = new StandardSynthesis<float>(*reinterpret_cast<Context*>(ctx), nLevel, nPixel, lmnX,
-                                         lmnY, lmnZ);
+    *plan = new StandardSynthesis<float>(*reinterpret_cast<Context*>(ctx),
+                                         *reinterpret_cast<StandardSynthesisOptions*>(opt), nLevel,
+                                         nPixel, lmnX, lmnY, lmnZ);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -179,7 +183,7 @@ BIPP_EXPORT BippError bipp_standard_synthesis_get_f(BippStandardSynthesisF plan,
   return BIPP_SUCCESS;
 }
 
-BIPP_EXPORT BippError bipp_standard_synthesis_create(BippContext ctx, size_t nLevel,
+BIPP_EXPORT BippError bipp_standard_synthesis_create(BippContext ctx, BippStandardSynthesisOptions opt, size_t nLevel,
                                                      size_t nPixel, const double* lmnX,
                                                      const double* lmnY, const double* lmnZ,
                                                      BippStandardSynthesis* plan) {
@@ -187,8 +191,9 @@ BIPP_EXPORT BippError bipp_standard_synthesis_create(BippContext ctx, size_t nLe
     return BIPP_INVALID_HANDLE_ERROR;
   }
   try {
-    *plan = new StandardSynthesis<double>(*reinterpret_cast<Context*>(ctx), nLevel, nPixel, lmnX,
-                                          lmnY, lmnZ);
+    *plan = new StandardSynthesis<double>(*reinterpret_cast<Context*>(ctx),
+                                          *reinterpret_cast<StandardSynthesisOptions*>(opt), nLevel,
+                                          nPixel, lmnX, lmnY, lmnZ);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -246,6 +251,48 @@ BIPP_EXPORT BippError bipp_standard_synthesis_get(BippStandardSynthesis plan, do
   }
   return BIPP_SUCCESS;
 }
+
+BIPP_EXPORT BippError bipp_ss_options_create(BippStandardSynthesisOptions* opt) {
+  try {
+    *reinterpret_cast<StandardSynthesisOptions**>(opt) = new StandardSynthesisOptions();
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
+BIPP_EXPORT BippError bipp_ss_options_destroy(BippStandardSynthesisOptions* opt) {
+  if (!opt || !(*opt)) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    delete *reinterpret_cast<StandardSynthesisOptions**>(opt);
+    *reinterpret_cast<Context**>(opt) = nullptr;
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
+BIPP_EXPORT BippError bipp_ss_options_set_collect_group_size(BippStandardSynthesisOptions opt,
+                                                             size_t size) {
+  if (!opt) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<StandardSynthesisOptions*>(opt)->set_collect_group_size(size);
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
 }
 
 }  // namespace bipp

@@ -27,7 +27,19 @@ public:
    */
   explicit Communicator(const MPI_Comm& comm);
 
+  /**
+   * Check if calling process is root.
+   *
+   * @return True or false
+   */
   auto is_root() const -> bool;
+
+  /**
+   * The number size / number of processes.
+   *
+   * @return Size
+   */
+  auto size() const -> std::size_t;
 
   /**
    * Attach to root process to enable usage support image synthesis.

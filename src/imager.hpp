@@ -7,6 +7,7 @@
 #include "bipp/config.h"
 #include "bipp/enums.h"
 #include "bipp/nufft_synthesis.hpp"
+#include "bipp/standard_synthesis.hpp"
 #include "collector_interface.hpp"
 #include "context_internal.hpp"
 #include "memory/view.hpp"
@@ -22,8 +23,8 @@ namespace bipp {
 template <typename T>
 class Imager {
 public:
-  static auto standard_synthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nImages,
-                                 ConstView<T, 1> pixelX,
+  static auto standard_synthesis(std::shared_ptr<ContextInternal> ctx, StandardSynthesisOptions opt,
+                                 std::size_t nImages, ConstView<T, 1> pixelX,
                                  ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ) -> Imager<T>;
 
   static auto nufft_synthesis(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
@@ -33,9 +34,9 @@ public:
 #ifdef BIPP_MPI
   static auto distributed_standard_synthesis(std::shared_ptr<CommunicatorInternal> comm,
                                              std::shared_ptr<ContextInternal> ctx,
-                                             std::size_t nImages, ConstView<T, 1> pixelX,
-                                             ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ)
-      -> Imager<T>;
+                                             StandardSynthesisOptions opt, std::size_t nImages,
+                                             ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
+                                             ConstView<T, 1> pixelZ) -> Imager<T>;
 
   static auto distributed_nufft_synthesis(std::shared_ptr<CommunicatorInternal> comm,
                                           std::shared_ptr<ContextInternal> ctx,

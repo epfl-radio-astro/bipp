@@ -41,11 +41,12 @@ static auto center_vector(std::size_t n, const T* __restrict__ in, T* __restrict
 }
 
 template <typename T>
-auto Imager<T>::standard_synthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nImages,
-                                    ConstView<T, 1> pixelX,
-                                   ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ) -> Imager<T> {
+auto Imager<T>::standard_synthesis(std::shared_ptr<ContextInternal> ctx,
+                                   StandardSynthesisOptions opt, std::size_t nImages,
+                                   ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
+                                   ConstView<T, 1> pixelZ) -> Imager<T> {
   assert(ctx);
-  const std::size_t collectGroupSize = 1;
+  const std::size_t collectGroupSize = opt.collectGroupSize.value_or(1);
   return Imager(
       ctx, SynthesisFactory<T>::create_standard_synthesis(ctx, nImages, pixelX, pixelY, pixelZ),
       collectGroupSize);
@@ -57,7 +58,7 @@ auto Imager<T>::nufft_synthesis(std::shared_ptr<ContextInternal> ctx, NufftSynth
                                 ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
                                 ConstView<T, 1> pixelZ) -> Imager<T> {
   assert(ctx);
-  const std::size_t collectGroupSize = opt.collectGroupSize.value_or(10);
+  const std::size_t collectGroupSize = opt.collectGroupSize.value_or(20);
   return Imager(ctx,
                 SynthesisFactory<T>::create_nufft_synthesis(ctx, std::move(opt), nImages, pixelX,
                                                             pixelY, pixelZ),
@@ -68,12 +69,13 @@ auto Imager<T>::nufft_synthesis(std::shared_ptr<ContextInternal> ctx, NufftSynth
 template <typename T>
 auto Imager<T>::distributed_standard_synthesis(std::shared_ptr<CommunicatorInternal> comm,
                                                std::shared_ptr<ContextInternal> ctx,
-                                               std::size_t nImages, 
+                                               StandardSynthesisOptions opt, std::size_t nImages,
                                                ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
                                                ConstView<T, 1> pixelZ) -> Imager<T> {
   assert(comm);
   assert(ctx);
-  const std::size_t collectGroupSize = 10;
+  const std::size_t collectGroupSize =
+      opt.collectGroupSize.value_or(comm->comm().size() > 1 ? 20 : 1);
   return Imager(ctx,
                 SynthesisFactory<T>::create_distributed_standard_synthesis(
                     std::move(comm), ctx, nImages, pixelX, pixelY, pixelZ),
@@ -88,7 +90,7 @@ auto Imager<T>::distributed_nufft_synthesis(std::shared_ptr<CommunicatorInternal
                                             ConstView<T, 1> pixelZ) -> Imager<T> {
   assert(comm);
   assert(ctx);
-  const std::size_t collectGroupSize = opt.collectGroupSize.value_or(10);
+  const std::size_t collectGroupSize = opt.collectGroupSize.value_or(20);
   return Imager(ctx,
                 SynthesisFactory<T>::create_distributed_nufft_synthesis(
                     std::move(comm), ctx, std::move(opt), nImages, pixelX, pixelY, pixelZ),

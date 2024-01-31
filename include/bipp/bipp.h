@@ -10,6 +10,7 @@ typedef void* BippNufftSynthesis;
 typedef void* BippNufftSynthesisF;
 typedef void* BippStandardSynthesis;
 typedef void* BippStandardSynthesisF;
+typedef void* BippStandardSynthesisOptions;
 typedef void* BippNufftSynthesisOptions;
 
 #ifdef __cplusplus
@@ -33,6 +34,33 @@ BIPP_EXPORT BippError bipp_ctx_create(BippProcessingUnit pu, BippContext* ctx);
  * @return Error code or BIPP_SUCCESS.
  */
 BIPP_EXPORT BippError bipp_ctx_destroy(BippContext* ctx);
+
+/**
+ * Create Standard Synthesis options.
+ *
+ * @param[out] opt Options handle.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ss_options_create(BippStandardSynthesisOptions* opt);
+
+/**
+ * Destroy a Standard Synthesis handle.
+ *
+ * @param[in] opt Options handle
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ss_options_destroy(BippStandardSynthesisOptions* opt);
+
+/**
+ * Set number of collected data packages to be processed together. Only beneficial for distributed
+ * synthesis.
+ *
+ * @param[in] opt Options handle.
+ * @param[in] size Group size.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ss_options_set_collect_group_size(BippStandardSynthesisOptions opt,
+                                                             size_t size);
 
 /**
  * Create Nufft Synthesis options.
@@ -132,7 +160,7 @@ BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_grid(BippNufftSynt
  * Create a nufft synthesis plan.
  *
  * @param[in] ctx Context handle.
- * @param[in] tol Target precision tolorance.
+ * @param[in] opt Options.
  * @param[in] nImages Number of images.
  * @param[in] nPixel Number of image pixels.
  * @param[in] lmnX Array of image x coordinates of size nPixel.
@@ -150,7 +178,7 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_create_f(BippContext ctx, BippNufftSy
  * Create a nufft synthesis plan.
  *
  * @param[in] ctx Context handle.
- * @param[in] tol Target precision tolorance.
+ * @param[in] opt Options.
  * @param[in] nImages Number of images.
  * @param[in] nPixel Number of image pixels.
  * @param[in] lmnX Array of image x coordinates of size nPixel.
@@ -256,6 +284,7 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_get(BippNufftSynthesisF plan, double*
  * Create a standard synthesis plan.
  *
  * @param[in] ctx Context handle.
+ * @param[in] opt Options.
  * @param[in] nImages Number of images.
  * @param[in] nPixel Number of image pixels.
  * @param[in] lmnX Array of image x coordinates of size nPixel.
@@ -264,15 +293,15 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_get(BippNufftSynthesisF plan, double*
  * @param[out] plan The output handle.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t nImages,
-                                                       size_t nPixel, const float* lmnX,
-                                                       const float* lmnY, const float* lmnZ,
-                                                       BippStandardSynthesisF* plan);
+BIPP_EXPORT BippError bipp_standard_synthesis_create_f(
+    BippContext ctx, BippStandardSynthesisOptions opt, size_t nImages, size_t nPixel,
+    const float* lmnX, const float* lmnY, const float* lmnZ, BippStandardSynthesisF* plan);
 
 /**
  * Create a standard synthesis plan.
  *
  * @param[in] ctx Context handle.
+ * @param[in] opt Options.
  * @param[in] nAntenna Number of antenna.
  * @param[in] nBeam Number of beam.
  * @param[in] nImages Number of images.
@@ -283,10 +312,9 @@ BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx, size_t n
  * @param[out] plan The output handle.
  * @return Error code or BIPP_SUCCESS.
  */
-BIPP_EXPORT BippError bipp_standard_synthesis_create(BippContext ctx, size_t nImages, size_t nPixel,
-                                                     const double* lmnX, const double* lmnY,
-                                                     const double* lmnZ,
-                                                     BippStandardSynthesis* plan);
+BIPP_EXPORT BippError bipp_standard_synthesis_create(
+    BippContext ctx, BippStandardSynthesisOptions opt, size_t nImages, size_t nPixel,
+    const double* lmnX, const double* lmnY, const double* lmnZ, BippStandardSynthesis* plan);
 
 /**
  * Destroy a standard synthesis plan.

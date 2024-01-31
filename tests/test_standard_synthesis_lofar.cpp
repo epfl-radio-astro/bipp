@@ -103,8 +103,8 @@ protected:
     const auto pixelZ = read_json_scalar_1d<T>(output_data["pixel_z"]);
     const std::size_t nPixel = imgRef.size() / nIntervals;
 
-    bipp::StandardSynthesis<T> imager(ctx_, nIntervals, nPixel, pixelX.data(), pixelY.data(),
-                                      pixelZ.data());
+    bipp::StandardSynthesis<T> imager(ctx_, bipp::StandardSynthesisOptions(), nIntervals, nPixel,
+                                      pixelX.data(), pixelY.data(), pixelZ.data());
 
     // map intervals to mask
     auto eigMaskFunc = [&](std::size_t idxBin, std::size_t nEigOut, T* d) -> void {

@@ -10,11 +10,30 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <type_traits>
 
 /*! \cond PRIVATE */
 namespace bipp {
 /*! \endcond */
+struct StandardSynthesisOptions {
+  /**
+   * The maximum number of collected datasets processed together. Only benefits distributed image
+   * synthesis.
+   */
+  std::optional<std::size_t> collectGroupSize = std::nullopt;
+
+  /**
+   * Set the collection group size.
+   *
+   * @param[in] size Collection group size.
+   */
+  inline auto set_collect_group_size(std::optional<std::size_t> size) -> StandardSynthesisOptions& {
+    collectGroupSize = size;
+    return *this;
+  }
+};
+
 
 template <typename T>
 class BIPP_EXPORT StandardSynthesis {
@@ -26,14 +45,15 @@ public:
    * Create a standard synthesis plan.
    *
    * @param[in] ctx Context handle.
+   * @param[in] opt Options.
    * @param[in] nImages Number of images.
    * @param[in] nPixel Number of image pixels.
    * @param[in] lmnX Array of image x coordinates of size nPixel.
    * @param[in] lmnY Array of image y coordinates of size nPixel.
    * @param[in] lmnZ Array of image z coordinates of size nPixel.
    */
-  StandardSynthesis(Context& ctx, std::size_t nImages, std::size_t nPixel, const T* lmnX,
-                    const T* lmnY, const T* lmnZ);
+  StandardSynthesis(Context& ctx, StandardSynthesisOptions opt, std::size_t nImages,
+                    std::size_t nPixel, const T* lmnX, const T* lmnY, const T* lmnZ);
 
 #ifdef BIPP_MPI
   /**
@@ -41,14 +61,16 @@ public:
    *
    * @param[in] comm Communicator handle.
    * @param[in] ctx Context handle.
+   * @param[in] opt Options.
    * @param[in] nImages Number of images.
    * @param[in] nPixel Number of image pixels.
    * @param[in] lmnX Array of image x coordinates of size nPixel.
    * @param[in] lmnY Array of image y coordinates of size nPixel.
    * @param[in] lmnZ Array of image z coordinates of size nPixel.
    */
-  StandardSynthesis(Communicator& comm, Context& ctx, std::size_t nImages, std::size_t nPixel,
-                    const T* lmnX, const T* lmnY, const T* lmnZ);
+  StandardSynthesis(Communicator& comm, Context& ctx, StandardSynthesisOptions opt,
+                    std::size_t nImages, std::size_t nPixel, const T* lmnX, const T* lmnY,
+                    const T* lmnZ);
 #endif
 
   /**
