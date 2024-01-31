@@ -35,6 +35,13 @@ public:
   auto is_root() const -> bool;
 
   /**
+   * The process rank
+   *
+   * @return Rank
+   */
+  auto rank() const -> std::size_t;
+
+  /**
    * The number size / number of processes.
    *
    * @return Size

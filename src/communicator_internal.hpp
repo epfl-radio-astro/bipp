@@ -33,7 +33,6 @@ class CommunicatorInternal {
 
     inline auto comm() const -> const MPICommHandle& { return comm_; }
 
-
     // Must be called by all non-root
     auto attach_non_root(std::shared_ptr<ContextInternal> ctx) -> void;
 

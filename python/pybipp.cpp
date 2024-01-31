@@ -393,6 +393,34 @@ struct NufftSynthesisDispatcher {
   std::size_t nImages_, nPixel_;
 };
 
+struct CompileConfig {
+#ifdef BIPP_CUDA
+  const bool cuda = true;
+#else
+  const bool cuda = false;
+#endif
+#ifdef BIPP_ROCM
+  const bool rocm = true;
+#else
+  const bool rocm = false;
+#endif
+#ifdef BIPP_UMPIRE
+  const bool umpire = true;
+#else
+  const bool umpire = false;
+#endif
+#ifdef BIPP_OMP
+  const bool omp = true;
+#else
+  const bool omp = false;
+#endif
+#ifdef BIPP_MPI
+  const bool mpi = true;
+#else
+  const bool mpi = false;
+#endif
+};
+
 }  // namespace
 
 // Create module
@@ -410,6 +438,16 @@ PYBIND11_MODULE(pybipp, m) {
 #else
   m.attr("__version__") = "dev";
 #endif
+
+  pybind11::class_<CompileConfig>(m, "CompileConfig")
+      .def_readonly("cuda", &CompileConfig::cuda)
+      .def_readonly("rocm", &CompileConfig::rocm)
+      .def_readonly("umpire", &CompileConfig::umpire)
+      .def_readonly("omp", &CompileConfig::omp)
+      .def_readonly("mpi", &CompileConfig::mpi);
+
+  m.attr("config") = CompileConfig();
+
   pybind11::class_<Context>(m, "Context")
       .def(py::init(&create_context), pybind11::arg("pu"))
       .def_property_readonly("processing_unit",
@@ -419,6 +457,8 @@ PYBIND11_MODULE(pybipp, m) {
   pybind11::class_<Communicator>(m, "Communicator")
       .def(py::init([]() { return Communicator(MPI_COMM_WORLD); }))
       .def_property_readonly("is_root", &Communicator::is_root)
+      .def_property_readonly("size", &Communicator::size)
+      .def_property_readonly("rank", &Communicator::rank)
       .def("attach_non_root", &Communicator::attach_non_root, pybind11::arg("ctx"));
 #endif
 

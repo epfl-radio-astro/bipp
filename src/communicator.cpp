@@ -9,6 +9,8 @@ namespace bipp {
 Communicator::Communicator(const MPI_Comm& comm) : comm_(new CommunicatorInternal(comm)) {}
 
 auto Communicator::is_root() const -> bool { return comm_->is_root(); }
+auto Communicator::rank() const -> std::size_t { return comm_->comm().rank(); }
+auto Communicator::size() const -> std::size_t { return comm_->comm().size(); }
 
 auto Communicator::attach_non_root(Context& ctx) -> void {
   comm_->attach_non_root(InternalContextAccessor::get(ctx));
