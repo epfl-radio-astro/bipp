@@ -2,30 +2,54 @@
 
 #include <bipp/config.h>
 
-
 #ifdef BIPP_MPI
-#include <bipp/context.hpp>
+#include <mpi.h>
+#endif
+
 #include <cstddef>
 #include <memory>
 #include <type_traits>
-#include <mpi.h>
 
 /*! \cond PRIVATE */
 namespace bipp {
 
+#ifdef BIPP_MPI
 class CommunicatorInternal;
+#endif
+
 struct InternalCommunicatorAccessor;
 /*! \endcond */
 
 class BIPP_EXPORT Communicator {
 public:
+#ifdef BIPP_MPI
   /**
-   * Create a Communicator.
+   * Create a Communicator using a custom MPI_Comm
    *
    * @param[in] comm Communicator to use. Will be dublicated internally, so MPI_Comm_free can be
    * safely called during this Communicator object lifetime.
+   *
+   * @return Communicator
    */
-  explicit Communicator(const MPI_Comm& comm);
+  static auto custom(const MPI_Comm& comm);
+
+#endif
+
+  /**
+   * Create a world communicator with all ranks launched through MPI.
+   * Will return a local Communicator if not compiled with MPI.
+   *
+   * @return Communicator
+   */
+  static auto world() -> Communicator;
+
+  /**
+   * Create a local only Communicator of size 1.
+   * Will not utilize any MPI call internally and not call MPI_Initialize().
+   *
+   * @return Communicator
+   */
+  static auto local() -> Communicator;
 
   /**
    * Check if calling process is root.
@@ -48,24 +72,20 @@ public:
    */
   auto size() const -> std::size_t;
 
-  /**
-   * Attach to root process to enable usage support image synthesis.
-   * Must be called by all non-root processes. Must NOT be called by the root process.
-   * Will only return once the Communicator of the root process is destroyed.
-   *
-   * @param[in] ctx Context to use for processing.
-   */
-  auto attach_non_root(Context& ctx) -> void;
-
 private:
   /*! \cond PRIVATE */
   friend InternalCommunicatorAccessor;
 
+  Communicator() = default;
+
+#ifdef BIPP_MPI
+  Communicator(const MPI_Comm& comm);
+
   std::shared_ptr<CommunicatorInternal> comm_;
+#endif
   /*! \endcond */
 };
 
 /*! \cond PRIVATE */
 }  // namespace bipp
 /*! \endcond */
-#endif

@@ -133,24 +133,6 @@ public:
                  const T* lmnY, const T* lmnZ);
 
 
-#ifdef BIPP_MPI
-  /**
-   * Create a distributed nufft synthesis plan. Must only be called from root process.
-   *
-   * @param[in] comm Communicator handle.
-   * @param[in] ctx Context handle.
-   * @param[in] opt Options.
-   * @param[in] nImagers Number of images.
-   * @param[in] nPixel Number of image pixels.
-   * @param[in] lmnX Array of image x coordinates of size nPixel.
-   * @param[in] lmnY Array of image y coordinates of size nPixel.
-   * @param[in] lmnZ Array of image z coordinates of size nPixel.
-   */
-  NufftSynthesis(Communicator& comm, Context& ctx, NufftSynthesisOptions opt,
-                 std::size_t nImagers, std::size_t nPixel, const T* lmnX, const T* lmnY,
-                 const T* lmnZ);
-#endif
-
   /**
    * Collect radio data.
    *

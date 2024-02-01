@@ -18,43 +18,23 @@ template <typename T>
 NufftSynthesis<T>::NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::size_t nImages,
                                   std::size_t nPixel, const T* lmnX, const T* lmnY, const T* lmnZ) {
   try {
-    plan_ = decltype(plan_)(new Imager<T>(Imager<T>::nufft_synthesis(
-                                InternalContextAccessor::get(ctx), std::move(opt), nImages,
-                                ConstView<T, 1>(lmnX, nPixel, 1), ConstView<T, 1>(lmnY, nPixel, 1),
-                                ConstView<T, 1>(lmnZ, nPixel, 1))),
-                            [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
-  } catch (const std::exception& e) {
-    try {
-      InternalContextAccessor::get(ctx)->logger().log(
-          BIPP_LOG_LEVEL_ERROR, "NufftSynthesis creation error: {}", e.what());
-    } catch (...) {
-    }
-    throw;
-  }
-}
-
 #ifdef BIPP_MPI
-template <typename T>
-NufftSynthesis<T>::NufftSynthesis(Communicator& comm, Context& ctx, NufftSynthesisOptions opt,
-                                  std::size_t nImages, std::size_t nPixel, const T* lmnX,
-                                  const T* lmnY, const T* lmnZ) {
-  try {
-    const auto& commInt =  InternalCommunicatorAccessor::get(comm);
-    if(commInt->comm().size() <= 1) {
-      plan_ =
-          decltype(plan_)(new Imager<T>(Imager<T>::nufft_synthesis(
-                              InternalContextAccessor::get(ctx), std::move(opt), nImages,
-                              ConstView<T, 1>(lmnX, nPixel, 1), ConstView<T, 1>(lmnY, nPixel, 1),
-                              ConstView<T, 1>(lmnZ, nPixel, 1))),
-                          [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
-    } else {
+    if (ctx.communicator().size() > 1) {
+      const auto& commInt = InternalCommunicatorAccessor::get(ctx.communicator());
       plan_ =
           decltype(plan_)(new Imager<T>(Imager<T>::distributed_nufft_synthesis(
                               commInt, InternalContextAccessor::get(ctx), std::move(opt), nImages,
                               ConstView<T, 1>(lmnX, nPixel, 1), ConstView<T, 1>(lmnY, nPixel, 1),
                               ConstView<T, 1>(lmnZ, nPixel, 1))),
                           [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
-    }
+    } else
+#endif
+      plan_ =
+          decltype(plan_)(new Imager<T>(Imager<T>::nufft_synthesis(
+                              InternalContextAccessor::get(ctx), std::move(opt), nImages,
+                              ConstView<T, 1>(lmnX, nPixel, 1), ConstView<T, 1>(lmnY, nPixel, 1),
+                              ConstView<T, 1>(lmnZ, nPixel, 1))),
+                          [](auto&& ptr) { delete reinterpret_cast<Imager<T>*>(ptr); });
   } catch (const std::exception& e) {
     try {
       InternalContextAccessor::get(ctx)->logger().log(
@@ -64,7 +44,6 @@ NufftSynthesis<T>::NufftSynthesis(Communicator& comm, Context& ctx, NufftSynthes
     throw;
   }
 }
-#endif
 
 template <typename T>
 auto NufftSynthesis<T>::collect(

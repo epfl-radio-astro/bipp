@@ -1,19 +1,49 @@
 #include "bipp/communicator.hpp"
 
 #include "bipp/config.h"
+
 #include "communicator_internal.hpp"
-#include "context_internal.hpp"
+
+
+#ifdef BIPP_MPI
+#include <mpi.h>
+#endif
 
 namespace bipp {
 
+#ifdef BIPP_MPI
 Communicator::Communicator(const MPI_Comm& comm) : comm_(new CommunicatorInternal(comm)) {}
+#endif
 
-auto Communicator::is_root() const -> bool { return comm_->is_root(); }
-auto Communicator::rank() const -> std::size_t { return comm_->comm().rank(); }
-auto Communicator::size() const -> std::size_t { return comm_->comm().size(); }
+auto Communicator::world() -> Communicator { 
+#ifdef BIPP_MPI
+  return Communicator(MPI_COMM_WORLD); 
+#else
+  return Communicator::local();
+#endif
+}
 
-auto Communicator::attach_non_root(Context& ctx) -> void {
-  comm_->attach_non_root(InternalContextAccessor::get(ctx));
+auto Communicator::local() -> Communicator { return Communicator(); }
+
+auto Communicator::is_root() const -> bool {
+#ifdef BIPP_MPI
+  if (comm_) return comm_->is_root();
+#endif
+  return true;
+}
+
+auto Communicator::rank() const -> std::size_t {
+#ifdef BIPP_MPI
+  if (comm_) return comm_->comm().rank();
+#endif
+  return 0;
+}
+
+auto Communicator::size() const -> std::size_t {
+#ifdef BIPP_MPI
+  if (comm_) return comm_->comm().size();
+#endif
+  return 1;
 }
 
 // extern "C" {
