@@ -117,15 +117,6 @@ class ParameterEstimator:
             return 0
         return self._intervals.shape[0]
 
-    def __call__(self, level, D):
-        if not self._inferred:
-            self.infer_parameters()
-        if level > self._intervals.shape[1]:
-            raise ValueError("ParameterEstimator: level index out of bounds")
-
-        D *= (D>=self._intervals[level, 0]) * (D<=self._intervals[level,1])
-        return D
-
     def infer_parameters(self):
         """
         Estimate parameters given ingested data.

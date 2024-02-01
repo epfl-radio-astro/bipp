@@ -38,34 +38,36 @@ class Filter:
     def __init__(self, **kwargs):
         valid_filter = ['lsq', 'std', 'sqrt', 'inv', 'inv_sqrt']
 
-        self.filter_intervals = []
+        self._filter_intervals = []
         start_index = 0
         for name, intervals in kwargs.items():
             if not name in valid_filter:
                 raise ValueError(f"Unknown filter: {name}")
-            self.filter_intervals.append((name, start_index, intervals))
+            self._filter_intervals.append((name, start_index, intervals))
             start_index += intervals.shape[0]
 
-        self.num_images = start_index
+        self._num_images = start_index
 
     def num_images(self):
-        return self.num_images
+        return self._num_images
 
     def num_filter(self):
-        return len(self.filter_intervals)
+        return len(self._filter_intervals)
 
     def get_filter_images(self, f, images):
-        for name, start_index, intervals in self.filter_intervals:
+        for name, start_index, intervals in self._filter_intervals:
             if name == f:
+                if images.shape[0] < start_index + intervals.shape[0]:
+                    raise ValueError(f"Expected {self._num_images} images, but got {images.shape[0]}.")
                 return images[start_index : start_index + intervals.shape[0], :]
 
         raise ValueError(f"Filter {f} not found")
 
     def __call__(self, image_index, D):
-        if image_index > self.num_images:
+        if image_index > self._num_images:
             raise ValueError("Image index out of bounds.")
 
-        for name, start_index, intervals in self.filter_intervals:
+        for name, start_index, intervals in self._filter_intervals:
             if image_index < start_index or image_index >= start_index + intervals.shape[0]:
                 continue
             level = image_index - start_index
