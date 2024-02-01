@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as constants
 import sys
+import time as tt
 
 import bipp.beamforming as beamforming
 import bipp.gram as bb_gr
@@ -28,17 +29,23 @@ import bipp.statistics as statistics
 import bipp.instrument as instrument
 import bipp
 
-
-
-def my_test(n, d):
-    return I_est(n,d)
-    #  d *= (d < 10.0) & (d > 2.0)
-    #  return d
-
+comm = bipp.communicator.world()
 
 # Create context with selected processing unit.
 # Options are "AUTO", "CPU" and "GPU".
-ctx = bipp.Context("AUTO")
+#Note : When using MPI, mixing "CPU" and "GPU" on different ranks is possible.
+ctx = bipp.Context("AUTO", comm)
+
+# Only required when using MPI. Has no effect otherwise.
+if ctx.attach_non_root():
+    sys.exit(0)
+
+# print build config
+print("===== Build config ====")
+print("MPI = ", bipp.config.mpi)
+print("OMP = ", bipp.config.omp)
+print("CUDA = ", bipp.config.cuda)
+print("ROCM = ", bipp.config.rocm)
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
@@ -75,6 +82,13 @@ px_h = px_grid.shape[2]
 px_grid = px_grid.reshape(3, -1)
 px_grid = px_grid / np.linalg.norm(px_grid, axis=0)
 
+t1 = tt.time()
+
+# Standard Synthesis options
+
+opt = bipp.StandardSynthesisOptions()
+
+print("===== Image Synthesis ====")
 print("Image dimension = ", px_w, ", ", px_h)
 print("precision = ", precision)
 print("N_station = ", N_station)
@@ -83,18 +97,21 @@ print("Proc = ", ctx.processing_unit)
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
-I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=0.95, ctx=ctx)
+I_est = bb_pe.ParameterEstimator(N_level, sigma=0.95, ctx=ctx)
 for t in ProgressBar(time[::200]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
     I_est.collect(wl, S.data, W.data, XYZ.data)
 
+intervals = I_est.infer_parameters()
+fi = bipp.filter.Filter(lsq=intervals, std=intervals)
+
 # Imaging
 imager = bipp.StandardSynthesis(
     ctx,
-    N_level,
-    ["LSQ", "STD"],
+    opt,
+    fi.num_images(),
     px_grid[0],
     px_grid[1],
     px_grid[2],
@@ -105,18 +122,23 @@ for t in ProgressBar(time[::25]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
-    imager.collect(wl, I_est, S.data, W.data, XYZ.data)
+    imager.collect(wl, fi, S.data, W.data, XYZ.data)
 
-I_lsq = imager.get("LSQ").reshape((-1, px_w, px_h))
-I_std = imager.get("STD").reshape((-1, px_w, px_h))
+images = imager.get().reshape((-1, px_w, px_h))
+
+t2 = tt.time()
+print(f"Elapsed time: {t2 - t1} seconds.")
+
+lsq_image = fi.get_filter_images("lsq", images)
+std_image = fi.get_filter_images("std", images)
 
 # Plot Results ================================================================
 fig, ax = plt.subplots(ncols=2)
-I_std_eq = s2image.Image(I_std, px_grid.reshape(3, px_w, px_h))
+I_std_eq = s2image.Image(lsq_image, px_grid.reshape(3, px_w, px_h))
 I_std_eq.draw(catalog=sky_model.xyz.T, ax=ax[0])
 ax[0].set_title("Bipp Standardized Image")
 
-I_lsq_eq = s2image.Image(I_lsq, px_grid.reshape(3, px_w, px_h))
+I_lsq_eq = s2image.Image(std_image, px_grid.reshape(3, px_w, px_h))
 I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax[1])
 ax[1].set_title("Bipp Least-Squares Image")
 

@@ -8,6 +8,7 @@
 Simulation LOFAR imaging with Bipp (NUFFT).
 """
 
+import sys
 from tqdm import tqdm as ProgressBar
 import astropy.units as u
 import astropy.coordinates as coord
@@ -24,20 +25,28 @@ import bipp.source as source
 import bipp.instrument as instrument
 import bipp.frame as frame
 import bipp.statistics as statistics
+import bipp.filter
 import time as tt
 import matplotlib.pyplot as plt
 
 
-comm = bipp.Communicator()
+comm = bipp.communicator.world()
 
 # Create context with selected processing unit.
 # Options are "AUTO", "CPU" and "GPU".
-ctx = bipp.Context("AUTO")
+#Note : When using MPI, mixing "CPU" and "GPU" on different ranks is possible.
+ctx = bipp.Context("AUTO", comm)
 
-if not comm.is_root:
-    comm.attach_non_root(ctx)
-    exit(0)
+# Only required when using MPI. Has no effect otherwise.
+if ctx.attach_non_root():
+    sys.exit(0)
 
+# print build config
+print("===== Build config ====")
+print("MPI = ", bipp.config.mpi)
+print("OMP = ", bipp.config.omp)
+print("CUDA = ", bipp.config.cuda)
+print("ROCM = ", bipp.config.rocm)
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
@@ -67,7 +76,7 @@ opt = bipp.NufftSynthesisOptions()
 opt.set_tolerance(1e-3)
 # Set the maximum number amount of memory to be used for collecting time step data.
 # A larger number increases memory usage, but usually improves performance.
-opt.set_collect_memory(0.2)
+#  opt.set_collect_memory(0.2)
 # Set the domain splitting methods for image and uvw coordinates.
 # Splitting decreases memory usage, but may lead to lower performance.
 # Best used with a wide spread of image or uvw coordinates.
@@ -84,6 +93,7 @@ t1 = tt.time()
 N_level = 3
 time_slice = 25
 
+print("===== Image Synthesis ====")
 print("N_pix = ", N_pix)
 print("precision = ", precision)
 print("N_station = ", N_station)
@@ -94,20 +104,21 @@ lmn_grid, xyz_grid = frame.make_grids(N_pix, FoV, field_center)
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
-I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=0.95, ctx=ctx)
+I_est = bb_pe.ParameterEstimator(N_level, sigma=0.95, ctx=ctx)
 for t in ProgressBar(time[::200]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
     I_est.collect(wl, S.data, W.data, XYZ.data)
 
+intervals = I_est.infer_parameters()
+fi = bipp.filter.Filter(lsq=intervals, std=intervals)
+
 # Imaging
 imager = bipp.NufftSynthesis(
-    comm,
     ctx,
     opt,
-    N_level,
-    ["LSQ", "STD"],
+    fi.num_images(),
     lmn_grid[0],
     lmn_grid[1],
     lmn_grid[2],
@@ -120,43 +131,18 @@ for t in ProgressBar(time[::time_slice]):
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
     uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
-    imager.collect(wl, I_est, S.data, W.data, XYZ.data, uvw)
+    imager.collect(wl, fi, S.data, W.data, XYZ.data, uvw)
 
-lsq_image = imager.get("LSQ").reshape((-1, N_pix, N_pix))
-std_image = imager.get("STD").reshape((-1, N_pix, N_pix))
+images = imager.get().reshape((-1, N_pix, N_pix))
 
-# Plot Results ================================================================
-#  fig, ax = plt.subplots(ncols=2)
-#  I_std_eq = s2image.Image(I_std, xyz_grid)
-#  I_std_eq.draw(catalog=sky_model.xyz.T, ax=ax[0])
-#  I_std_eq.draw(
-#      catalog=sky_model.xyz.T,
-#      ax=ax,
-#      data_kwargs=dict(cmap="cubehelix"),
-#      show_gridlines=False,
-#      catalog_kwargs=dict(s=30, linewidths=0.5, alpha=0.5),
-#  )
-#  ax[0].set_title("Bipp Standardized Image")
+t2 = tt.time()
+print(f"Elapsed time: {t2 - t1} seconds.")
 
-#  I_lsq_eq = s2image.Image(I_lsq, xyz_grid)
-#  I_lsq_eq.draw(
-#      catalog=sky_model.xyz.T,
-#      ax=ax,
-#      data_kwargs=dict(cmap="cubehelix"),
-#      show_gridlines=False,
-#      catalog_kwargs=dict(s=30, linewidths=0.5, alpha=0.5),
-#  )
-#  ax[1].set_title("Bipp Least-Squares Image")
-
-#  fig.savefig("nufft_synthesis.png")
-#  plt.show()
-
-#  exit(0)
+lsq_image = fi.get_filter_images("lsq", images)
+std_image = fi.get_filter_images("std", images)
 
 I_lsq_eq = s2image.Image(lsq_image, xyz_grid)
 I_std_eq = s2image.Image(std_image, xyz_grid)
-t2 = tt.time()
-print(f"Elapsed time: {t2 - t1} seconds.")
 
 plt.figure()
 ax = plt.gca()
