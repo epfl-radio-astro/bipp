@@ -1,5 +1,6 @@
 set(BIPP_SOURCE_FILES
 	context_internal.cpp
+	communicator.cpp
 	eigensolver.cpp
 	gram_matrix.cpp
 	standard_synthesis.cpp
@@ -24,7 +25,6 @@ set(BIPP_SOURCE_FILES
 if(BIPP_MPI)
 	list(APPEND BIPP_SOURCE_FILES
 		communicator_internal.cpp
-		communicator.cpp
 		distributed_synthesis.cpp
 	        )
 endif()
