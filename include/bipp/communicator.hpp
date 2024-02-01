@@ -31,7 +31,7 @@ public:
    *
    * @return Communicator
    */
-  static auto custom(const MPI_Comm& comm);
+  static auto custom(const MPI_Comm& comm) -> Communicator;
 
 #endif
 

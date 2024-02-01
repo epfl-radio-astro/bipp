@@ -44,6 +44,33 @@ BIPP_EXPORT BippError bipp_ctx_create(BippProcessingUnit pu, BippContext* ctx) {
   return BIPP_SUCCESS;
 }
 
+BIPP_EXPORT BippError bipp_ctx_create_distributed(BippProcessingUnit pu, BippCommunicator comm,
+                                                  BippContext* ctx) {
+  try {
+    *reinterpret_cast<Context**>(ctx) = new Context(pu);
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
+BIPP_EXPORT BippError bipp_ctx_attach_non_root(BippContext ctx, bool* attached) {
+  if (!ctx) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    auto& ctxRef = *reinterpret_cast<Context*>(ctx);
+    *attached = ctxRef.attach_non_root();
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
 BIPP_EXPORT BippError bipp_ctx_destroy(BippContext* ctx) {
   if (!ctx || !(*ctx)) {
     return BIPP_INVALID_HANDLE_ERROR;

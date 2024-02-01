@@ -5,7 +5,12 @@
 #include <bipp/errors.h>
 #include <stddef.h>
 
+#ifdef BIPP_MPI
+#include <mpi.h>
+#endif
+
 typedef void* BippContext;
+typedef void* BippCommunicator;
 typedef void* BippNufftSynthesis;
 typedef void* BippNufftSynthesisF;
 typedef void* BippStandardSynthesis;
@@ -28,12 +33,75 @@ extern "C" {
 BIPP_EXPORT BippError bipp_ctx_create(BippProcessingUnit pu, BippContext* ctx);
 
 /**
+ * Create a distributed context.
+ *
+ * @param[in] pu Processing unit to use. If BIPP_PU_AUTO, GPU will be used
+ * if possible, CPU otherwise.
+ * @param[in] comm Communicator handle.
+ * @param[out] ctx Context handle.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ctx_create_distributed(BippProcessingUnit pu, BippCommunicator comm,
+                                                  BippContext* ctx);
+/**
+ * Attach non-root ranks to root for work.
+ *
+ * @param[in] ctx Context handle.
+ * @param[out] attached True if process was attached, false otherwise.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ctx_attach_non_root(BippContext ctx, bool* attached);
+
+/**
  * Destroy a context.
  *
  * @param[in] ctx Context handle.
  * @return Error code or BIPP_SUCCESS.
  */
 BIPP_EXPORT BippError bipp_ctx_destroy(BippContext* ctx);
+
+#ifdef BIPP_MPI
+/**
+ * Create a custom communicator.
+ *
+ * @param[in] comm Communicator handle.
+ * @param[in] mpiComm MPI Communicator to use.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_comm_create_custom(BippCommunicator* comm, MPI_Comm mpiComm);
+#endif
+
+/**
+ * Create a world communicator.
+ *
+ * @param[in] comm Communicator handle.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_comm_create_world(BippCommunicator* comm);
+
+/**
+ * Create a local communicator.
+ *
+ * @param[in] comm Communicator handle.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_comm_create_local(BippCommunicator* comm);
+
+/**
+ * Check if calling process is root.
+ *
+ * @param[out] root True if root, false otherwise.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_comm_is_root(BippCommunicator comm, bool* root);
+
+/**
+ * Destroy a communicator.
+ *
+ * @param[in] comm Communicator handle.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_comm_destroy(BippCommunicator* comm);
 
 /**
  * Create Standard Synthesis options.
