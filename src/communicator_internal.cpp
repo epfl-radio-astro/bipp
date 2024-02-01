@@ -205,8 +205,8 @@ auto send_synthesis_init_data(const MPICommHandle& comm, ConstView<T, 1> pixelX,
                                   &myGroup, 0, MPI_BYTE, 0, comm.get()));
   }
 
-  std::array<MPI_Request, 4> requests;
-  std::array<MPI_Status, 4> statuses;
+  std::array<MPI_Request, 3> requests;
+  std::array<MPI_Status, 3> statuses;
 
   // Scatter pixels
   {
@@ -255,8 +255,8 @@ auto recv_synthesis_init_data(const MPICommHandle& comm, std::shared_ptr<Context
 #endif
   }
 
-  std::array<MPI_Request, 4> requests;
-  std::array<MPI_Status, 4> statuses;
+  std::array<MPI_Request, 3> requests;
+  std::array<MPI_Status, 3> statuses;
 
   // Scatter pixels
   assert(pixel.shape(0) == myGroup.size);
