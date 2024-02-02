@@ -26,9 +26,11 @@ namespace bipp {
 namespace gpu {
 
 template <typename T>
-StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nLevel,
+StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx,
+                                        StandardSynthesisOptions opt, std::size_t nLevel,
                                         DeviceArray<T, 2> pixel)
     : ctx_(std::move(ctx)),
+      opt_(opt),
       nImages_(nLevel),
       nPixel_(pixel.shape(0)),
       count_(0),
@@ -139,16 +141,23 @@ auto StandardSynthesis<T>::get(View<T, 2> out) -> void {
   assert(out.shape(0) == nPixel_);
   assert(out.shape(1) == nImages_);
 
-  DeviceAccessor<T, 2> outDevice(queue, out);
+  if (opt_.normalizeImage) {
+    DeviceAccessor<T, 2> outDevice(queue, out);
 
-  const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
-  for (std::size_t i = 0; i < nImages_; ++i) {
-    scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, img_.slice_view(i).data(), scale,
-                    outDevice.view().slice_view(i).data());
-    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", outDevice.view().slice_view(i));
+    const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
+    for (std::size_t i = 0; i < nImages_; ++i) {
+      scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, img_.slice_view(i).data(),
+                      scale, outDevice.view().slice_view(i).data());
+    }
+
+    outDevice.copy_back(queue);
+  } else {
+    copy(queue, img_, out);
   }
 
-  outDevice.copy_back(queue);
+  for (std::size_t i = 0; i < nImages_; ++i) {
+    ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", out.slice_view(i));
+  }
 }
 
 template class StandardSynthesis<float>;

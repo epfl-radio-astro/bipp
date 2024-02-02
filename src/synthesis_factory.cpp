@@ -30,6 +30,7 @@ namespace bipp {
 
 template <typename T>
 auto SynthesisFactory<T>::create_standard_synthesis(std::shared_ptr<ContextInternal> ctx,
+                                                    StandardSynthesisOptions opt,
                                                     std::size_t nImages, ConstView<T, 1> pixelX,
                                                     ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ)
     -> std::unique_ptr<SynthesisInterface<T>> {
@@ -54,15 +55,16 @@ auto SynthesisFactory<T>::create_standard_synthesis(std::shared_ptr<ContextInter
     copy(queue, pixelY, pixelArray.slice_view(1));
     copy(queue, pixelZ, pixelArray.slice_view(2));
 
-    return std::make_unique<gpu::StandardSynthesis<T>>(ctx, nImages, std::move(pixelArray));
+    return std::make_unique<gpu::StandardSynthesis<T>>(ctx, std::move(opt), nImages,
+                                                       std::move(pixelArray));
 #else
     throw GPUSupportError();
 #endif
   }
 
   return std::make_unique<host::StandardSynthesis<T>>(
-      std::move(ctx), nImages, ConstHostView<T, 1>(pixelX), ConstHostView<T, 1>(pixelY),
-      ConstHostView<T, 1>(pixelZ));
+      std::move(ctx), std::move(opt), nImages, ConstHostView<T, 1>(pixelX),
+      ConstHostView<T, 1>(pixelY), ConstHostView<T, 1>(pixelZ));
 }
 
 template <typename T>
@@ -110,8 +112,8 @@ auto SynthesisFactory<T>::create_nufft_synthesis(std::shared_ptr<ContextInternal
 template <typename T>
 auto SynthesisFactory<T>::create_distributed_standard_synthesis(
     std::shared_ptr<CommunicatorInternal> comm, std::shared_ptr<ContextInternal> ctx,
-    std::size_t nImages, ConstView<T, 1> pixelX, ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ)
-    -> std::unique_ptr<SynthesisInterface<T>> {
+    StandardSynthesisOptions opt, std::size_t nImages, ConstView<T, 1> pixelX,
+    ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ) -> std::unique_ptr<SynthesisInterface<T>> {
   assert(pixelX.size() == pixelY.size());
   assert(pixelX.size() == pixelZ.size());
   assert(ctx);
@@ -136,8 +138,8 @@ auto SynthesisFactory<T>::create_distributed_standard_synthesis(
     ConstHostAccessor<T, 1> pixelZHost(queue, pixelZ);
     queue.sync();
 
-    return std::make_unique<DistributedSynthesis<T>>(std::move(comm), std::move(ctx), std::nullopt,
-                                                     nImages, pixelXHost.view(), pixelYHost.view(),
+    return std::make_unique<DistributedSynthesis<T>>(std::move(comm), std::move(ctx), opt, nImages,
+                                                     pixelXHost.view(), pixelYHost.view(),
                                                      pixelZHost.view());
 #else
     throw GPUSupportError();
@@ -145,7 +147,7 @@ auto SynthesisFactory<T>::create_distributed_standard_synthesis(
   }
 
   return std::make_unique<DistributedSynthesis<T>>(
-      std::move(comm), std::move(ctx), std::nullopt, nImages, ConstHostView<T, 1>(pixelX),
+      std::move(comm), std::move(ctx), opt, nImages, ConstHostView<T, 1>(pixelX),
       ConstHostView<T, 1>(pixelY), ConstHostView<T, 1>(pixelZ));
 }
 

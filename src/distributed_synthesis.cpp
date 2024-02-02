@@ -2,6 +2,7 @@
 
 #include <complex>
 #include <cstddef>
+#include <variant>
 
 #include "bipp/bipp.h"
 #include "bipp/config.h"
@@ -19,18 +20,17 @@
 namespace bipp {
 
 template <typename T>
-DistributedSynthesis<T>::DistributedSynthesis(std::shared_ptr<CommunicatorInternal> comm,
-                                              std::shared_ptr<ContextInternal> ctx,
-                                              std::optional<NufftSynthesisOptions> nufftOpt,
-                                              std::size_t nLevel, ConstHostView<T, 1> pixelX,
-                                              ConstHostView<T, 1> pixelY,
-                                              ConstHostView<T, 1> pixelZ)
+DistributedSynthesis<T>::DistributedSynthesis(
+    std::shared_ptr<CommunicatorInternal> comm, std::shared_ptr<ContextInternal> ctx,
+    std::variant<NufftSynthesisOptions, StandardSynthesisOptions> opt, std::size_t nLevel,
+    ConstHostView<T, 1> pixelX, ConstHostView<T, 1> pixelY, ConstHostView<T, 1> pixelZ)
     : comm_(std::move(comm)),
       ctx_(std::move(ctx)),
       totalCollectCount_(0),
       img_(ctx_->host_alloc(), {pixelX.size(), nLevel}),
       imgPartition_(host::DomainPartition::none(ctx_, pixelX.size())),
-      type_(nufftOpt ? SynthesisType::NUFFT : SynthesisType::Standard) {
+      type_(std::holds_alternative<NufftSynthesisOptions>(opt) ? SynthesisType::NUFFT
+                                                               : SynthesisType::Standard) {
   if(!comm_->is_root()) throw InvalidParameterError();
 
   assert(comm_->comm().rank() == 0);
@@ -46,8 +46,16 @@ DistributedSynthesis<T>::DistributedSynthesis(std::shared_ptr<CommunicatorIntern
   imgPartition_.apply(pixelZ, pixel.slice_view(2));
 
   ConstHostView<PartitionGroup, 1> groups(imgPartition_.groups().data(), imgPartition_.groups().size(), 1);
-  id_ = comm_->send_synthesis_init<T>(std::move(nufftOpt), nLevel, pixel.slice_view(0),
-                                      pixel.slice_view(1), pixel.slice_view(2), groups);
+
+  if(std::holds_alternative<StandardSynthesisOptions>(opt)) {
+    id_ = comm_->send_standard_synthesis_init<T>(std::get<StandardSynthesisOptions>(opt), nLevel,
+                                                 pixel.slice_view(0), pixel.slice_view(1),
+                                                 pixel.slice_view(2), groups);
+  } else {
+    id_ = comm_->send_nufft_synthesis_init<T>(std::get<NufftSynthesisOptions>(opt), nLevel,
+                                              pixel.slice_view(0), pixel.slice_view(1),
+                                              pixel.slice_view(2), groups);
+  }
 }
 
 template <typename T>

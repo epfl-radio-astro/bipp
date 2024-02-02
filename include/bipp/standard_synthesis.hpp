@@ -24,12 +24,27 @@ struct StandardSynthesisOptions {
   std::optional<std::size_t> collectGroupSize = std::nullopt;
 
   /**
+   * Normalize image by the number of collect steps.
+   */
+  bool normalizeImage = true;
+
+  /**
    * Set the collection group size.
    *
    * @param[in] size Collection group size.
    */
   inline auto set_collect_group_size(std::optional<std::size_t> size) -> StandardSynthesisOptions& {
     collectGroupSize = size;
+    return *this;
+  }
+
+  /**
+   * Set normalization of image.
+   *
+   * @param[in] normalize True or false.
+   */
+  inline auto set_normalize_image(bool normalize) -> StandardSynthesisOptions& {
+    normalizeImage = normalize;
     return *this;
   }
 };

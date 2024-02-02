@@ -145,6 +145,21 @@ BIPP_EXPORT BippError bipp_ns_options_set_collect_group_size(BippNufftSynthesisO
   return BIPP_SUCCESS;
 }
 
+BIPP_EXPORT BippError bipp_ns_options_set_normalize_image(BippNufftSynthesisOptions opt,
+                                                          bool normalize) {
+  if (!opt) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<NufftSynthesisOptions*>(opt)->set_normalize_image(normalize);
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
 BIPP_EXPORT BippError
 bipp_ns_options_set_local_image_partition_auto(BippNufftSynthesisOptions opt) {
   if (!opt) {

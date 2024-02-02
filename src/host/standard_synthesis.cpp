@@ -20,10 +20,12 @@ namespace bipp {
 namespace host {
 
 template <typename T>
-StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nImages,
+StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx,
+                                        StandardSynthesisOptions opt, std::size_t nImages,
                                         ConstHostView<T, 1> pixelX, ConstHostView<T, 1> pixelY,
                                         ConstHostView<T, 1> pixelZ)
     : ctx_(std::move(ctx)),
+      opt_(opt),
       nImages_(nImages),
       nPixel_(pixelX.size()),
       count_(0),
@@ -132,14 +134,21 @@ auto StandardSynthesis<T>::get(View<T, 2> out) -> void {
 
   HostView<T, 2> outHost(out);
 
-  for (std::size_t i = 0; i < nImages_; ++i) {
-    const T* __restrict__ localImg = &img_[{0, i}];
-    T* __restrict__ outputImg = &outHost[{0, i}];
-    const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
+  if (opt_.normalizeImage) {
+    for (std::size_t i = 0; i < nImages_; ++i) {
+      const T* __restrict__ localImg = &img_[{0, i}];
+      T* __restrict__ outputImg = &outHost[{0, i}];
+      const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
 
-    for (std::size_t j = 0; j < nPixel_; ++j) {
-      outputImg[j] = scale * localImg[j];
+      for (std::size_t j = 0; j < nPixel_; ++j) {
+        outputImg[j] = scale * localImg[j];
+      }
     }
+  } else {
+    copy(img_, outHost);
+  }
+
+  for (std::size_t i = 0; i < nImages_; ++i) {
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", out.slice_view(i));
   }
 }

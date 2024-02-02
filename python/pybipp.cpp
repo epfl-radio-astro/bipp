@@ -428,12 +428,16 @@ PYBIND11_MODULE(pybipp, m) {
       .def_readwrite("local_image_partition", &NufftSynthesisOptions::localImagePartition)
       .def("set_local_image_partition", &NufftSynthesisOptions::set_local_image_partition)
       .def_readwrite("local_uvw_partition", &NufftSynthesisOptions::localUVWPartition)
-      .def("set_local_uvw_partition", &NufftSynthesisOptions::set_local_uvw_partition);
+      .def("set_local_uvw_partition", &NufftSynthesisOptions::set_local_uvw_partition)
+      .def_readwrite("normalizeImage", &NufftSynthesisOptions::normalizeImage)
+      .def("set_normalize_image", &NufftSynthesisOptions::set_normalize_image);
 
   pybind11::class_<StandardSynthesisOptions>(m, "StandardSynthesisOptions")
       .def(py::init())
       .def_readwrite("collect_group_size", &StandardSynthesisOptions::collectGroupSize)
-      .def("set_collect_group_size", &StandardSynthesisOptions::set_collect_group_size);
+      .def("set_collect_group_size", &StandardSynthesisOptions::set_collect_group_size)
+      .def_readwrite("normalizeImage", &StandardSynthesisOptions::normalizeImage)
+      .def("set_normalize_image", &StandardSynthesisOptions::set_normalize_image);
 
   pybind11::class_<NufftSynthesisDispatcher>(m, "NufftSynthesis")
       .def(pybind11::init<Context&, NufftSynthesisOptions, std::size_t, const py::array&,

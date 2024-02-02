@@ -5,9 +5,10 @@
 
 #include "bipp/bipp.h"
 #include "bipp/config.h"
+#include "bipp/standard_synthesis.hpp"
 #include "context_internal.hpp"
-#include "memory/view.hpp"
 #include "memory/array.hpp"
+#include "memory/view.hpp"
 #include "synthesis_interface.hpp"
 
 namespace bipp {
@@ -16,8 +17,8 @@ namespace host {
 template <typename T>
 class StandardSynthesis : public SynthesisInterface<T> {
 public:
-  StandardSynthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nImages,
-                    ConstHostView<T, 1> pixelX, ConstHostView<T, 1> pixelY,
+  StandardSynthesis(std::shared_ptr<ContextInternal> ctx, StandardSynthesisOptions opt,
+                    std::size_t nImages, ConstHostView<T, 1> pixelX, ConstHostView<T, 1> pixelY,
                     ConstHostView<T, 1> pixelZ);
 
   auto process(CollectorInterface<T>& collector) -> void override;
@@ -35,6 +36,7 @@ private:
                       ConstView<T, 2> xyzUvwView) -> void;
 
   std::shared_ptr<ContextInternal> ctx_;
+  StandardSynthesisOptions opt_;
   const std::size_t nPixel_, nImages_;
   std::size_t count_;
   HostArray<T, 2> pixel_;

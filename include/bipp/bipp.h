@@ -131,6 +131,16 @@ BIPP_EXPORT BippError bipp_ss_options_set_collect_group_size(BippStandardSynthes
                                                              size_t size);
 
 /**
+ * Normalize image by the number of collect steps.
+ *
+ * @param[in] opt Options handle.
+ * @param[in] normalize True or false.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ss_options_set_normalize_image(BippStandardSynthesisOptions opt,
+                                                          bool normalize);
+
+/**
  * Create Nufft Synthesis options.
  *
  * @param[out] opt Options handle.
@@ -223,6 +233,16 @@ BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_none(BippNufftSynt
 BIPP_EXPORT BippError bipp_ns_options_set_local_uvw_partition_grid(BippNufftSynthesisOptions opt,
                                                                    size_t dimX, size_t dimY,
                                                                    size_t dimZ);
+
+/**
+ * Normalize image by the number of collect steps.
+ *
+ * @param[in] opt Options handle.
+ * @param[in] normalize True or false.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ns_options_set_normalize_image(BippNufftSynthesisOptions opt,
+                                                          bool normalize);
 
 /**
  * Create a nufft synthesis plan.

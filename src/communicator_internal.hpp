@@ -3,13 +3,14 @@
 #include <complex>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <variant>
-#include <optional>
 
+#include "bipp/communicator.hpp"
 #include "bipp/config.h"
 #include "bipp/nufft_synthesis.hpp"
-#include "bipp/communicator.hpp"
+#include "bipp/standard_synthesis.hpp"
 
 #ifdef BIPP_MPI
 #include "collector_interface.hpp"
@@ -39,9 +40,18 @@ class CommunicatorInternal {
     // Must only be called by root
     template <typename T,
               typename = std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double>>>
-    auto send_synthesis_init(std::optional<NufftSynthesisOptions> nufftOpt, std::size_t nLevel,
-                             ConstView<T, 1> pixelX, ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ,
-                             ConstHostView<PartitionGroup, 1> groups) -> std::size_t;
+    auto send_nufft_synthesis_init(const NufftSynthesisOptions& opt, std::size_t nLevel,
+                                   ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
+                                   ConstView<T, 1> pixelZ, ConstHostView<PartitionGroup, 1> groups)
+        -> std::size_t;
+
+    // Must only be called by root
+    template <typename T,
+              typename = std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double>>>
+    auto send_standard_synthesis_init(const StandardSynthesisOptions& opt, std::size_t nLevel,
+                                      ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
+                                      ConstView<T, 1> pixelZ,
+                                      ConstHostView<PartitionGroup, 1> groups) -> std::size_t;
 
     // Must only be called by root
     template <typename T,

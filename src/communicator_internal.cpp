@@ -56,11 +56,22 @@ struct SerializedNufftOptions {
   std::size_t collectGroupSize = 0;
   SerializedPartition localImagePartition;
   SerializedPartition localUVWPartition;
+  bool normalizeImage = true;
 
   SerializedNufftOptions() = default;
   SerializedNufftOptions(const NufftSynthesisOptions& opt);
 
   auto get() const -> NufftSynthesisOptions;
+};
+
+struct SerializedStandardOptions {
+  std::size_t collectGroupSize = 0;
+  bool normalizeImage = true;
+
+  SerializedStandardOptions() = default;
+  SerializedStandardOptions(const StandardSynthesisOptions& opt);
+
+  auto get() const -> StandardSynthesisOptions;
 };
 
 struct StatusMessage {
@@ -73,7 +84,8 @@ struct StatusMessage {
     constexpr static std::size_t index = 2;
     SynthesisType synthType;
     std::size_t id, nLevel, typeSize;
-    SerializedNufftOptions opt;
+    SerializedNufftOptions optNufft;
+    SerializedStandardOptions optStandard;
   } create;
   struct SynthesisCollect {
     constexpr static std::size_t index = 3;
@@ -85,7 +97,8 @@ struct StatusMessage {
   } gather;
 
   static auto send_create_standard_synthesis(const MPICommHandle& comm, std::size_t id,
-                                             std::size_t nLevel, std::size_t typeSize) -> void;
+                                             std::size_t nLevel, std::size_t typeSize,
+                                             const StandardSynthesisOptions& opt) -> void;
 
   static auto send_create_nufft_synthesis(const MPICommHandle& comm, std::size_t id,
                                           std::size_t nLevel, std::size_t typeSize,
@@ -109,8 +122,8 @@ auto send_message(const MPICommHandle& comm, StatusMessage& m) {
 }
 
 auto StatusMessage::send_create_standard_synthesis(const MPICommHandle& comm, std::size_t id,
-                                                   std::size_t nLevel, std::size_t typeSize)
-    -> void {
+                                                   std::size_t nLevel, std::size_t typeSize,
+                                                   const StandardSynthesisOptions& opt) -> void {
   StatusMessage m;
   m.messageIndex = StatusMessage::CreateSynthesis::index;
 
@@ -118,6 +131,7 @@ auto StatusMessage::send_create_standard_synthesis(const MPICommHandle& comm, st
   m.create.id = id;
   m.create.nLevel = nLevel;
   m.create.typeSize = typeSize;
+  m.create.optStandard = opt;
 
   send_message(comm, m);
 }
@@ -132,7 +146,7 @@ auto StatusMessage::send_create_nufft_synthesis(const MPICommHandle& comm, std::
   m.create.id = id;
   m.create.nLevel = nLevel;
   m.create.typeSize = typeSize;
-  m.create.opt = opt;
+  m.create.optNufft = opt;
 
   send_message(comm, m);
 }
@@ -276,12 +290,13 @@ auto recv_synthesis_init_data(const MPICommHandle& comm, std::shared_ptr<Context
   auto t2 = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "distributed synthesis create");
 
   if (info.synthType == SynthesisType::NUFFT)
-    return SynthesisFactory<T>::create_nufft_synthesis(std::move(ctx), info.opt.get(), info.nLevel,
-                                                       pixel.slice_view(0), pixel.slice_view(1),
-                                                       pixel.slice_view(2));
+    return SynthesisFactory<T>::create_nufft_synthesis(std::move(ctx), info.optNufft.get(),
+                                                       info.nLevel, pixel.slice_view(0),
+                                                       pixel.slice_view(1), pixel.slice_view(2));
 
-  return SynthesisFactory<T>::create_standard_synthesis(
-      std::move(ctx), info.nLevel, pixel.slice_view(0), pixel.slice_view(1), pixel.slice_view(2));
+  return SynthesisFactory<T>::create_standard_synthesis(std::move(ctx), info.optStandard.get(),
+                                                        info.nLevel, pixel.slice_view(0),
+                                                        pixel.slice_view(1), pixel.slice_view(2));
 }
 
 template <typename T>
@@ -419,6 +434,7 @@ SerializedNufftOptions::SerializedNufftOptions(const NufftSynthesisOptions& opt)
   collectGroupSize = opt.collectGroupSize.value_or(0);
   localImagePartition = opt.localImagePartition;
   localUVWPartition = opt.localUVWPartition;
+  normalizeImage = opt.normalizeImage;
 }
 
 auto SerializedNufftOptions::get() const -> NufftSynthesisOptions {
@@ -430,10 +446,24 @@ auto SerializedNufftOptions::get() const -> NufftSynthesisOptions {
     opt.collectGroupSize = std::nullopt;
   opt.localImagePartition = localImagePartition.get();
   opt.localUVWPartition = localUVWPartition.get();
+  opt.normalizeImage = normalizeImage;
   return opt;
 }
 
+SerializedStandardOptions::SerializedStandardOptions(const StandardSynthesisOptions& opt) {
+  collectGroupSize = opt.collectGroupSize.value_or(0);
+  normalizeImage = opt.normalizeImage;
+}
 
+auto SerializedStandardOptions::get() const -> StandardSynthesisOptions {
+  StandardSynthesisOptions opt;
+  if(collectGroupSize)
+    opt.collectGroupSize = collectGroupSize;
+  else
+    opt.collectGroupSize = std::nullopt;
+  opt.normalizeImage = normalizeImage;
+  return opt;
+}
 
 CommunicatorInternal::CommunicatorInternal(MPI_Comm comm) {
   initialize_mpi_init_guard();
@@ -514,18 +544,28 @@ auto CommunicatorInternal::attach_non_root(std::shared_ptr<ContextInternal> ctx)
 }
 
 template <typename T, typename>
-auto CommunicatorInternal::send_synthesis_init(std::optional<NufftSynthesisOptions> nufftOpt,
-                                               std::size_t nLevel,
-                                               ConstView<T, 1> pixelX, ConstView<T, 1> pixelY,
-                                               ConstView<T, 1> pixelZ,
-                                               ConstHostView<PartitionGroup, 1> groups)
+auto CommunicatorInternal::send_nufft_synthesis_init(const NufftSynthesisOptions& opt,
+                                                     std::size_t nLevel, ConstView<T, 1> pixelX,
+                                                     ConstView<T, 1> pixelY, ConstView<T, 1> pixelZ,
+                                                     ConstHostView<PartitionGroup, 1> groups)
     -> std::size_t {
   const auto id = this->generate_local_id();
-  if(nufftOpt) {
-    StatusMessage::send_create_nufft_synthesis(comm_, id, nLevel, sizeof(T), nufftOpt.value());
-  } else {
-    StatusMessage::send_create_standard_synthesis(comm_, id, nLevel, sizeof(T));
-  }
+  StatusMessage::send_create_nufft_synthesis(comm_, id, nLevel, sizeof(T), opt);
+
+  send_synthesis_init_data<T>(comm_, pixelX, pixelY, pixelZ, groups);
+
+  return id;
+}
+
+template <typename T, typename>
+auto CommunicatorInternal::send_standard_synthesis_init(const StandardSynthesisOptions& opt,
+                                                        std::size_t nLevel, ConstView<T, 1> pixelX,
+                                                        ConstView<T, 1> pixelY,
+                                                        ConstView<T, 1> pixelZ,
+                                                        ConstHostView<PartitionGroup, 1> groups)
+    -> std::size_t {
+  const auto id = this->generate_local_id();
+  StatusMessage::send_create_standard_synthesis(comm_, id, nLevel, sizeof(T), opt);
 
   send_synthesis_init_data<T>(comm_, pixelX, pixelY, pixelZ, groups);
 
@@ -547,13 +587,23 @@ auto CommunicatorInternal::gather_image(std::size_t id, ConstHostView<PartitionG
   recv_img_data<T>(comm_, groups, img);
 }
 
-template auto CommunicatorInternal::send_synthesis_init<float>(
-    std::optional<NufftSynthesisOptions> nufftOpt, std::size_t nLevel, ConstView<float, 1> pixelX,
+template auto CommunicatorInternal::send_standard_synthesis_init<float>(
+    const StandardSynthesisOptions& opt, std::size_t nLevel, ConstView<float, 1> pixelX,
     ConstView<float, 1> pixelY, ConstView<float, 1> pixelZ, ConstHostView<PartitionGroup, 1> groups)
     -> std::size_t;
 
-template auto CommunicatorInternal::send_synthesis_init<double>(
-    std::optional<NufftSynthesisOptions> nufftOpt, std::size_t nLevel, ConstView<double, 1> pixelX,
+template auto CommunicatorInternal::send_standard_synthesis_init<double>(
+    const StandardSynthesisOptions& opt, std::size_t nLevel, ConstView<double, 1> pixelX,
+    ConstView<double, 1> pixelY, ConstView<double, 1> pixelZ,
+    ConstHostView<PartitionGroup, 1> groups) -> std::size_t;
+
+template auto CommunicatorInternal::send_nufft_synthesis_init<float>(
+    const NufftSynthesisOptions& opt, std::size_t nLevel, ConstView<float, 1> pixelX,
+    ConstView<float, 1> pixelY, ConstView<float, 1> pixelZ, ConstHostView<PartitionGroup, 1> groups)
+    -> std::size_t;
+
+template auto CommunicatorInternal::send_nufft_synthesis_init<double>(
+    const NufftSynthesisOptions& opt, std::size_t nLevel, ConstView<double, 1> pixelX,
     ConstView<double, 1> pixelY, ConstView<double, 1> pixelZ,
     ConstHostView<PartitionGroup, 1> groups) -> std::size_t;
 

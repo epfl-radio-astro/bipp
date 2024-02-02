@@ -243,9 +243,11 @@ auto NufftSynthesis<T>::get(View<T, 2> out) -> void {
 
     imgPartition_.reverse<T>(currentImg, outHost.slice_view(i));
 
-    T* __restrict__ outPtr = &outHost[{0, i}];
-    for (std::size_t j = 0; j < nPixel_; ++j) {
-      outPtr[j] *= scale;
+    if (opt_.normalizeImage) {
+      T* __restrict__ outPtr = &outHost[{0, i}];
+      for (std::size_t j = 0; j < nPixel_; ++j) {
+          outPtr[j] *= scale;
+      }
     }
 
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", outHost.slice_view(i));

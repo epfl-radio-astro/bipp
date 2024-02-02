@@ -2,10 +2,12 @@
 
 #include <complex>
 #include <cstddef>
-#include <optional>
+#include <variant>
 
 #include "bipp/bipp.h"
 #include "bipp/config.h"
+#include "bipp/nufft_synthesis.hpp"
+#include "bipp/standard_synthesis.hpp"
 
 #ifdef BIPP_MPI
 #include "communicator_internal.hpp"
@@ -22,8 +24,8 @@ class DistributedSynthesis : public SynthesisInterface<T> {
 public:
   DistributedSynthesis(std::shared_ptr<CommunicatorInternal> comm,
                        std::shared_ptr<ContextInternal> ctx,
-                       std::optional<NufftSynthesisOptions> nufftOpt, std::size_t nLevel,
-                       ConstHostView<T, 1> pixelX, ConstHostView<T, 1> pixelY,
+                       std::variant<NufftSynthesisOptions, StandardSynthesisOptions> opt,
+                       std::size_t nLevel, ConstHostView<T, 1> pixelX, ConstHostView<T, 1> pixelY,
                        ConstHostView<T, 1> pixelZ);
 
   auto process(CollectorInterface<T>& collector) -> void override;

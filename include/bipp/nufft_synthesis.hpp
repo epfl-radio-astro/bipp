@@ -71,6 +71,11 @@ struct NufftSynthesisOptions {
   Partition localUVWPartition = Partition{Partition::Auto()};
 
   /**
+   * Normalize image by the number of collect steps.
+   */
+  bool normalizeImage = true;
+
+  /**
    * Set the tolerance.
    *
    * @param[in] tol Tolerance.
@@ -107,6 +112,16 @@ struct NufftSynthesisOptions {
    */
   inline auto set_local_uvw_partition(Partition p) -> NufftSynthesisOptions& {
     localUVWPartition = std::move(p);
+    return *this;
+  }
+
+  /**
+   * Set normalization of image.
+   *
+   * @param[in] normalize True or false.
+   */
+  inline auto set_normalize_image(bool normalize) -> NufftSynthesisOptions& {
+    normalizeImage = normalize;
     return *this;
   }
 };

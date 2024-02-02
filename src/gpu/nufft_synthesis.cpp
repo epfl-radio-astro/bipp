@@ -260,7 +260,9 @@ auto NufftSynthesis<T>::get(View<T, 2> out) -> void {
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image permuted", levelImage);
     imgPartition_.reverse<T>(levelImage, levelOut);
 
-    scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale, levelOut.data());
+    if (opt_.normalizeImage) {
+      scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale, levelOut.data());
+    }
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", levelOut);
   }
 

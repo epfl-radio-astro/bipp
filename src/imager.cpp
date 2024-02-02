@@ -47,9 +47,10 @@ auto Imager<T>::standard_synthesis(std::shared_ptr<ContextInternal> ctx,
                                    ConstView<T, 1> pixelZ) -> Imager<T> {
   assert(ctx);
   const std::size_t collectGroupSize = opt.collectGroupSize.value_or(1);
-  return Imager(
-      ctx, SynthesisFactory<T>::create_standard_synthesis(ctx, nImages, pixelX, pixelY, pixelZ),
-      collectGroupSize);
+  return Imager(ctx,
+                SynthesisFactory<T>::create_standard_synthesis(ctx, std::move(opt), nImages, pixelX,
+                                                               pixelY, pixelZ),
+                collectGroupSize);
 }
 
 template <typename T>
@@ -78,7 +79,7 @@ auto Imager<T>::distributed_standard_synthesis(std::shared_ptr<CommunicatorInter
       opt.collectGroupSize.value_or(comm->comm().size() > 1 ? 20 : 1);
   return Imager(ctx,
                 SynthesisFactory<T>::create_distributed_standard_synthesis(
-                    std::move(comm), ctx, nImages, pixelX, pixelY, pixelZ),
+                    std::move(comm), ctx, std::move(opt), nImages, pixelX, pixelY, pixelZ),
                 collectGroupSize);
 }
 

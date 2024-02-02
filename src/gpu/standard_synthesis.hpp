@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bipp/config.h"
+#include "bipp/standard_synthesis.hpp"
 #include "context_internal.hpp"
 #include "gpu/util/runtime_api.hpp"
 #include "memory/array.hpp"
@@ -13,8 +14,8 @@ namespace gpu {
 template <typename T>
 class StandardSynthesis : public SynthesisInterface<T> {
 public:
-  StandardSynthesis(std::shared_ptr<ContextInternal> ctx, std::size_t nLevel,
-                    DeviceArray<T, 2> pixel);
+  StandardSynthesis(std::shared_ptr<ContextInternal> ctx, StandardSynthesisOptions opt,
+                    std::size_t nLevel, DeviceArray<T, 2> pixel);
 
   auto process(CollectorInterface<T>& collector) -> void override;
 
@@ -31,6 +32,7 @@ private:
                       ConstView<T, 2> xyzUvwView) -> void;
 
   std::shared_ptr<ContextInternal> ctx_;
+  StandardSynthesisOptions opt_;
   const std::size_t nPixel_, nImages_;
   std::size_t count_;
   DeviceArray<T, 2> pixel_;
