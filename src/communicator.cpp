@@ -2,8 +2,8 @@
 
 #include "bipp/config.h"
 
+#include "bipp/exceptions.hpp"
 #include "communicator_internal.hpp"
-
 
 #ifdef BIPP_MPI
 #include <mpi.h>
