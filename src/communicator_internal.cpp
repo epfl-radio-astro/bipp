@@ -250,7 +250,7 @@ auto recv_synthesis_init_data(const MPICommHandle& comm, std::shared_ptr<Context
     -> std::unique_ptr<SynthesisInterface<T>> {
   assert(comm.rank() != 0);
 
-  auto t = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "recv init data");
+  auto t = ctx->logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "recv init data");
 
   PartitionGroup myGroup;
   mpi_check_status(MPI_Scatterv(nullptr, nullptr, nullptr, MPI_BYTE, &myGroup,
@@ -287,7 +287,7 @@ auto recv_synthesis_init_data(const MPICommHandle& comm, std::shared_ptr<Context
   // stop mpi communication timing
   t.stop();
 
-  auto t2 = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "distributed synthesis create");
+  auto t2 = ctx->logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "distributed synthesis create");
 
   if (info.synthType == SynthesisType::NUFFT)
     return SynthesisFactory<T>::create_nufft_synthesis(std::move(ctx), info.optNufft.get(),
@@ -315,7 +315,7 @@ auto recv_synthesis_collect_data(const MPICommHandle& comm,
                                  SynthesisInterface<T>& syn) -> void {
   auto& ctx = syn.context();
 
-  auto t = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO,
+  auto t = ctx->logger().scoped_timing(BIPP_LOG_LEVEL_INFO,
                                               pointer_to_string(&syn) + " recv collect data");
 
   std::unique_ptr<CollectorInterface<T>> collector;
@@ -341,7 +341,7 @@ auto recv_synthesis_collect_data(const MPICommHandle& comm,
 
   t.stop();
 
-  auto t2 = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO,
+  auto t2 = ctx->logger().scoped_timing(BIPP_LOG_LEVEL_INFO,
                                                 pointer_to_string(&syn) + " collect");
 
   collector->deserialize(ser);
@@ -360,7 +360,7 @@ auto send_img_data(const MPICommHandle& comm,const StatusMessage::GatherImage& i
 
   HostArray<T, 2> imgArray;
 
-  auto t1 = ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "synthesis get image");
+  auto t1 = ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "synthesis get image");
   if (ctx.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     auto& queue = ctx.gpu_queue();
@@ -376,7 +376,7 @@ auto send_img_data(const MPICommHandle& comm,const StatusMessage::GatherImage& i
   }
 
   t1.stop();
-  auto t2 = ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "distributed image gather");
+  auto t2 = ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "distributed image gather");
   T dummy;
   for(std::size_t idxLevel = 0; idxLevel < imgArray.shape(1); ++idxLevel) {
     auto imgSlice = imgArray.slice_view(idxLevel);
@@ -491,9 +491,9 @@ auto CommunicatorInternal::attach_non_root(std::shared_ptr<ContextInternal> ctx)
   std::unordered_map<std::size_t, std::unique_ptr<SynthesisInterface<float>>> synthesisFloat;
   std::unordered_map<std::size_t, std::unique_ptr<SynthesisInterface<double>>> synthesisDouble;
 
-  auto t1 = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "attach");
+  auto t1 = ctx->logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "attach");
   while (!rootDestroyed) {
-    auto t2 = ctx->logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, "recv status");
+    auto t2 = ctx->logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "recv status");
     const auto m = StatusMessage::recv(comm_);
     t2.stop();
     std::visit(

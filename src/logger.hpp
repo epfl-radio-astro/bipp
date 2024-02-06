@@ -47,14 +47,14 @@ public:
 
    // Internally store timings. Does not print to log until log_timings() is called
    template <std::size_t N>
-   auto measure_scoped_timing(BippLogLevel level, const char (&tag)[N]) -> rt_graph::ScopedTiming {
+   auto scoped_timing(BippLogLevel level, const char (&tag)[N]) -> rt_graph::ScopedTiming {
      if (level <= level_) {
        return rt_graph::ScopedTiming(tag, timer_);
      }
      return rt_graph::ScopedTiming();
    }
 
-   auto measure_scoped_timing(BippLogLevel level, std::string tag) -> rt_graph::ScopedTiming {
+   auto scoped_timing(BippLogLevel level, std::string tag) -> rt_graph::ScopedTiming {
      if (level <= level_) {
        return rt_graph::ScopedTiming(std::move(tag), timer_);
      }

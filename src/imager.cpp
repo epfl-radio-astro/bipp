@@ -127,7 +127,7 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
   auto& ctx = *synthesis_->context();
 
   auto t =
-      ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(this) + " collect");
+      ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(this) + " collect");
 
   if (ctx.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
@@ -244,7 +244,7 @@ auto Imager<T>::get(T* out, std::size_t ld) -> void {
   auto img = synthesis_->image();
   auto& ctx = *synthesis_->context();
   auto t =
-      ctx.logger().measure_scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(this) + " get");
+      ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(this) + " get");
 
   if (ctx.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
