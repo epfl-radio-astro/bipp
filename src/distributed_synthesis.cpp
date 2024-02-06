@@ -31,7 +31,7 @@ DistributedSynthesis<T>::DistributedSynthesis(
       imgPartition_(host::DomainPartition::none(ctx_, pixelX.size())),
       type_(std::holds_alternative<NufftSynthesisOptions>(opt) ? SynthesisType::NUFFT
                                                                : SynthesisType::Standard) {
-  if(!comm_->is_root()) throw InvalidParameterError();
+  if (!comm_->is_root()) throw InvalidParameterError();
 
   assert(comm_->comm().rank() == 0);
   assert(pixelX.size() == pixelY.size());
@@ -39,6 +39,9 @@ DistributedSynthesis<T>::DistributedSynthesis(
 
   imgPartition_ = host::DomainPartition::grid<T, 3>(
       ctx_, {std::size_t(comm_->comm().size()) - 1, 1, 1}, {pixelX, pixelY, pixelZ});
+
+  if (imgPartition_.groups().size() != comm_->comm().size() - 1)
+    throw InternalError("Distributed image partition failed.");
 
   HostArray <T, 2> pixel(ctx_->host_alloc(), {pixelX.size(), 3});
   imgPartition_.apply(pixelX, pixel.slice_view(0));
