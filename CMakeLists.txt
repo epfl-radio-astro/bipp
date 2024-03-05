@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.11 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
 file(READ "VERSION" BIPP_VERSION)
 string(STRIP ${BIPP_VERSION} BIPP_VERSION)
 project(bipp LANGUAGES CXX VERSION "${BIPP_VERSION}")
@@ -57,8 +57,12 @@ option(BIPP_UMPIRE "Use Umpire memory pool library" OFF)
 option(BIPP_VC "Use VC vectorization library" OFF)
 option(BIPP_OMP "Use OpenMP for multi-threading" ON)
 option(BIPP_MPI "Use MPI for multi-process parallization" OFF)
-option(BIPP_BUNDLED_LIBS "Use bundled libraries for spdlog, googletest and json" ON)
 
+option(BIPP_INSTALL_LIB "Install library" ON)
+cmake_dependent_option(BIPP_INSTALL_PYTHON "Install Python module" ON "BIPP_PYTHON" OFF)
+set(BIPP_INSTALL_PYTHON_PREFIX "" CACHE STRING "Python install prefix. If not set, CMAKE_INSTALL_PREFIX for Python platlib path base.")
+
+option(BIPP_BUNDLED_LIBS "Use bundled libraries for spdlog, googletest and json" ON)
 cmake_dependent_option(BIPP_BUNDLED_SPDLOG "Use bundled spdlog lib" ON "BIPP_BUNDLED_LIBS" OFF)
 cmake_dependent_option(BIPP_BUNDLED_PYBIND11 "Use bundled pybind11 lib" ON "BIPP_BUNDLED_LIBS" OFF)
 cmake_dependent_option(BIPP_BUNDLED_GOOGLETEST "Use bundled googletest lib" ON "BIPP_BUNDLED_LIBS" OFF)
@@ -68,11 +72,6 @@ set(BIPP_GPU "OFF" CACHE STRING "GPU backend")
 set_property(CACHE BIPP_GPU PROPERTY STRINGS
 	"OFF" "CUDA" "ROCM"
 	)
-set(BUILD_SHARED_LIBS "ON" CACHE STRING "Build as shared library") # default to shared
-set(BIPP_INSTALL "LIB" CACHE STRING "Install the librariy (LIB), the python module (PYTHON) or nothing (OFF). For use with pip install (PIP) is also available.")
-set_property(CACHE BIPP_INSTALL PROPERTY STRINGS
-	"LIB" "PYTHON" "PIP" "OFF"
-	)
 set(CMAKE_HIP_ARCHITECTURES "gfx803;gfx900;gfx906" CACHE STRING "HIP GPU architectures")
 
 set(BIPP_BUILD_TYPE "OFF" CACHE STRING "If set, overrides the CMAKE_BUILD_TYPE variable.")
@@ -80,6 +79,26 @@ set_property(CACHE BIPP_BUILD_TYPE PROPERTY STRINGS
 	"Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 if(BIPP_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE ${BIPP_BUILD_TYPE} CACHE STRING "Build type" FORCE)
+endif()
+
+
+# Library install location
+set(BIPP_INSTALL_LIB_SUFFIX "${CMAKE_INSTALL_LIBDIR}" CACHE STRING "Lib install suffix")
+
+# Python install location
+if(BIPP_PYTHON)
+	set(Python_FIND_FRAMEWORK LAST) # Prefer Brew/Conda to Apple framework python
+	find_package(Python 3.6 COMPONENTS Interpreter Development REQUIRED)
+
+	if(NOT BIPP_INSTALL_PYTHON_PREFIX)
+		execute_process(
+			COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/scripts/python_install_path.py ${CMAKE_INSTALL_PREFIX}
+			OUTPUT_VARIABLE BIPP_INSTALL_PYTHON_PATH 
+			OUTPUT_STRIP_TRAILING_WHITESPACE
+			COMMAND_ERROR_IS_FATAL ANY)
+	else()
+	  set(BIPP_INSTALL_PYTHON_PATH ${BIPP_INSTALL_PYTHON_PREFIX})
+	endif()
 endif()
 
 # Options combination check

@@ -65,54 +65,46 @@ if(BIPP_ROCM)
 endif()
 
 
-# Creates bipp library with given name. All common target modifications should be done here.
-macro(bipp_create_library _TARGET_NAME)
-	add_library(${_TARGET_NAME} ${BIPP_LIBRARY_TYPE}
-		${BIPP_SOURCE_FILES}
-		)
 
-	set_property(TARGET ${_TARGET_NAME} PROPERTY VERSION ${BIPP_VERSION})
-	set_property(TARGET ${_TARGET_NAME} PROPERTY SOVERSION ${BIPP_SO_VERSION})
+add_library(bipp_objects OBJECT ${BIPP_SOURCE_FILES})
+
+# All .cu files are self-contained. Device linking can have issues with propageted linker flags of other targets like MPI.
+if(BIPP_CUDA)
+	set_property(TARGET bipp_objects PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS OFF)
+	set_property(TARGET bipp_objects PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
+endif()
+# make static libraries linkable into shared ones
+set_property(TARGET bipp_objects PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+target_compile_options(bipp_objects PRIVATE ${BIPP_FLAGS})
+target_include_directories(bipp_objects PRIVATE ${BIPP_INCLUDE_DIRS})
+target_link_libraries(bipp_objects PRIVATE ${BIPP_EXTERNAL_LIBS})
+target_link_libraries(bipp_objects PRIVATE ${BIPP_EXTERNAL_LIBS_PUBLIC})
 
 
-	# Don't export any symbols of external static libaries. Only works on linux.
-	if(UNIX AND NOT APPLE)
-		if(${CMAKE_VERSION} VERSION_LESS "3.13.5") 
-			target_link_libraries(${_TARGET_NAME} PRIVATE "-Wl,--exclude-libs,ALL")
-		else()
-			target_link_options(${_TARGET_NAME} PRIVATE "-Wl,--exclude-libs,ALL")
-		endif()
-	endif()
+#shared library
+add_library(bipp SHARED $<TARGET_OBJECTS:bipp_objects>)
 
-	# All .cu files are self-contained. Device linking can have issues with propageted linker flags of other targets like MPI.
-	if(BIPP_CUDA)
-		set_property(TARGET ${_TARGET_NAME} PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS OFF)
-		set_property(TARGET ${_TARGET_NAME} PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
-	endif()
-	# make static libraries linkable into shared ones
-	set_property(TARGET ${_TARGET_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET bipp PROPERTY VERSION ${BIPP_VERSION})
+set_property(TARGET bipp PROPERTY SOVERSION ${BIPP_SO_VERSION})
 
-	target_compile_options(${_TARGET_NAME} PRIVATE ${BIPP_FLAGS})
-	target_include_directories(${_TARGET_NAME} PRIVATE ${BIPP_INCLUDE_DIRS})
-	target_link_libraries(${_TARGET_NAME} PRIVATE ${BIPP_EXTERNAL_LIBS})
-	target_link_libraries(${_TARGET_NAME} PUBLIC ${BIPP_EXTERNAL_LIBS_PUBLIC})
-
-	target_include_directories(${_TARGET_NAME} INTERFACE $<INSTALL_INTERFACE:include>) # for install(EXPORT ...)
-	target_include_directories(${_TARGET_NAME} INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>) # for export(...)
-
-endmacro()
-
-bipp_create_library(bipp)
+target_link_libraries(bipp PRIVATE ${BIPP_EXTERNAL_LIBS})
+target_link_libraries(bipp PUBLIC ${BIPP_EXTERNAL_LIBS_PUBLIC})
+target_include_directories(bipp INTERFACE $<INSTALL_INTERFACE:include>) # for install(EXPORT ...)
+target_include_directories(bipp INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>) # for export(...)
 set_target_properties(bipp PROPERTIES VISIBILITY_INLINES_HIDDEN TRUE CXX_VISIBILITY_PRESET hidden)
 
-if(BIPP_BUILD_TESTS)
-	# create library with default visibility if tests are build, to allow linking to internal symbols
-	bipp_create_library(bipp_test)
-	set_target_properties(bipp_test PROPERTIES VISIBILITY_INLINES_HIDDEN FALSE CXX_VISIBILITY_PRESET default)
-	target_include_directories(bipp_test INTERFACE ${BIPP_INCLUDE_DIRS})
-	target_link_libraries(bipp_test INTERFACE ${BIPP_EXTERNAL_LIBS})
-	target_compile_options(bipp_test PUBLIC -DBIPP_STATIC_DEFINE)
-endif()
+#static library
+add_library(bipp_static STATIC $<TARGET_OBJECTS:bipp_objects>)
+
+set_property(TARGET bipp_static PROPERTY VERSION ${BIPP_VERSION})
+set_property(TARGET bipp_static PROPERTY SOVERSION ${BIPP_SO_VERSION})
+
+target_link_libraries(bipp_static PRIVATE ${BIPP_EXTERNAL_LIBS})
+target_link_libraries(bipp_static PUBLIC ${BIPP_EXTERNAL_LIBS_PUBLIC})
+target_include_directories(bipp_static INTERFACE $<INSTALL_INTERFACE:include>) # for install(EXPORT ...)
+target_include_directories(bipp_static INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>) # for export(...)
+set_target_properties(bipp_static PROPERTIES OUTPUT_NAME "bipp")
 
 # generate export header to control symbol visibility
 include(GenerateExportHeader)
@@ -138,46 +130,39 @@ endif()
 # generate cmake package
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
-	"${PROJECT_BINARY_DIR}/${BIPP_VERSION_FILE}"
+	"${PROJECT_BINARY_DIR}/bippConfigVersion.cmake"
 	VERSION ${Upstream_VERSION}
 	COMPATIBILITY AnyNewerVersion
 )
-export(TARGETS bipp NAMESPACE bipp:: FILE ${PROJECT_BINARY_DIR}/${BIPP_TARGETS_FILE})
-configure_file(${PROJECT_SOURCE_DIR}/cmake/${BIPP_CONFIG_FILE}
-	"${PROJECT_BINARY_DIR}/${BIPP_CONFIG_FILE}"
-	@ONLY
-)
 configure_file(${PROJECT_SOURCE_DIR}/cmake/bippConfig.cmake
-	"${PROJECT_BINARY_DIR}/bippConfig.cmake"
-	COPYONLY
-)
-configure_file(${PROJECT_SOURCE_DIR}/cmake/bippConfigVersion.cmake
-	"${PROJECT_BINARY_DIR}/bippConfigVersion.cmake"
-	COPYONLY
-)
-configure_file(${PROJECT_SOURCE_DIR}/cmake/bippTargets.cmake
-	"${PROJECT_BINARY_DIR}/bippTargets.cmake"
-	COPYONLY
+       "${PROJECT_BINARY_DIR}/bippConfig.cmake"
+       COPYONLY
 )
 
+export(TARGETS bipp NAMESPACE bipp:: FILE ${PROJECT_BINARY_DIR}/bippSharedTargets.cmake)
+export(TARGETS bipp_static NAMESPACE bipp:: FILE ${PROJECT_BINARY_DIR}/bippStaticTargets.cmake)
+
+
 # installation commands
-if(BIPP_INSTALL STREQUAL "LIB")
-	install(TARGETS bipp DESTINATION ${CMAKE_INSTALL_LIBDIR} EXPORT bippTargets)
+if(BIPP_INSTALL_LIB)
 	install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/bipp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" PATTERN "*.f90")
 	install(FILES ${PROJECT_BINARY_DIR}/bipp/config.h "${PROJECT_BINARY_DIR}/bipp/bipp_export.h" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/bipp)
-	install(EXPORT bippTargets NAMESPACE bipp:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/bipp FILE ${BIPP_TARGETS_FILE})
+
+	install(TARGETS bipp DESTINATION ${BIPP_INSTALL_LIB_SUFFIX} EXPORT bippTargets)
+	install(EXPORT bippTargets NAMESPACE bipp:: DESTINATION ${BIPP_INSTALL_LIB_SUFFIX}/cmake/bipp FILE bippSharedTargets.cmake)
+
+	install(TARGETS bipp_static DESTINATION ${BIPP_INSTALL_LIB_SUFFIX} EXPORT bippStaticTargets)
+	install(EXPORT bippStaticTargets NAMESPACE bipp:: DESTINATION ${BIPP_INSTALL_LIB_SUFFIX}/cmake/bipp FILE bippStaticTargets.cmake)
+
 	install(
 	  FILES
 		"${PROJECT_BINARY_DIR}/bippConfig.cmake"
-		"${PROJECT_BINARY_DIR}/bippTargets.cmake"
 		"${PROJECT_BINARY_DIR}/bippConfigVersion.cmake"
-		"${PROJECT_BINARY_DIR}/${BIPP_CONFIG_FILE}"
-		"${PROJECT_BINARY_DIR}/${BIPP_VERSION_FILE}"
 	  DESTINATION
-	      ${CMAKE_INSTALL_LIBDIR}/cmake/bipp
+	      ${BIPP_INSTALL_LIB_SUFFIX}/cmake/bipp
 	)
 
 	install(DIRECTORY "${PROJECT_SOURCE_DIR}/cmake/modules"
-		DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/bipp"
-        FILES_MATCHING PATTERN "*.cmake")
+		DESTINATION "${BIPP_INSTALL_LIB_SUFFIX}/cmake/bipp"
+		FILES_MATCHING PATTERN "*.cmake")
 endif()
