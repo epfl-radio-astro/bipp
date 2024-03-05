@@ -134,11 +134,11 @@ std_image = fi.get_filter_images("std", images)
 
 # Plot Results ================================================================
 fig, ax = plt.subplots(ncols=2)
-I_std_eq = s2image.Image(lsq_image, px_grid.reshape(3, px_w, px_h))
+I_std_eq = s2image.Image(std_image, px_grid.reshape(3, px_w, px_h))
 I_std_eq.draw(catalog=sky_model.xyz.T, ax=ax[0])
 ax[0].set_title("Bipp Standardized Image")
 
-I_lsq_eq = s2image.Image(std_image, px_grid.reshape(3, px_w, px_h))
+I_lsq_eq = s2image.Image(lsq_image, px_grid.reshape(3, px_w, px_h))
 I_lsq_eq.draw(catalog=sky_model.xyz.T, ax=ax[1])
 ax[1].set_title("Bipp Least-Squares Image")
 
