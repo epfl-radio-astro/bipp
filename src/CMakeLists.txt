@@ -1,10 +1,15 @@
 set(BIPP_SOURCE_FILES
+	context_internal.cpp
+	communicator.cpp
 	eigensolver.cpp
 	gram_matrix.cpp
 	standard_synthesis.cpp
 	context.cpp
 	nufft_synthesis.cpp
 	logger.cpp
+	imager.cpp
+	synthesis_factory.cpp
+	rt_graph.cpp
 	memory/allocator_factory.cpp
 	host/eigensolver.cpp
 	host/gram_matrix.cpp
@@ -14,7 +19,16 @@ set(BIPP_SOURCE_FILES
 	host/kernels/gemmexp.cpp
 	host/kernels/nuft_sum.cpp
 	host/standard_synthesis.cpp
+	host/collector.cpp
 	)
+
+if(BIPP_MPI)
+	list(APPEND BIPP_SOURCE_FILES
+		communicator_internal.cpp
+		distributed_synthesis.cpp
+	        )
+endif()
+
 
 if(BIPP_CUDA OR BIPP_ROCM)
 	list(APPEND BIPP_SOURCE_FILES
@@ -25,10 +39,10 @@ if(BIPP_CUDA OR BIPP_ROCM)
 		gpu/virtual_vis.cpp
 		gpu/standard_synthesis.cpp
 		gpu/domain_partition.cu
+		gpu/collector.cpp
 		gpu/util/solver_api.cpp
 		gpu/kernels/gram.cu
 		gpu/kernels/scale_matrix.cu
-		gpu/kernels/apply_filter.cu
 		gpu/kernels/add_vector.cu
 		gpu/kernels/gemmexp.cu
 		gpu/kernels/center_vector.cu
@@ -36,6 +50,12 @@ if(BIPP_CUDA OR BIPP_ROCM)
 		gpu/kernels/nuft_sum.cu
 		gpu/kernels/copy_at_indices.cu
 		gpu/kernels/scale_vector.cu
+		)
+endif()
+
+if(BIPP_MPI)
+	list(APPEND BIPP_SOURCE_FILES
+		mpi_util/mpi_init_guard.cpp
 		)
 endif()
 
@@ -75,6 +95,7 @@ macro(bipp_create_library _TARGET_NAME)
 	target_compile_options(${_TARGET_NAME} PRIVATE ${BIPP_FLAGS})
 	target_include_directories(${_TARGET_NAME} PRIVATE ${BIPP_INCLUDE_DIRS})
 	target_link_libraries(${_TARGET_NAME} PRIVATE ${BIPP_EXTERNAL_LIBS})
+	target_link_libraries(${_TARGET_NAME} PUBLIC ${BIPP_EXTERNAL_LIBS_PUBLIC})
 
 	target_include_directories(${_TARGET_NAME} INTERFACE $<INSTALL_INTERFACE:include>) # for install(EXPORT ...)
 	target_include_directories(${_TARGET_NAME} INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>) # for export(...)

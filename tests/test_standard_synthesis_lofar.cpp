@@ -86,7 +86,7 @@ protected:
 
   StandardSynthesisLofar() : ctx_(std::get<0>(GetParam())) {}
 
-  auto test_intensity(BippFilter filter, std::string filterString) -> void {
+  auto test_intensity() -> void {
     const auto data = get_lofar_input_json();
     const auto output_data = get_lofar_ss_output_json<T>();
 
@@ -97,14 +97,29 @@ protected:
     const std::size_t nIntervals = data["intervals_int"].size();
     const auto intervals = read_json_scalar_2d<T>(data["intervals_int"]);
 
-    const auto imgRef = read_json_scalar_2d<T>(output_data[std::string("int_") + filterString]);
+    const auto imgRef = read_json_scalar_2d<T>(output_data[std::string("int_") + "lsq"]);
     const auto pixelX = read_json_scalar_1d<T>(output_data["pixel_x"]);
     const auto pixelY = read_json_scalar_1d<T>(output_data["pixel_y"]);
     const auto pixelZ = read_json_scalar_1d<T>(output_data["pixel_z"]);
     const std::size_t nPixel = imgRef.size() / nIntervals;
 
-    bipp::StandardSynthesis<T> imager(ctx_, nAntenna, nBeam, nIntervals, 1, &filter, nPixel,
+    bipp::StandardSynthesis<T> imager(ctx_, bipp::StandardSynthesisOptions(), nIntervals, nPixel,
                                       pixelX.data(), pixelY.data(), pixelZ.data());
+
+    // map intervals to mask
+    auto eigMaskFunc = [&](std::size_t idxBin, std::size_t nEigOut, T* d) -> void {
+      const T dMin = intervals[idxBin * 2];
+      const T dMax = intervals[idxBin * 2 + 1];
+
+      std::size_t idxEig = 0;
+      for(; idxEig < nEigOut - nEig; ++idxEig) {
+        d[idxEig] = 0;
+      }
+      for(; idxEig < nEigOut; ++idxEig) {
+        const auto val = d[idxEig];
+        d[idxEig] *= (val >= dMin && val <= dMax);
+      }
+    };
 
     std::size_t nEpochs = 0;
     for (const auto& itData : data["data"]) {
@@ -112,89 +127,30 @@ protected:
       auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
       auto s = read_json_complex_2d<ValueType>(itData["s_real"], itData["s_imag"]);
 
-      imager.collect(nEig, wl, intervals.data(), 2, s.data(), nBeam, w.data(), nAntenna, xyz.data(),
-                     nAntenna);
+      imager.collect(nAntenna, nBeam, wl, eigMaskFunc, s.data(), nBeam, w.data(), nAntenna,
+                     xyz.data(), nAntenna);
       ++nEpochs;
+      }
+
+      std::vector<T> img(imgRef.size());
+      imager.get(img.data(), nPixel);
+
+      for (std::size_t i = 0; i < img.size(); ++i) {
+        // Single precision is very inaccurate due to different summation orders
+        // Use twice the absolute error for single precision
+        // Note: image reference is not scaling by number of epochs
+        ASSERT_NEAR(img[i] * nEpochs, imgRef[i], 15 * (4.0 / sizeof(T)));
+      }
     }
 
-    std::vector<T> img(imgRef.size());
-    imager.get(filter, img.data(), nPixel);
-
-    for (std::size_t i = 0; i < img.size(); ++i) {
-      // Single precision is very inaccurate due to different summation orders
-      // Use twice the absolute error for single precision
-      // Note: image reference is not scaling by number of epochs
-      ASSERT_NEAR(img[i] * nEpochs, imgRef[i], 15 * (4.0 / sizeof(T)));
-    }
-  }
-
-  auto test_sensitivity(BippFilter filter, std::string filterString) -> void {
-    const auto data = get_lofar_input_json();
-    const auto output_data = get_lofar_ss_output_json<T>();
-
-    const T wl = ValueType(data["wl"]);
-    const std::size_t nAntenna = data["n_antenna"];
-    const std::size_t nBeam = data["n_beam"];
-    const std::size_t nEig = data["n_eig_sen"];
-    const std::size_t nIntervals = data["intervals_sen"].size();
-    const auto intervals = read_json_scalar_2d<T>(data["intervals_sen"]);
-
-    const auto imgRef = read_json_scalar_2d<T>(output_data[std::string("sen_") + filterString]);
-    const auto pixelX = read_json_scalar_1d<T>(output_data["pixel_x"]);
-    const auto pixelY = read_json_scalar_1d<T>(output_data["pixel_y"]);
-    const auto pixelZ = read_json_scalar_1d<T>(output_data["pixel_z"]);
-    const std::size_t nPixel = imgRef.size() / nIntervals;
-
-    bipp::StandardSynthesis<T> imager(ctx_, nAntenna, nBeam, nIntervals, 1, &filter, nPixel,
-                                      pixelX.data(), pixelY.data(), pixelZ.data());
-
-    std::size_t nEpochs = 0;
-    for (const auto& itData : data["data"]) {
-      auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
-      auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
-
-      imager.collect(nEig, wl, intervals.data(), 2, nullptr, 0, w.data(), nAntenna, xyz.data(),
-                     nAntenna);
-      ++nEpochs;
-    }
-
-    std::vector<T> img(imgRef.size());
-    imager.get(filter, img.data(), nPixel);
-
-    for (std::size_t i = 0; i < img.size(); ++i) {
-      // Single precision is very inaccurate due to different summation orders
-      // Use twice the absolute error for single precision
-      // Note: image reference is not scaling by number of epochs
-      ASSERT_NEAR(img[i] * nEpochs, imgRef[i], 0.05 * (4.0 / sizeof(T)));
-    }
-  }
-
-  bipp::Context ctx_;
+    bipp::Context ctx_;
 };
 
 using StandardSynthesisLofarSingle = StandardSynthesisLofar<float>;
 using StandardSynthesisLofarDouble = StandardSynthesisLofar<double>;
 
-TEST_P(StandardSynthesisLofarSingle, Intensity_LSQ) {
-  this->test_intensity(BIPP_FILTER_LSQ, "lsq");
-}
-TEST_P(StandardSynthesisLofarDouble, Intensity_LSQ) {
-  this->test_intensity(BIPP_FILTER_LSQ, "lsq");
-}
-
-TEST_P(StandardSynthesisLofarSingle, Intensity_STD) {
-  this->test_intensity(BIPP_FILTER_STD, "std");
-}
-TEST_P(StandardSynthesisLofarDouble, Intensity_STD) {
-  this->test_intensity(BIPP_FILTER_STD, "std");
-}
-
-TEST_P(StandardSynthesisLofarSingle, Sensitivity_INV_SQ) {
-  this->test_sensitivity(BIPP_FILTER_INV_SQ, "inv_sq");
-}
-TEST_P(StandardSynthesisLofarDouble, Sensitivity_INV_SQ) {
-  this->test_sensitivity(BIPP_FILTER_INV_SQ, "inv_sq");
-}
+TEST_P(StandardSynthesisLofarSingle, Intensity_LSQ) { this->test_intensity(); }
+TEST_P(StandardSynthesisLofarDouble, Intensity_LSQ) { this->test_intensity(); }
 
 static auto param_type_names(const ::testing::TestParamInfo<std::tuple<BippProcessingUnit>>& info)
     -> std::string {

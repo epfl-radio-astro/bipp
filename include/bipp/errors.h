@@ -54,7 +54,11 @@ enum BippError {
   /**
    * Invalid allocator function error.
    */
-  BIPP_INVALID_ALLOCATOR_FUNCTION
+  BIPP_INVALID_ALLOCATOR_FUNCTION,
+  /**
+   * MPI Error
+   */
+  BIPP_MPI_ERROR
 };
 
 #ifndef __cplusplus

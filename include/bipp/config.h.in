@@ -7,6 +7,7 @@
 #cmakedefine BIPP_LAPACK_C
 #cmakedefine BIPP_UMPIRE
 #cmakedefine BIPP_OMP
+#cmakedefine BIPP_MPI
 #cmakedefine BIPP_VC
 #cmakedefine BIPP_VERSION "@BIPP_VERSION@"
 

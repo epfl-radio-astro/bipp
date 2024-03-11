@@ -16,6 +16,7 @@ set(BIPP_GPU @BIPP_GPU@)
 set(BIPP_CUDA @BIPP_CUDA@)
 set(BIPP_ROCM @BIPP_ROCM@)
 set(BIPP_BUNDLED_SPDLOG @BIPP_BUNDLED_SPDLOG@)
+set(BIPP_MPI @BIPP_MPI@)
 
 if(BIPP_ROCM)
 	find_dependency(hip CONFIG)
@@ -51,9 +52,10 @@ if(NOT TARGET BLAS::blas)
 	set_property(TARGET BLAS::blas PROPERTY INTERFACE_LINK_LIBRARIES ${BLAS_LIBRARIES} ${BLAS_LINKER_FLAGS})
 endif()
 
-if(NOT BIPP_BUNDLED_SPDLOG)
-	find_dependency(spdlog CONFIG)
+if(BIPP_MPI)
+	find_dependency(MPI COMPONENTS CXX)
 endif()
+
 
 set(CMAKE_MODULE_PATH ${_CMAKE_MODULE_PATH_SAVE}) # restore module path
 

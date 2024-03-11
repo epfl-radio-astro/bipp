@@ -6,6 +6,7 @@
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
 #include "gpu/util/runtime_api.hpp"
+#include "memory/view.hpp"
 
 #if defined(BIPP_CUDA)
 #include <cublas_v2.h>
@@ -270,6 +271,22 @@ inline auto gemm(HandleType handle, OperationType transa, OperationType transb, 
 #endif  // BIPP_CUDA
 }
 
+template <typename T>
+auto gemm(HandleType handle, OperationType transa, OperationType transb, T alpha,
+          ConstDeviceView<T, 2> a, ConstDeviceView<T, 2> b, T beta, DeviceView<T, 2> c) {
+  const auto m = transa == operation::None ? a.shape(0) : a.shape(1);
+  const auto n = transb == operation::None ? b.shape(1) : b.shape(0);
+  const auto k = transa == operation::None ? a.shape(1) : a.shape(0);
+
+  assert(c.shape(0) == m);
+  assert(c.shape(1) == n);
+  assert(!(b.shape(0) != k && transb == operation::None));
+  assert(!(b.shape(1) != k && transb != operation::None));
+
+  gemm(handle, transa, transb, m, n, k, &alpha, a.data(), a.strides(1), b.data(), b.strides(1),
+       &beta, c.data(), c.strides(1));
+}
+
 inline auto gemm_batched(HandleType handle, OperationType transa, OperationType transb, int m,
                          int n, int k, const ComplexFloatType* alpha,
                          const ComplexFloatType* const A[], int lda,
@@ -398,6 +415,22 @@ inline auto symm(HandleType handle, SideModeType side, FillModeType uplo, int m,
                              reinterpret_cast<const rocblas_double_complex*>(beta),
                              reinterpret_cast<rocblas_double_complex*>(C), ldc));
 #endif  // BIPP_CUDA
+}
+
+template <typename T>
+auto symm(HandleType handle, SideModeType side, FillModeType uplo, T alpha, ConstDeviceView<T, 2> A,
+          ConstDeviceView<T, 2> B, T beta, DeviceView<T, 2> C) {
+  const auto m = C.shape(0);
+  const auto n = C.shape(1);
+
+  assert(side == side::left ? (A.shape(0) == m) : (A.shape(0) == n));
+  assert(side == side::left ? (A.shape(1) == m) : (A.shape(1) == n));
+
+  assert(B.shape(0) == m);
+  assert(B.shape(1) == n);
+
+  symm(handle, side, uplo, m, n, &alpha, A.data(), A.strides(1), B.data(), B.strides(1), &beta,
+       C.data(), C.strides(1));
 }
 
 inline auto axpy(HandleType handle, int n, const float* alpha, const float* x, int incx, float* y,

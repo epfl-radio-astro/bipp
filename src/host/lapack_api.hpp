@@ -3,56 +3,46 @@
 #include <complex>
 #include <vector>
 
-#include "bipp/bipp.h"
 #include "bipp/config.h"
+#include "bipp/exceptions.hpp"
+
 extern "C" {
 
 enum class LapackeLayout { ROW_MAJOR = 101, COL_MAJOR = 102 };
 
 #ifdef BIPP_LAPACK_C
 float LAPACKE_slamch(char cmach);
+
 double LAPACKE_dlamch(char cmach);
 
-int LAPACKE_cheevx(int matrix_layout, char jobz, char range, char uplo, int n, void* a, int lda,
-                   float vl, float vu, int il, int iu, float abstol, int* m, float* w, void* z,
-                   int ldz, int* ifail);
-int LAPACKE_zheevx(int matrix_layout, char jobz, char range, char uplo, int n, void* a, int lda,
-                   double vl, double vu, int il, int iu, double abstol, int* m, double* w, void* z,
-                   int ldz, int* ifail);
-int LAPACKE_chegvx(int matrix_layout, int itype, char jobz, char range, char uplo, int n, void* a,
-                   int lda, void* b, int ldb, float vl, float vu, int il, int iu, float abstol,
-                   int* m, float* w, void* z, int ldz, int* ifail);
-int LAPACKE_zhegvx(int matrix_layout, int itype, char jobz, char range, char uplo, int n, void* a,
-                   int lda, void* b, int ldb, double vl, double vu, int il, int iu, double abstol,
-                   int* m, double* w, void* z, int ldz, int* ifail);
+int LAPACKE_chegv(int matrix_layout, int itype, char jobz, char uplo, int n, void* a, int lda,
+                  void* b, int ldb, float* w);
+
+int LAPACKE_zhegv(int matrix_layout, int itype, char jobz, char uplo, int n, void* a, int lda,
+                  void* b, int ldb, double* w);
+
+int LAPACKE_cheev(int matrix_layout, char jobz, char uplo, int n, void* a, int lda, float* w);
+
+int LAPACKE_zheev(int matrix_layout, char jobz, char uplo, int n, void* a, int lda, double* w);
+
 #else
 float slamch_(const char* cmach, int cmach_len);
 
 double dlamch_(const char* cmach, int cmach_len);
 
-void cheevx_(const char* JOBZ, const char* RANGE, const char* UPLO, const int* N, void* A,
-             const int* LDA, const void* VL, const void* VU, const int* IL, const int* IU,
-             const void* ABSTOL, const int* M, void* W, void* Z, const int* LDZ, void* WORK,
-             int* LWORK, void* RWORK, int* IWORK, int* IFAIL, int* INFO, int JOBZ_len,
-             int RANGE_len, int UPLO_len);
+void cheev_(char* jobz, char* uplo, int* n, void* a, int* lda, float* w, void* work, int* lwork,
+            float* rwork, int* info, int JOBZ_len, int UPLO_len);
 
-void zheevx_(const char* JOBZ, const char* RANGE, const char* UPLO, const int* N, void* A,
-             const int* LDA, const void* VL, const void* VU, const int* IL, const int* IU,
-             const void* ABSTOL, const int* M, void* W, void* Z, const int* LDZ, void* WORK,
-             int* LWORK, void* RWORK, int* IWORK, int* IFAIL, int* INFO, int JOBZ_len,
-             int RANGE_len, int UPLO_len);
+void zheev_(char* jobz, char* uplo, int* n, void* a, int* lda, double* w, void* work, int* lwork,
+            double* rwork, int* info, int JOBZ_len, int UPLO_len);
 
-void chegvx_(const int* ITYPE, const char* JOBZ, const char* RANGE, const char* UPLO, const int* N,
-             void* A, const int* LDA, void* B, const int* LDB, const void* VL, const void* VU,
-             const int* IL, const int* IU, const void* ABSTOL, const int* M, void* W, void* Z,
-             const int* LDZ, void* WORK, int* LWORK, void* RWORK, int* IWORK, int* IFAIL, int* INFO,
-             int JOBZ_len, int RANGE_len, int UPLO_len);
+void chegv_(int const* itype, char const* jobz, char const* uplo, int const* n, void* A,
+            int const* lda, void* B, int const* ldb, float* W, void* work, int const* lwork,
+            float* rwork, int* info, int JOBZ_len, int UPLO_len);
 
-void zhegvx_(const int* ITYPE, const char* JOBZ, const char* RANGE, const char* UPLO, const int* N,
-             void* A, const int* LDA, void* B, const int* LDB, const void* VL, const void* VU,
-             const int* IL, const int* IU, const void* ABSTOL, const int* M, void* W, void* Z,
-             const int* LDZ, void* WORK, int* LWORK, void* RWORK, int* IWORK, int* IFAIL, int* INFO,
-             int JOBZ_len, int RANGE_len, int UPLO_len);
+void zhegv_(int const* itype, char const* jobz, char const* uplo, int const* n, void* A,
+            int const* lda, void* B, int const* ldb, double* W, void* work, int const* lwork,
+            double* rwork, int* info, int JOBZ_len, int UPLO_len);
 
 #endif
 }
@@ -77,119 +67,96 @@ inline auto dlamch(char cmach) -> double {
 #endif
 }
 
-inline auto eigh_solve(LapackeLayout matrixLayout, char jobz, char range, char uplo, int n,
-                       std::complex<float>* a, int lda, float vl, float vu, int il, int iu, int* m,
-                       float* w, std::complex<float>* z, int ldz, int* ifail) -> int {
+inline auto eigh_solve(LapackeLayout matrixLayout, char jobz, char uplo, int n,
+                       std::complex<float>* a, int lda, float* w) -> void {
 #ifdef BIPP_LAPACK_C
-  return LAPACKE_cheevx(static_cast<int>(matrixLayout), jobz, range, uplo, n, a, lda, vl, vu, il,
-                        iu, 2 * LAPACKE_slamch('S'), m, w, z, ldz, ifail);
+  const auto info = LAPACKE_cheev(static_cast<int>(matrixLayout), jobz, uplo, n, a, lda, w);
 #else
   int info = 0;
-  float abstol = 2 * slamch_("S", 1);
   int lwork = -1;
-  std::vector<float> rwork(7 * n);
-  std::vector<int> iwork(5 * n);
+  std::vector<float> rwork(3 * n - 2);
   std::complex<float> worksize = 0;
 
   // get work buffer size
-  cheevx_(&jobz, &range, &uplo, &n, a, &lda, &vl, &vu, &il, &iu, &abstol, m, w, z, &ldz, &worksize,
-          &lwork, rwork.data(), iwork.data(), ifail, &info, 1, 1, 1);
+  cheev_(&jobz, &uplo, &n, a, &lda, w, &worksize, &lwork, rwork.data(), &info, 1, 1);
   lwork = static_cast<int>(worksize.real());
   if (lwork < 2 * n) lwork = 2 * n;
 
   std::vector<std::complex<float> > work(lwork);
-  cheevx_(&jobz, &range, &uplo, &n, a, &lda, &vl, &vu, &il, &iu, &abstol, m, w, z, &ldz,
-          work.data(), &lwork, rwork.data(), iwork.data(), ifail, &info, 1, 1, 1);
-
-  return info;
+  cheev_(&jobz, &uplo, &n, a, &lda, w, work.data(), &lwork, rwork.data(), &info, 1, 1);
 #endif
+  if (info) throw EigensolverError();
 }
 
-inline auto eigh_solve(LapackeLayout matrixLayout, char jobz, char range, char uplo, int n,
-                       std::complex<double>* a, int lda, double vl, double vu, int il, int iu,
-                       int* m, double* w, std::complex<double>* z, int ldz, int* ifail) -> int {
+inline auto eigh_solve(LapackeLayout matrixLayout, char jobz, char uplo, int n,
+                       std::complex<double>* a, int lda, double* w) -> void {
 #ifdef BIPP_LAPACK_C
-  return LAPACKE_zheevx(static_cast<int>(matrixLayout), jobz, range, uplo, n, a, lda, vl, vu, il,
-                        iu, 2 * LAPACKE_dlamch('S'), m, w, z, ldz, ifail);
+  const auto info = LAPACKE_zheev(static_cast<int>(matrixLayout), jobz, uplo, n, a, lda, w);
 #else
   int info = 0;
-  double abstol = 2 * dlamch_("S", 1);
   int lwork = -1;
-  std::vector<double> rwork(7 * n);
-  std::vector<int> iwork(5 * n);
+  std::vector<double> rwork(3 * n - 2);
   std::complex<double> worksize = 0;
 
   // get work buffer size
-  zheevx_(&jobz, &range, &uplo, &n, a, &lda, &vl, &vu, &il, &iu, &abstol, m, w, z, &ldz, &worksize,
-          &lwork, rwork.data(), iwork.data(), ifail, &info, 1, 1, 1);
+  zheev_(&jobz, &uplo, &n, a, &lda, w, &worksize, &lwork, rwork.data(), &info, 1, 1);
   lwork = static_cast<int>(worksize.real());
   if (lwork < 2 * n) lwork = 2 * n;
 
   std::vector<std::complex<double> > work(lwork);
-  zheevx_(&jobz, &range, &uplo, &n, a, &lda, &vl, &vu, &il, &iu, &abstol, m, w, z, &ldz,
-          work.data(), &lwork, rwork.data(), iwork.data(), ifail, &info, 1, 1, 1);
-
-  return info;
+  zheev_(&jobz, &uplo, &n, a, &lda, w, work.data(), &lwork, rwork.data(), &info, 1, 1);
 #endif
+  if (info) throw EigensolverError();
 }
 
-inline auto eigh_solve(LapackeLayout matrixLayout, int itype, char jobz, char range, char uplo,
-                       int n, std::complex<float>* a, int lda, std::complex<float>* b, int ldb,
-                       float vl, float vu, int il, int iu, int* m, float* w, std::complex<float>* z,
-                       int ldz, int* ifail) -> int {
+inline auto eigh_solve(LapackeLayout matrixLayout, int itype, char jobz, char uplo, int n,
+                       std::complex<float>* a, int lda, std::complex<float>* b, int ldb, float* w)
+    -> void {
 #ifdef BIPP_LAPACK_C
-  return LAPACKE_chegvx(static_cast<int>(matrixLayout), itype, jobz, range, uplo, n, a, lda, b, ldb,
-                        vl, vu, il, iu, 2 * LAPACKE_slamch('S'), m, w, z, ldz, ifail);
+  const auto info = LAPACKE_chegv(static_cast<int>(matrixLayout), itype, jobz, uplo, n, a, lda, b, ldb, w);
 #else
   int info = 0;
-  float abstol = 2 * slamch_("S", 1);
   int lwork = -1;
-  std::vector<float> rwork(7 * n);
-  std::vector<int> iwork(5 * n);
+  std::vector<float> rwork(3 * n - 2);
   std::complex<float> worksize = 0;
 
   // get work buffer size
-  chegvx_(&itype, &jobz, &range, &uplo, &n, a, &lda, b, &ldb, &vl, &vu, &il, &iu, &abstol, m, w, z,
-          &ldz, &worksize, &lwork, rwork.data(), iwork.data(), ifail, &info, 1, 1, 1);
+  chegv_(&itype, &jobz, &uplo, &n, a, &lda, b, &ldb, w, &worksize, &lwork, rwork.data(), &info, 1,
+         1);
   lwork = static_cast<int>(worksize.real());
   if (lwork < 2 * n) lwork = 2 * n;
 
   std::vector<std::complex<float> > work(lwork);
-  chegvx_(&itype, &jobz, &range, &uplo, &n, a, &lda, b, &ldb, &vl, &vu, &il, &iu, &abstol, m, w, z,
-          &ldz, work.data(), &lwork, rwork.data(), iwork.data(), ifail, &info, 1, 1, 1);
-
-  return info;
+  chegv_(&itype, &jobz, &uplo, &n, a, &lda, b, &ldb, w, work.data(), &lwork, rwork.data(), &info, 1,
+         1);
 #endif
+  if (info) throw EigensolverError();
 }
 
-inline auto eigh_solve(LapackeLayout matrixLayout, int itype, char jobz, char range, char uplo,
-                       int n, std::complex<double>* a, int lda, std::complex<double>* b, int ldb,
-                       double vl, double vu, int il, int iu, int* m, double* w,
-                       std::complex<double>* z, int ldz, int* ifail) -> int {
+inline auto eigh_solve(LapackeLayout matrixLayout, int itype, char jobz, char uplo, int n,
+                       std::complex<double>* a, int lda, std::complex<double>* b, int ldb, double* w)
+    -> void {
 #ifdef BIPP_LAPACK_C
-  return LAPACKE_zhegvx(static_cast<int>(matrixLayout), itype, jobz, range, uplo, n, a, lda, b, ldb,
-                        vl, vu, il, iu, 2 * LAPACKE_dlamch('S'), m, w, z, ldz, ifail);
+  const auto info = LAPACKE_zhegv(static_cast<int>(matrixLayout), itype, jobz, uplo, n, a, lda, b, ldb, w);
 #else
   int info = 0;
-  double abstol = 2 * dlamch_("S", 1);
   int lwork = -1;
-  std::vector<double> rwork(7 * n);
-  std::vector<int> iwork(5 * n);
+  std::vector<double> rwork(3 * n - 2);
   std::complex<double> worksize = 0;
 
   // get work buffer size
-  zhegvx_(&itype, &jobz, &range, &uplo, &n, a, &lda, b, &ldb, &vl, &vu, &il, &iu, &abstol, m, w, z,
-          &ldz, &worksize, &lwork, rwork.data(), iwork.data(), ifail, &info, 1, 1, 1);
+  zhegv_(&itype, &jobz, &uplo, &n, a, &lda, b, &ldb, w, &worksize, &lwork, rwork.data(), &info, 1,
+         1);
   lwork = static_cast<int>(worksize.real());
   if (lwork < 2 * n) lwork = 2 * n;
 
   std::vector<std::complex<double> > work(lwork);
-  zhegvx_(&itype, &jobz, &range, &uplo, &n, a, &lda, b, &ldb, &vl, &vu, &il, &iu, &abstol, m, w, z,
-          &ldz, work.data(), &lwork, rwork.data(), iwork.data(), ifail, &info, 1, 1, 1);
-
-  return info;
+  zhegv_(&itype, &jobz, &uplo, &n, a, &lda, b, &ldb, w, work.data(), &lwork, rwork.data(), &info, 1,
+         1);
 #endif
+  if (info) throw EigensolverError();
 }
+
 }  // namespace lapack
 }  // namespace host
 }  // namespace bipp

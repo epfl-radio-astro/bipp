@@ -11,6 +11,11 @@ endmacro()
 set(BIPP_GPU @BIPP_GPU@)
 set(BIPP_CUDA @BIPP_CUDA@)
 set(BIPP_ROCM @BIPP_ROCM@)
+set(BIPP_MPI @BIPP_MPI@)
+
+if(BIPP_MPI)
+	find_dependency(MPI COMPONENTS CXX)
+endif()
 
 # find_dependency may set bipp_FOUND to false, so only add bipp if everything required was found
 if(NOT DEFINED bipp_FOUND OR bipp_FOUND)

@@ -10,6 +10,9 @@
 #include "context_internal.hpp"
 #include "gtest/gtest.h"
 #include "host/domain_partition.hpp"
+#include "memory/view.hpp"
+#include "memory/array.hpp"
+#include "memory/copy.hpp"
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/domain_partition.hpp"
 #include "gpu/util/runtime_api.hpp"
@@ -25,6 +28,10 @@ public:
   auto test_grid(std::array<std::size_t, 3> gridDimensions, std::array<std::vector<T>, 3> domain) {
     ASSERT_EQ(domain[0].size(), domain[1].size());
     ASSERT_EQ(domain[0].size(), domain[2].size());
+
+    bipp::HostView<T, 1> domainX(domain[0].data(), {domain[0].size()}, {1});
+    bipp::HostView<T, 1> domainY(domain[1].data(), {domain[1].size()}, {1});
+    bipp::HostView<T, 1> domainZ(domain[2].data(), {domain[2].size()}, {1});
 
     const auto gridSize = std::accumulate(gridDimensions.begin(), gridDimensions.end(),
                                           std::size_t(1), std::multiplies<std::size_t>());
@@ -47,27 +54,23 @@ public:
 
     if (ctx_->processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-      auto bufferX = ctx_->gpu_queue().create_device_buffer<T>(domain[0].size());
-      auto bufferY = ctx_->gpu_queue().create_device_buffer<T>(domain[0].size());
-      auto bufferZ = ctx_->gpu_queue().create_device_buffer<T>(domain[0].size());
+      auto bufferX = ctx_->gpu_queue().create_device_array<T, 1>({domain[0].size()});
+      auto bufferY = ctx_->gpu_queue().create_device_array<T, 1>({domain[0].size()});
+      auto bufferZ = ctx_->gpu_queue().create_device_array<T, 1>({domain[0].size()});
 
-      bipp::gpu::api::memcpy_async(bufferX.get(), domain[0].data(), bufferX.size_in_bytes(),
-                                   bipp::gpu::api::flag::MemcpyDefault, ctx_->gpu_queue().stream());
-      bipp::gpu::api::memcpy_async(bufferY.get(), domain[1].data(), bufferY.size_in_bytes(),
-                                   bipp::gpu::api::flag::MemcpyDefault, ctx_->gpu_queue().stream());
-      bipp::gpu::api::memcpy_async(bufferZ.get(), domain[2].data(), bufferZ.size_in_bytes(),
-                                   bipp::gpu::api::flag::MemcpyDefault, ctx_->gpu_queue().stream());
+      copy(ctx_->gpu_queue(), domainX, bufferX);
+      copy(ctx_->gpu_queue(), domainY, bufferY);
+      copy(ctx_->gpu_queue(), domainZ, bufferZ);
 
-      partition = bipp::gpu::DomainPartition::grid<T>(
-          ctx_, gridDimensions, domain[0].size(), {bufferX.get(), bufferY.get(), bufferZ.get()});
+      partition =
+          bipp::gpu::DomainPartition::grid<T>(ctx_, gridDimensions, {bufferX, bufferY, bufferZ});
 
 #else
       ASSERT_TRUE(false);
 #endif
     } else {
-      partition = bipp::host::DomainPartition::grid<T, 3>(
-          ctx_, gridDimensions, domain[0].size(),
-          {domain[0].data(), domain[1].data(), domain[2].data()});
+      partition = bipp::host::DomainPartition::grid<T, 3>(ctx_, gridDimensions,
+                                                          {domainX, domainY, domainZ});
     }
 
     std::visit(
@@ -86,34 +89,29 @@ public:
           }
 
           for (std::size_t dimIdx = 0; dimIdx < minCoord.size(); ++dimIdx) {
-            auto dataInPlace = domain[dimIdx];
-            auto dataOutOfPlace = std::vector<T>(dataInPlace.size());
+            bipp::HostArray<T, 1> dataInPlace(ctx_->host_alloc(), {domain[dimIdx].size()});
+            bipp::copy(bipp::HostView<T, 1>(domain[dimIdx].data(), {domain[dimIdx].size()}, {1}),
+                       dataInPlace);
+            auto dataOutOfPlace = bipp::HostArray<T, 1>(ctx_->host_alloc(), {dataInPlace.size()});
 
             // apply in place and out of place
             if constexpr (std::is_same_v<variantType, bipp::host::DomainPartition>) {
-              arg.apply(dataInPlace.data(), dataOutOfPlace.data());
-              arg.apply(dataInPlace.data());
+              arg.template apply<T>(dataInPlace, dataOutOfPlace);
+              arg.template apply<T>(dataInPlace);
             } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
               auto dataInPlaceDevice =
-                  ctx_->gpu_queue().create_device_buffer<T>(dataInPlace.size());
+                  ctx_->gpu_queue().create_device_array<T,1>(dataInPlace.shape());
               auto dataOutOfPlaceDevice =
-                  ctx_->gpu_queue().create_device_buffer<T>(dataOutOfPlace.size());
+                  ctx_->gpu_queue().create_device_array<T, 1>(dataOutOfPlace.shape());
 
-              bipp::gpu::api::memcpy_async(
-                  dataInPlaceDevice.get(), dataInPlace.data(), dataInPlaceDevice.size_in_bytes(),
-                  bipp::gpu::api::flag::MemcpyDefault, ctx_->gpu_queue().stream());
+              copy(ctx_->gpu_queue(), dataInPlace, dataInPlaceDevice);
 
-              arg.apply(dataInPlaceDevice.get(), dataOutOfPlaceDevice.get());
-              arg.apply(dataInPlaceDevice.get());
+              arg.template apply<T>(dataInPlaceDevice, dataOutOfPlaceDevice);
+              arg.template apply<T>(dataInPlaceDevice);
 
-              bipp::gpu::api::memcpy_async(
-                  dataInPlace.data(), dataInPlaceDevice.get(), dataInPlaceDevice.size_in_bytes(),
-                  bipp::gpu::api::flag::MemcpyDefault, ctx_->gpu_queue().stream());
-              bipp::gpu::api::memcpy_async(dataOutOfPlace.data(), dataOutOfPlaceDevice.get(),
-                                           dataOutOfPlaceDevice.size_in_bytes(),
-                                           bipp::gpu::api::flag::MemcpyDefault,
-                                           ctx_->gpu_queue().stream());
+              copy(ctx_->gpu_queue(), dataInPlaceDevice, dataInPlace);
+              copy(ctx_->gpu_queue(), dataOutOfPlaceDevice, dataOutOfPlace);
 
               ctx_->gpu_queue().sync();
 #endif
@@ -121,15 +119,15 @@ public:
 
             // check data
             for (std::size_t i = 0; i < dataInPlace.size(); ++i) {
-              ASSERT_EQ(dataInPlace[i], dataOutOfPlace[i]);
+              ASSERT_EQ(dataInPlace[{i}], dataOutOfPlace[{i}]);
             }
 
             for (const auto& [begin, size] : arg.groups()) {
               if (size) {
-                auto minGroup = *std::min_element(dataInPlace.begin() + begin,
-                                                  dataInPlace.begin() + begin + size);
-                auto maxGroup = *std::max_element(dataInPlace.begin() + begin,
-                                                  dataInPlace.begin() + begin + size);
+                auto minGroup = *std::min_element(dataInPlace.data() + begin,
+                                                  dataInPlace.data() + begin + size);
+                auto maxGroup = *std::max_element(dataInPlace.data() + begin,
+                                                  dataInPlace.data() + begin + size);
 
                 ASSERT_LE(maxGroup - minGroup, gridSpacing[dimIdx]);
               }
@@ -137,29 +135,23 @@ public:
 
             // reverse in place and out of place
             if constexpr (std::is_same_v<variantType, bipp::host::DomainPartition>) {
-              arg.reverse(dataInPlace.data(), dataOutOfPlace.data());
-              arg.reverse(dataInPlace.data());
+              arg.template reverse<T>(dataInPlace, dataOutOfPlace);
+              arg.template reverse<T>(dataInPlace);
             } else {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+
               auto dataInPlaceDevice =
-                  ctx_->gpu_queue().create_device_buffer<T>(dataInPlace.size());
+                  ctx_->gpu_queue().create_device_array<T,1>(dataInPlace.shape());
               auto dataOutOfPlaceDevice =
-                  ctx_->gpu_queue().create_device_buffer<T>(dataOutOfPlace.size());
+                  ctx_->gpu_queue().create_device_array<T, 1>(dataOutOfPlace.shape());
 
-              bipp::gpu::api::memcpy_async(
-                  dataInPlaceDevice.get(), dataInPlace.data(), dataInPlaceDevice.size_in_bytes(),
-                  bipp::gpu::api::flag::MemcpyDefault, ctx_->gpu_queue().stream());
+              copy(ctx_->gpu_queue(), dataInPlace, dataInPlaceDevice);
 
-              arg.reverse(dataInPlaceDevice.get(), dataOutOfPlaceDevice.get());
-              arg.reverse(dataInPlaceDevice.get());
+              arg.template reverse<T>(dataInPlaceDevice, dataOutOfPlaceDevice);
+              arg.template reverse<T>(dataInPlaceDevice);
 
-              bipp::gpu::api::memcpy_async(
-                  dataInPlace.data(), dataInPlaceDevice.get(), dataInPlaceDevice.size_in_bytes(),
-                  bipp::gpu::api::flag::MemcpyDefault, ctx_->gpu_queue().stream());
-              bipp::gpu::api::memcpy_async(dataOutOfPlace.data(), dataOutOfPlaceDevice.get(),
-                                           dataOutOfPlaceDevice.size_in_bytes(),
-                                           bipp::gpu::api::flag::MemcpyDefault,
-                                           ctx_->gpu_queue().stream());
+              copy(ctx_->gpu_queue(), dataInPlaceDevice, dataInPlace);
+              copy(ctx_->gpu_queue(), dataOutOfPlaceDevice, dataOutOfPlace);
 
               ctx_->gpu_queue().sync();
 #endif
@@ -167,8 +159,8 @@ public:
 
             // check reversed data
             for (std::size_t i = 0; i < dataInPlace.size(); ++i) {
-              ASSERT_EQ(dataInPlace[i], dataOutOfPlace[i]);
-              ASSERT_EQ(dataInPlace[i], domain[dimIdx][i]);
+              ASSERT_EQ(dataInPlace[{i}], dataOutOfPlace[{i}]);
+              ASSERT_EQ(dataInPlace[{i}], domain[dimIdx][i]);
             }
           }
         },

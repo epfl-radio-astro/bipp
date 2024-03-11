@@ -4,6 +4,7 @@
 #include <bipp/errors.h>
 
 #include <stdexcept>
+#include <cstddef>
 
 /*! \cond PRIVATE */
 namespace bipp {
@@ -21,9 +22,18 @@ public:
 
 class BIPP_EXPORT InternalError : public GenericError {
 public:
-  const char* what() const noexcept override { return "BIPP: Internal error"; }
+  InternalError() : msg_("BIPP: Internal error") {}
+
+  // Only to be used with string literals
+  template <std::size_t N>
+  InternalError(const char (&msg)[N]) : msg_(msg) {}
+
+  const char* what() const noexcept override { return msg_; }
 
   BippError error_code() const noexcept override { return BippError::BIPP_INTERNAL_ERROR; }
+
+private:
+  const char* msg_;
 };
 
 class BIPP_EXPORT InvalidParameterError : public GenericError {
@@ -98,6 +108,13 @@ public:
   GPUBlasError(const char* msg) : GPUError(msg) {}
 
   BippError error_code() const noexcept override { return BippError::BIPP_GPU_BLAS_ERROR; }
+};
+
+class BIPP_EXPORT MPIError : public GPUError {
+public:
+  MPIError() : GPUError("BIPP: MPI Error") {}
+
+  BippError error_code() const noexcept override { return BippError::BIPP_MPI_ERROR; }
 };
 
 /*! \cond PRIVATE */

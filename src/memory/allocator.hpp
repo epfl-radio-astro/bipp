@@ -8,6 +8,8 @@
 
 namespace bipp {
 
+enum class MemoryType { Host, Device };
+
 class Allocator {
 public:
   Allocator() = default;
@@ -27,5 +29,7 @@ public:
   virtual auto deallocate(void* ptr) -> void = 0;
 
   virtual auto size() -> std::uint_least64_t = 0;
+
+  virtual auto type() -> MemoryType = 0;
 };
 }  // namespace bipp

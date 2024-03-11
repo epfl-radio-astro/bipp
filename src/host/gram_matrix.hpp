@@ -6,14 +6,14 @@
 #include "bipp/bipp.h"
 #include "bipp/config.h"
 #include "context_internal.hpp"
+#include "memory/view.hpp"
 
 namespace bipp {
 namespace host {
 
 template <typename T>
-auto gram_matrix(ContextInternal& ctx, std::size_t m, std::size_t n, const std::complex<T>* w,
-                 std::size_t ldw, const T* xyz, std::size_t ldxyz, T wl, std::complex<T>* g,
-                 std::size_t ldg) -> void;
+auto gram_matrix(ContextInternal& ctx, ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz,
+                 T wl, HostView<std::complex<T>, 2> g) -> void;
 
 }  // namespace host
 }  // namespace bipp
