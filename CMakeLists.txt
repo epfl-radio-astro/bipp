@@ -60,7 +60,8 @@ option(BIPP_MPI "Use MPI for multi-process parallization" OFF)
 
 option(BIPP_INSTALL_LIB "Install library" ON)
 cmake_dependent_option(BIPP_INSTALL_PYTHON "Install Python module" ON "BIPP_PYTHON" OFF)
-set(BIPP_INSTALL_PYTHON_PREFIX "" CACHE STRING "Python install prefix. If not set, CMAKE_INSTALL_PREFIX for Python platlib path base.")
+set(BIPP_INSTALL_PYTHON_PREFIX "" CACHE STRING "Python install prefix. If not set, CMAKE_INSTALL_PREFIX will be used.")
+set(BIPP_INSTALL_PYTHON_SUFFIX "platlib" CACHE STRING "Python installation suffix. If platlib, python platlib path will be used.")
 
 option(BIPP_BUNDLED_LIBS "Use bundled libraries for spdlog, googletest and json" ON)
 cmake_dependent_option(BIPP_BUNDLED_SPDLOG "Use bundled spdlog lib" ON "BIPP_BUNDLED_LIBS" OFF)
@@ -78,7 +79,7 @@ set(BIPP_BUILD_TYPE "OFF" CACHE STRING "If set, overrides the CMAKE_BUILD_TYPE v
 set_property(CACHE BIPP_BUILD_TYPE PROPERTY STRINGS
 	"Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 if(BIPP_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE ${BIPP_BUILD_TYPE} CACHE STRING "Build type" FORCE)
+	set(CMAKE_BUILD_TYPE ${BIPP_BUILD_TYPE})
 endif()
 
 
@@ -91,13 +92,17 @@ if(BIPP_PYTHON)
 	find_package(Python 3.6 COMPONENTS Interpreter Development REQUIRED)
 
 	if(NOT BIPP_INSTALL_PYTHON_PREFIX)
+	  set(BIPP_INSTALL_PYTHON_PREFIX ${CMAKE_INSTALL_PREFIX})
+	endif()
+
+	if(BIPP_INSTALL_PYTHON_SUFFIX STREQUAL "platlib")
 		execute_process(
-			COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/scripts/python_install_path.py ${CMAKE_INSTALL_PREFIX}
+		  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/scripts/python_install_path.py ${BIPP_INSTALL_PYTHON_PREFIX}
 			OUTPUT_VARIABLE BIPP_INSTALL_PYTHON_PATH 
 			OUTPUT_STRIP_TRAILING_WHITESPACE
 			COMMAND_ERROR_IS_FATAL ANY)
 	else()
-	  set(BIPP_INSTALL_PYTHON_PATH ${BIPP_INSTALL_PYTHON_PREFIX})
+	  set(BIPP_INSTALL_PYTHON_PATH "${BIPP_INSTALL_PYTHON_PREFIX}/${BIPP_INSTALL_PYTHON_SUFFIX}")
 	endif()
 endif()
 

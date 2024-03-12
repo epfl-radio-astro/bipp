@@ -37,7 +37,9 @@ setup(
         "-DBIPP_MAGMA=" + bipp_magma,
         "-DBIPP_BUNDLED_LIBS=ON",
         "-DBUILD_SHARED_LIBS=ON",
-        "-DBIPP_INSTALL=PIP",
+        "-DBIPP_INSTALL_LIB=OFF",
+        "-DBIPP_INSTALL_PYTHON=ON",
+        "-DBIPP_INSTALL_PYTHON_SUFFIX=",
     ]
     + bipp_cmake_args_list,
     install_requires=[
