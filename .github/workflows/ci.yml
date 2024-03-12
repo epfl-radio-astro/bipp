@@ -9,7 +9,7 @@ jobs:
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install dependencies
       run: |
@@ -39,12 +39,12 @@ jobs:
   # Build with CUDA
   #################
   build-cuda-docs:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     container: adhocman/bipp_build:main_x86_64_cuda_11_2
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Build and install library
       run: |
@@ -52,7 +52,7 @@ jobs:
         cd ${GITHUB_WORKSPACE}
         mkdir -p build
         cd build
-        CUDACXX=/usr/local/cuda/bin/nvcc cmake .. -DBIPP_GPU=CUDA -DCMAKE_CUDA_ARCHITECTURES="60;86" -DBIPP_PYTHON=ON -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_INSTALL_PREFIX=${HOME}/install_dir -DBIPP_INSTALL=PYTHON
+        CUDACXX=/usr/local/cuda/bin/nvcc cmake .. -DBIPP_GPU=CUDA -DCMAKE_CUDA_ARCHITECTURES="60;86" -DBIPP_PYTHON=ON -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_INSTALL_PREFIX=${HOME}/install_dir -DBIPP_INSTALL_PYTHON_SUFFIX=python
         make install -j2
 
     - name: Build tests
@@ -73,19 +73,19 @@ jobs:
     - name: Check python module import
       run: |
         . /etc/profile
-        export PYTHONPATH=$PYTHONPATH:${HOME}/install_dir
+        export PYTHONPATH=$PYTHONPATH:${HOME}/install_dir/python
         python3 -c "import bipp"
 
   #################
   # Build with ROCm
   #################
   build-rocm:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     container: adhocman/bipp_build:main_x86_64_rocm_5_4_2
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Build library
       run: |
