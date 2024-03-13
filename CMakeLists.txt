@@ -64,6 +64,9 @@ cmake_dependent_option(BIPP_INSTALL_PYTHON "Install Python module" ON "BIPP_PYTH
 set(BIPP_INSTALL_PYTHON_PREFIX "" CACHE STRING "Python install prefix. If not set, CMAKE_INSTALL_PREFIX will be used.")
 set(BIPP_INSTALL_PYTHON_SUFFIX "platlib" CACHE STRING "Python installation suffix. If platlib, python platlib path will be used.")
 
+# Library install location
+set(BIPP_INSTALL_LIB_SUFFIX "${CMAKE_INSTALL_LIBDIR}" CACHE STRING "Lib install suffix")
+
 option(BIPP_BUNDLED_LIBS "Use bundled libraries for spdlog, googletest and json" ON)
 cmake_dependent_option(BIPP_BUNDLED_SPDLOG "Use bundled spdlog lib" ON "BIPP_BUNDLED_LIBS" OFF)
 cmake_dependent_option(BIPP_BUNDLED_PYBIND11 "Use bundled pybind11 lib" ON "BIPP_BUNDLED_LIBS" OFF)
@@ -83,9 +86,6 @@ if(BIPP_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE ${BIPP_BUILD_TYPE})
 endif()
 
-
-# Library install location
-set(BIPP_INSTALL_LIB_SUFFIX "${CMAKE_INSTALL_LIBDIR}" CACHE STRING "Lib install suffix")
 
 # Python install location
 if(BIPP_PYTHON)
