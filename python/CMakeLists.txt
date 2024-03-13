@@ -20,7 +20,7 @@ endif()
 
 
 pybind11_add_module(pybipp pybipp.cpp)
-target_link_libraries(pybipp PRIVATE bipp_static)
+target_link_libraries(pybipp PRIVATE bipp_objects)
 set_target_properties(pybipp PROPERTIES
 	ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bipp"
 	LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bipp"

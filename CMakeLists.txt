@@ -50,6 +50,7 @@ include(CMakeDependentOption)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
 
 # Options
+set(BUILD_SHARED_LIBS "ON" CACHE STRING "Build as shared library") # default to shared
 option(BIPP_BUILD_TESTS "Build tests" OFF)
 option(BIPP_PYTHON "Build python module" ON)
 option(BIPP_MAGMA "Use MAGMA library as eigensolver" OFF)
