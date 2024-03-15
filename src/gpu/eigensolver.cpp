@@ -43,7 +43,7 @@ auto eigh(ContextInternal& ctx, T wl, ConstDeviceView<api::ComplexType<T>, 2> s,
   copy(queue, s, sHost);
   queue.sync();
 
-  // flag working coloumns / rows
+  // flag working columns / rows
   for (std::size_t col = 0; col < s.shape(1); ++col) {
     for (std::size_t row = col; row < s.shape(0); ++row) {
       const auto val = sHost[{row, col}];
@@ -51,6 +51,27 @@ auto eigh(ContextInternal& ctx, T wl, ConstDeviceView<api::ComplexType<T>, 2> s,
         nonZeroIndexFlag[col] |= 1;
         nonZeroIndexFlag[row] |= 1;
       }
+    }
+  }
+
+  // Discard rows / columns with sum close to zero
+  for (std::size_t col = 0; col < s.shape(1); ++col) {
+    auto sum = sHost[{col, col}];
+    for (std::size_t row = col+1; row < s.shape(0); ++row) {
+      const auto val = sHost[{row, col}];
+      sum.x += val.x;
+      sum.y += val.y;
+    }
+    auto const row = col;
+    for (std::size_t col = 0; col < row; ++col) {
+      const auto val = sHost[{row, col}];
+      sum.x += val.x;
+      sum.y += -val.y; // Use conjugate in sum!
+    }
+    auto norm = std::sqrt(sum.x * sum.x + sum.y * sum.y);
+    if (norm <= std::numeric_limits<T>::epsilon()) {
+      ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing column {} / row {} with ||sum|| = {}", col, row, norm);
+      nonZeroIndexFlag[col] = 0;
     }
   }
 
@@ -62,7 +83,7 @@ auto eigh(ContextInternal& ctx, T wl, ConstDeviceView<api::ComplexType<T>, 2> s,
 
   const std::size_t nBeamReduced = indices.size();
 
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} coloumns / rows", nBeam - nBeamReduced);
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} columns / rows", nBeam - nBeamReduced);
   api::memset_async(d.data(), 0, d.size() * sizeof(T), queue.stream());
   api::memset_2d_async(vUnbeam.data(), vUnbeam.strides(1) * sizeof(api::ComplexType<T>), 0,
                        vUnbeam.shape(0), vUnbeam.shape(1), queue.stream());
@@ -102,7 +123,7 @@ auto eigh(ContextInternal& ctx, T wl, ConstDeviceView<api::ComplexType<T>, 2> s,
     auto gReduced = queue.create_device_array<api::ComplexType<T>, 2>({nBeamReduced, nBeamReduced});
     gram_matrix<T>(ctx, wReduced, xyz, wl, gReduced);
 
-    eigensolver::solve(queue, mode, 'L', nBeam, v.data(), v.strides(1), gReduced.data(),
+    eigensolver::solve(queue, mode, 'L', nBeamReduced, v.data(), v.strides(1), gReduced.data(),
                        gReduced.strides(1), d.data());
 
     if (vUnbeam.size())

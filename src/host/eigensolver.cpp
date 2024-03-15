@@ -70,6 +70,25 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
     }
   }
 
+  // Discard rows / columns with sum close to zero
+  for (std::size_t col = 0; col < s.shape(1); ++col) {
+    auto sum = s[{col, col}];
+    for (std::size_t row = col+1; row < s.shape(0); ++row) {
+      const auto val = s[{row, col}];
+      sum += val;
+    }
+    auto const row = col;
+    for (std::size_t col = 0; col < row; ++col) {
+      const auto val = s[{row, col}];
+      sum += std::conj(val);
+    }
+    auto norm = std::norm(sum);
+    if (norm <= std::numeric_limits<T>::epsilon()) {
+      ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing column {} / row {} with ||sum|| = {}", col, row, norm);
+      nonZeroIndexFlag[col] = 0;
+    }
+  }
+
   std::vector<std::size_t> indices;
   indices.reserve(nBeam);
   for (std::size_t i = 0; i < nBeam; ++i) {
@@ -78,7 +97,7 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
 
   const std::size_t nBeamReduced = indices.size();
 
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} coloumns / rows", nBeam - nBeamReduced);
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} columns / rows", nBeam - nBeamReduced);
 
   d.zero();
   vUnbeam.zero();
@@ -86,8 +105,9 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
   HostArray<std::complex<T>, 2> v(ctx.host_alloc(), {nBeamReduced, nBeamReduced});
 
   const char mode = vUnbeam.size() ? 'V' : 'N';
-  if(nBeamReduced == nBeam) {
-    copy(s,v);
+
+  if (nBeamReduced == nBeam) {
+    copy(s, v);
 
     // Compute gram matrix
     auto g = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nBeam, nBeam});
@@ -112,7 +132,7 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
     auto gReduced = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nBeamReduced, nBeamReduced});
     gram_matrix<T>(ctx, wReduced, xyz, wl, gReduced);
 
-    lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, mode, 'L', nBeam, v.data(), v.strides(1),
+    lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, mode, 'L', nBeamReduced, v.data(), v.strides(1),
                        gReduced.data(), gReduced.strides(1), d.data());
 
     if (vUnbeam.size())
