@@ -105,6 +105,7 @@ class ParameterEstimator:
 
         D =  bipp.pybipp.eigh(self._ctx, wl,S, W, XYZ)
         D = D[D > 0.0]
+        D = D[np.argsort(D)[::-1]]
         idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
         D = D[idx]
         self._d_all.append(D)
