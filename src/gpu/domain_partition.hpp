@@ -5,88 +5,74 @@
 #include <numeric>
 #include <tuple>
 #include <type_traits>
-#include <variant>
+#include <vector>
 
 #include "bipp/config.h"
 #include "context_internal.hpp"
 #include "gpu/util/runtime_api.hpp"
-#include "memory/buffer.hpp"
+#include "host/domain_partition.hpp"
+#include "memory/array.hpp"
+#include "memory/view.hpp"
 
 namespace bipp {
 namespace gpu {
 
 class DomainPartition {
 public:
-  struct Group {
-    std::size_t begin = 0;
-    std::size_t size = 0;
-  };
-
   static auto none(const std::shared_ptr<ContextInternal>& ctx, std::size_t n) {
-    Buffer<Group> groupsHost(ctx->host_alloc(), 1);
-    *groupsHost.get() = Group{0, n};
-    return DomainPartition(ctx, n, std::move(groupsHost));
+    std::vector<PartitionGroup> groupsHost(1);
+    groupsHost[0] = PartitionGroup{0, n};
+    return DomainPartition(ctx, std::move(groupsHost));
   }
 
   template <typename T,
             typename = std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double>>>
   static auto grid(const std::shared_ptr<ContextInternal>& ctx,
-                   std::array<std::size_t, 3> gridDimensions, std::size_t n,
-                   std::array<const T*, 3> coord) -> DomainPartition;
+                   std::array<std::size_t, 3> gridDimensions,
+                   std::array<ConstDeviceView<T, 1>, 3> coord) -> DomainPartition;
 
-  inline auto groups() const -> const Buffer<Group>& { return groupsHost_; }
+  inline auto groups() const -> const std::vector<PartitionGroup>& { return groupsHost_; }
 
   inline auto num_elements() const -> std::size_t {
-    return std::visit(
-        [&](auto&& arg) -> std::size_t {
-          using ArgType = std::decay_t<decltype(arg)>;
-          if constexpr (std::is_same_v<ArgType, Buffer<std::size_t>>) {
-            return arg.size();
-          } else if constexpr (std::is_same_v<ArgType, std::size_t>) {
-            return arg;
-          }
-          return 0;
-        },
-        permut_);
+    return permut_.size() ? permut_.size() : groupsHost_[0].size;
   }
 
   template <typename F,
             typename = std::enable_if_t<std::is_same_v<F, float> || std::is_same_v<F, double> ||
                                         std::is_same_v<F, gpu::api::ComplexFloatType> ||
                                         std::is_same_v<F, gpu::api::ComplexDoubleType>>>
-  auto apply(const F* __restrict__ inDevice, F* __restrict__ outDevice) -> void;
+  auto apply(ConstDeviceView<F,1> in, DeviceView<F, 1> out) -> void;
 
   template <typename F,
             typename = std::enable_if_t<std::is_same_v<F, float> || std::is_same_v<F, double> ||
                                         std::is_same_v<F, gpu::api::ComplexFloatType> ||
                                         std::is_same_v<F, gpu::api::ComplexDoubleType>>>
-  auto apply(F* inOutDevice) -> void;
+  auto apply(DeviceView<F,1> inOut) -> void;
 
   template <typename F,
             typename = std::enable_if_t<std::is_same_v<F, float> || std::is_same_v<F, double> ||
                                         std::is_same_v<F, gpu::api::ComplexFloatType> ||
                                         std::is_same_v<F, gpu::api::ComplexDoubleType>>>
-  auto reverse(const F* __restrict__ inDevice, F* __restrict__ outDevice) -> void;
+  auto reverse(ConstDeviceView<F,1> in, DeviceView<F, 1> out) -> void;
 
   template <typename F,
             typename = std::enable_if_t<std::is_same_v<F, float> || std::is_same_v<F, double> ||
                                         std::is_same_v<F, gpu::api::ComplexFloatType> ||
                                         std::is_same_v<F, gpu::api::ComplexDoubleType>>>
-  auto reverse(F* inOutDevice) -> void;
+  auto reverse(DeviceView<F, 1> inOut) -> void;
 
 private:
-  explicit DomainPartition(std::shared_ptr<ContextInternal> ctx, Buffer<std::size_t> permut,
-                           Buffer<Group> groupsHost)
+  explicit DomainPartition(std::shared_ptr<ContextInternal> ctx, DeviceArray<std::size_t, 1> permut,
+                           std::vector<PartitionGroup> groupsHost)
       : ctx_(std::move(ctx)), permut_(std::move(permut)), groupsHost_(std::move(groupsHost)) {}
 
-  explicit DomainPartition(std::shared_ptr<ContextInternal> ctx, std::size_t size,
-                           Buffer<Group> groupsHost)
-      : ctx_(std::move(ctx)), permut_(size), groupsHost_(std::move(groupsHost)) {}
+  explicit DomainPartition(std::shared_ptr<ContextInternal> ctx, std::vector<PartitionGroup> groupsHost)
+      : ctx_(std::move(ctx)), groupsHost_(std::move(groupsHost)) {}
 
   std::shared_ptr<ContextInternal> ctx_;
-  std::variant<std::size_t, Buffer<std::size_t>> permut_;
-  Buffer<Group> groupsHost_;
-  Buffer<char> workBufferDevice_;
+  DeviceArray<std::size_t, 1> permut_;
+  std::vector<PartitionGroup> groupsHost_;
+  DeviceArray<char,1> workBufferDevice_;
 };
 
 }  // namespace gpu

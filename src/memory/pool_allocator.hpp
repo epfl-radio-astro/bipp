@@ -16,9 +16,10 @@ namespace bipp {
 
 class PoolAllocator : public Allocator {
 public:
-  PoolAllocator(std::function<void*(std::size_t)> allocateFunc,
+  PoolAllocator(MemoryType type, std::function<void*(std::size_t)> allocateFunc,
                 std::function<void(void*)> deallocateFunc)
-      : allocateFunc_(std::move(allocateFunc)),
+      : type_(type),
+        allocateFunc_(std::move(allocateFunc)),
         deallocateFunc_(std::move(deallocateFunc)),
         lock_(new std::mutex()),
         memorySize_(0) {
@@ -89,7 +90,10 @@ public:
 
   auto size() -> std::uint_least64_t override { return memorySize_; }
 
+  auto type() -> MemoryType override { return type_; }
+
 private:
+  MemoryType type_;
   std::function<void*(std::size_t)> allocateFunc_;
   std::function<void(void*)> deallocateFunc_;
 

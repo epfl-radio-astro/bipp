@@ -12,7 +12,7 @@ namespace bipp {
 
 class UmpireAllocator : public Allocator {
 public:
-  UmpireAllocator(const std::string& location) {
+  UmpireAllocator(MemoryType type, const std::string& location) : type_(type) {
     const auto name = location + "_dynamic_bipp";
     auto& rm = umpire::ResourceManager::getInstance();
     // Any allocator is stored in global instance. Reuse, if it already exists.
@@ -37,8 +37,10 @@ public:
 
   auto size() -> std::uint_least64_t override { return alloc_.getActualSize(); }
 
+  auto type() -> MemoryType override { return type_; }
+
 private:
-  // umpire::ResourceManager manager_;
+  MemoryType type_;
   umpire::Allocator alloc_;
 };
 }  // namespace bipp

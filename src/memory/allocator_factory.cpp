@@ -19,9 +19,10 @@ namespace bipp {
 
 auto AllocatorFactory::host() -> std::unique_ptr<Allocator> {
 #ifdef BIPP_UMPIRE
-  return std::unique_ptr<Allocator>{new UmpireAllocator("HOST")};
+  return std::unique_ptr<Allocator>{MemoryType::Host, new UmpireAllocator("HOST")};
 #else
   return std::unique_ptr<Allocator>{new PoolAllocator(
+      MemoryType::Host,
       [](std::size_t size) -> void* {
         void* ptr = nullptr;
         if (size) {
@@ -40,9 +41,10 @@ auto AllocatorFactory::host() -> std::unique_ptr<Allocator> {
 
 auto AllocatorFactory::pinned() -> std::unique_ptr<Allocator> {
 #ifdef BIPP_UMPIRE
-  return std::unique_ptr<Allocator>{new UmpireAllocator("PINNED")};
+  return std::unique_ptr<Allocator>{MemoryType::Host, new UmpireAllocator("PINNED")};
 #else
   return std::unique_ptr<Allocator>{new PoolAllocator(
+      MemoryType::Host,
       [](std::size_t size) -> void* {
         void* ptr = nullptr;
         if (size) gpu::api::malloc_host(&ptr, size);
@@ -56,9 +58,10 @@ auto AllocatorFactory::pinned() -> std::unique_ptr<Allocator> {
 
 auto AllocatorFactory::device() -> std::unique_ptr<Allocator> {
 #ifdef BIPP_UMPIRE
-  return std::unique_ptr<Allocator>{new UmpireAllocator("DEVICE")};
+  return std::unique_ptr<Allocator>{MemoryType::Device, new UmpireAllocator("DEVICE")};
 #else
   return std::unique_ptr<Allocator>{new PoolAllocator(
+      MemoryType::Device,
       [](std::size_t size) -> void* {
         void* ptr = nullptr;
         if (size) gpu::api::malloc(&ptr, size);

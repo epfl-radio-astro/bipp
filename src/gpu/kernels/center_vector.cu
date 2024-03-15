@@ -25,14 +25,14 @@ auto center_vector(Queue& q, std::size_t n, T* vec) -> void {
   api::check_status(
       api::cub::DeviceReduce::Sum<const T*, T*>(nullptr, worksize, nullptr, nullptr, n, q.stream()));
 
-  auto workBuffer = q.create_device_buffer<char>(sizeof(T) + worksize);
+  auto workBuffer = q.create_device_array<char,1>({sizeof(T) + worksize});
 
   // To avoid alignment issues for type T, sum up at beginning of work array and
   // provide remaining memory to reduce function
-  T* sumPtr = reinterpret_cast<T*>(workBuffer.get());
+  T* sumPtr = reinterpret_cast<T*>(workBuffer.data());
 
   api::check_status(api::cub::DeviceReduce::Sum<const T*, T*>(
-      reinterpret_cast<T*>(workBuffer.get()) + 1, worksize, vec, sumPtr, n, q.stream()));
+      reinterpret_cast<T*>(workBuffer.data()) + 1, worksize, vec, sumPtr, n, q.stream()));
 
   constexpr int blockSize = 256;
   const dim3 block(std::min<int>(blockSize, q.device_prop().maxThreadsDim[0]), 1, 1);

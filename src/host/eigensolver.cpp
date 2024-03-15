@@ -1,6 +1,7 @@
 #include "host/eigensolver.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <complex>
 #include <cstddef>
 #include <cstring>
@@ -13,48 +14,55 @@
 #include "bipp/config.h"
 #include "context_internal.hpp"
 #include "host/blas_api.hpp"
+#include "host/gram_matrix.hpp"
 #include "host/lapack_api.hpp"
 #include "memory/allocator.hpp"
-#include "memory/buffer.hpp"
+#include "memory/array.hpp"
+#include "memory/copy.hpp"
 
 namespace bipp {
 namespace host {
 
 template <typename T>
-static auto copy_lower_triangle_at_indices(std::size_t m, const std::vector<std::size_t>& indices,
-                                           const T* a, std::size_t lda, T* b, std::size_t ldb) {
+static auto copy_lower_triangle_at_indices(const std::vector<std::size_t>& indices,
+                                           const ConstHostView<T, 2>& a, HostView<T, 2> b) {
   const std::size_t mReduced = indices.size();
-  if (mReduced == m) {
-    for (std::size_t col = 0; col < mReduced; ++col) {
-      std::memcpy(b + col * ldb + col, a + col * lda + col, (mReduced - col) * sizeof(T));
-    }
+  if (mReduced == a.shape(0)) {
+    copy(a, b);
   } else {
     for (std::size_t col = 0; col < mReduced; ++col) {
       const auto colIdx = indices[col];
+      auto bCol = b.slice_view(col);
+      auto aCol = a.slice_view(colIdx);
       for (std::size_t row = col; row < mReduced; ++row) {
         const auto rowIdx = indices[row];
-        b[col * mReduced + row] = a[colIdx * lda + rowIdx];
+        bCol[{row}] = aCol[{rowIdx}];
       }
     }
   }
 }
 
 template <typename T>
-auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::complex<T>* a,
-          std::size_t lda, const std::complex<T>* b, std::size_t ldb, T* d, std::complex<T>* v,
-          std::size_t ldv) -> void {
-  auto bufferA = Buffer<std::complex<T>>(ctx.host_alloc(), m * m);
-  auto bufferV = Buffer<std::complex<T>>(ctx.host_alloc(), m * m);
-  auto bufferD = Buffer<T>(ctx.host_alloc(), m);
-  auto bufferIfail = Buffer<int>(ctx.host_alloc(), m);
-  std::complex<T>* aReduced = bufferA.get();
+auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
+          ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz, HostView<T, 1> d,
+          HostView<std::complex<T>, 2> vUnbeam) -> std::size_t {
+  const auto nAntenna = w.shape(0);
+  const auto nBeam = w.shape(1);
 
-  std::vector<short> nonZeroIndexFlag(m, 0);
+  assert(xyz.shape(0) == nAntenna);
+  assert(xyz.shape(1) == 3);
+  assert(s.shape(0) == nBeam);
+  assert(s.shape(1) == nBeam);
+  assert(!vUnbeam.size() || vUnbeam.shape(0) == nAntenna);
+  assert(!vUnbeam.size() || vUnbeam.shape(1) == nBeam);
+
+  HostArray<short, 1> nonZeroIndexFlag(ctx.host_alloc(), nBeam);
+  nonZeroIndexFlag.zero();
 
   // flag working coloumns / rows
-  for (std::size_t col = 0; col < m; ++col) {
-    for (std::size_t row = col; row < m; ++row) {
-      const auto val =  a[col * lda + row];
+  for (std::size_t col = 0; col < s.shape(1); ++col) {
+    for (std::size_t row = col; row < s.shape(0); ++row) {
+      const auto val = s[{row, col}];
       if (val.real() != 0 || val.imag() != 0) {
         nonZeroIndexFlag[col] |= 1;
         nonZeroIndexFlag[row] |= 1;
@@ -63,82 +71,71 @@ auto eigh(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::comp
   }
 
   std::vector<std::size_t> indices;
-  indices.reserve(m);
-  for (std::size_t i = 0; i < m; ++i) {
+  indices.reserve(nBeam);
+  for (std::size_t i = 0; i < nBeam; ++i) {
     if (nonZeroIndexFlag[i]) indices.push_back(i);
   }
 
-  const std::size_t mReduced = indices.size();
+  const std::size_t nBeamReduced = indices.size();
 
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} coloumns / rows", m - mReduced);
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} coloumns / rows", nBeam - nBeamReduced);
 
-  // copy lower triangle into buffer
-  copy_lower_triangle_at_indices(m, indices, a, lda, aReduced, mReduced);
+  d.zero();
+  vUnbeam.zero();
 
-  const auto firstEigIndexFortran = mReduced - std::min(mReduced, nEig) + 1;
+  HostArray<std::complex<T>, 2> v(ctx.host_alloc(), {nBeamReduced, nBeamReduced});
 
-  int hMeig = 0;
-  if (b) {
-    auto bufferB = Buffer<std::complex<T>>(ctx.host_alloc(), m * m);
-    std::complex<T>* bReduced = bufferB.get();
+  const char mode = vUnbeam.size() ? 'V' : 'N';
+  if(nBeamReduced == nBeam) {
+    copy(s,v);
 
-    copy_lower_triangle_at_indices(m, indices, b, ldb, bReduced, mReduced);
+    // Compute gram matrix
+    auto g = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nBeam, nBeam});
+    gram_matrix<T>(ctx, w, xyz, wl, g);
 
-    if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, 'V', 'I', 'L', mReduced, aReduced, mReduced,
-                           bReduced, mReduced, 0, 0, firstEigIndexFortran, mReduced,
-                           &hMeig, bufferD.get(), bufferV.get(), mReduced, bufferIfail.get())) {
-      throw EigensolverError();
-    }
+    lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, mode, 'L', nBeam, v.data(), v.strides(1),
+                       g.data(), g.strides(1), d.data());
+
+    if (vUnbeam.size())
+      blas::gemm<std::complex<T>>(CblasNoTrans, CblasNoTrans, {1, 0}, w, v, {0, 0}, vUnbeam);
   } else {
-    if (lapack::eigh_solve(LapackeLayout::COL_MAJOR, 'V', 'I', 'L', mReduced, aReduced, mReduced, 0,
-                           0, firstEigIndexFortran, mReduced, &hMeig, bufferD.get(),
-                           bufferV.get(), mReduced, bufferIfail.get())) {
-      throw EigensolverError();
+    // Remove broken beams from w and s
+    HostArray<std::complex<T>, 2> wReduced(ctx.host_alloc(), {nAntenna, nBeamReduced});
+
+    copy_lower_triangle_at_indices(indices, s, v);
+
+    for(std::size_t i =0; i < nBeamReduced; ++i) {
+      copy(w.slice_view(indices[i]), wReduced.slice_view(i));
     }
+
+    // Compute gram matrix
+    auto gReduced = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nBeamReduced, nBeamReduced});
+    gram_matrix<T>(ctx, wReduced, xyz, wl, gReduced);
+
+    lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, mode, 'L', nBeam, v.data(), v.strides(1),
+                       gReduced.data(), gReduced.strides(1), d.data());
+
+    if (vUnbeam.size())
+      blas::gemm<std::complex<T>>(CblasNoTrans, CblasNoTrans, {1, 0}, wReduced, v, {0, 0},
+                                  vUnbeam.sub_view({0, 0}, {nAntenna, nBeamReduced}));
   }
 
-  const auto nEigOut = std::min<std::size_t>(hMeig, nEig);
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", d.sub_view(0, nBeamReduced));
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", v);
 
-  auto bufferPtrD = bufferD.get();
-  auto bufferPtrV = bufferV.get();
-
-  std::memset(d, 0, nEig * sizeof(T));
-  for (std::size_t col = 0; col < nEig; ++col) {
-    std::memset(v + col * ldv, 0, m * sizeof(std::complex<T>));
-  }
-
-
-  // copy in reverse order into output and pad to full size
-  for (std::size_t col = 0; col < nEigOut; ++col) {
-    d[col] = bufferPtrD[col + hMeig - nEigOut];
-  }
-
-  if (mReduced == m) {
-  for (std::size_t col = 0; col < nEigOut; ++col) {
-    std::memcpy(v + col * ldv, bufferPtrV + (col + hMeig - nEigOut) * m,
-                m * sizeof(std::complex<T>));
-    }
-  } else {
-    for (std::size_t col = 0; col < nEigOut; ++col) {
-      const auto colPtr = bufferPtrV + (col + hMeig - nEigOut) * mReduced;
-      for (std::size_t row = 0; row < mReduced; ++row) {
-        v[col * ldv + indices[row]] = colPtr[row];
-      }
-    }
-  }
-
-  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", nEig, 1, d, nEig);
-  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", m, nEig, v, m);
+  return nBeamReduced;
 }
 
-template auto eigh<float>(ContextInternal& ctx, std::size_t m, std::size_t nEig,
-                          const std::complex<float>* a, std::size_t lda,
-                          const std::complex<float>* b, std::size_t ldb, float* d,
-                          std::complex<float>* v, std::size_t ldv) -> void;
+template auto eigh<float>(ContextInternal& ctx, float wl, ConstHostView<std::complex<float>, 2> s,
+                          ConstHostView<std::complex<float>, 2> w, ConstHostView<float, 2> xyz,
+                          HostView<float, 1> d, HostView<std::complex<float>, 2> vUnbeam)
+    -> std::size_t;
 
-template auto eigh<double>(ContextInternal& ctx, std::size_t m, std::size_t nEig,
-                           const std::complex<double>* a, std::size_t lda,
-                           const std::complex<double>* b, std::size_t ldb, double* d,
-                           std::complex<double>* v, std::size_t ldv) -> void;
+template auto eigh<double>(ContextInternal& ctx, double wl,
+                           ConstHostView<std::complex<double>, 2> s,
+                           ConstHostView<std::complex<double>, 2> w, ConstHostView<double, 2> xyz,
+                           HostView<double, 1> d, HostView<std::complex<double>, 2> vUnbeam)
+    -> std::size_t;
+
 }  // namespace host
 }  // namespace bipp

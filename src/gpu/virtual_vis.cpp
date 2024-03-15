@@ -1,103 +1,90 @@
 #include "gpu/virtual_vis.hpp"
 
+#include <cassert>
+
 #include "bipp/config.h"
 #include "context_internal.hpp"
-#include "gpu/kernels/apply_filter.hpp"
 #include "gpu/kernels/scale_matrix.hpp"
 #include "gpu/util/blas_api.hpp"
 #include "gpu/util/runtime_api.hpp"
-#include "host/kernels/apply_filter.hpp"
-#include "host/kernels/interval_indices.hpp"
-#include "memory/buffer.hpp"
+#include "memory/copy.hpp"
+#include "memory/view.hpp"
 
 namespace bipp {
 namespace gpu {
 
 template <typename T>
-auto virtual_vis(ContextInternal& ctx, std::size_t nFilter, const BippFilter* filterHost,
-                 std::size_t nIntervals, const T* intervalsHost, std::size_t ldIntervals,
-                 std::size_t nEig, const T* D, std::size_t nAntenna, const api::ComplexType<T>* V,
-                 std::size_t ldv, std::size_t nBeam, const api::ComplexType<T>* W, std::size_t ldw,
-                 api::ComplexType<T>* virtVis, std::size_t ldVirtVis1, std::size_t ldVirtVis2,
-                 std::size_t ldVirtVis3) -> void {
-  using ComplexType = api::ComplexType<T>;
+auto virtual_vis(ContextInternal& ctx, ConstHostView<T, 2> dMasked,
+                 ConstDeviceView<api::ComplexType<T>, 2> vAll,
+                 DeviceView<api::ComplexType<T>, 2> virtVis) -> void {
+  assert(dMasked.shape(1) == virtVis.shape(1));
+  assert(vAll.shape(0) * vAll.shape(0) == virtVis.shape(0));
+  assert(vAll.shape(1) == dMasked.shape(0));
+
   auto& queue = ctx.gpu_queue();
+  const auto nAntenna = vAll.shape(0);
 
-  const auto zero = ComplexType{0, 0};
-  const auto one = ComplexType{1, 0};
+  const auto zero = api::ComplexType<T>{0, 0};
+  const auto one = api::ComplexType<T>{1, 0};
 
-  Buffer<api::ComplexType<T>> VUnbeamBuffer;
-  if (W) {
-    VUnbeamBuffer = queue.create_device_buffer<api::ComplexType<T>>(nAntenna * nEig);
+  auto vArray = queue.create_device_array<api::ComplexType<T>, 2>(vAll.shape());
+  auto vScaledArray = queue.create_device_array<api::ComplexType<T>, 2>(vAll.shape());
 
-    api::blas::gemm(queue.blas_handle(), api::blas::operation::None, api::blas::operation::None,
-                    nAntenna, nEig, nBeam, &one, W, ldw, V, ldv, &zero, VUnbeamBuffer.get(),
-                    nAntenna);
-    V = VUnbeamBuffer.get();
-    ldv = nAntenna;
-  }
-  // V is alwayts of shape (nAntenna, nEig) from here on
+  auto dHostArray = queue.create_pinned_array<T, 2>(dMasked.shape());
+  auto dArray = queue.create_device_array<T, 1>(dMasked.shape(0));
 
-  auto VMulDBuffer = queue.create_device_buffer<api::ComplexType<T>>(nEig * nAntenna);
+  for (std::size_t idxImage = 0; idxImage < virtVis.shape(1); ++idxImage) {
+    auto dHost = dHostArray.slice_view(idxImage);
 
-  auto DBufferHost = queue.create_pinned_buffer<T>(nEig);
-  auto DFilteredBuffer = queue.create_device_buffer<T>(nEig);
-
-  api::memcpy_async(DBufferHost.get(), D, nEig * sizeof(T), api::flag::MemcpyDeviceToHost,
-                    queue.stream());
-  // Make sure D is available on host
-  queue.sync();
-
-  for (std::size_t i = 0; i < static_cast<std::size_t>(nFilter); ++i) {
-    apply_filter(queue, filterHost[i], nEig, D, DFilteredBuffer.get());
-
-    for (std::size_t j = 0; j < static_cast<std::size_t>(nIntervals); ++j) {
-      std::size_t start, size;
-      std::tie(start, size) = host::find_interval_indices(
-          nEig, DBufferHost.get(), intervalsHost[j * static_cast<std::size_t>(ldIntervals)],
-          intervalsHost[j * static_cast<std::size_t>(ldIntervals) + 1]);
-
-      auto virtVisCurrent = virtVis + i * static_cast<std::size_t>(ldVirtVis1) +
-                            j * static_cast<std::size_t>(ldVirtVis2);
-      if (size) {
-        // Multiply each col of V with the selected eigenvalue
-        scale_matrix<T>(queue, nAntenna, size, V + start * ldv, ldv, DFilteredBuffer.get() + start,
-                        VMulDBuffer.get(), nAntenna);
-
-        for (std::size_t k = 0; k < size; ++k) {
-          ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} to inverval [{}, {}]",
-                           *(DBufferHost.get() + start + k), intervalsHost[j * ldIntervals],
-                           intervalsHost[j * ldIntervals + 1]);
-        }
-
-        // Matrix multiplication of the previously scaled V and the original V
-        // with the selected eigenvalues
-        api::blas::gemm(queue.blas_handle(), api::blas::operation::None,
-                        api::blas::operation::ConjugateTranspose, nAntenna, nAntenna, size, &one,
-                        VMulDBuffer.get(), nAntenna, V + start * ldv, ldv, &zero, virtVisCurrent,
-                        ldVirtVis3);
-
-      } else {
-        api::memset_2d_async(virtVisCurrent, ldVirtVis3 * sizeof(ComplexType), 0,
-                             nAntenna * sizeof(ComplexType), nAntenna, queue.stream());
+    // only consider non-zero eigenvalues
+    std::size_t nEig = 0;
+    for (std::size_t idxEig = 0; idxEig < dMasked.shape(0); ++idxEig) {
+      if (dMasked[{idxEig, idxImage}]) {
+        copy(queue, vAll.slice_view(idxEig), vArray.slice_view(nEig));
+        dHost[nEig] = dMasked[{idxEig, idxImage}];
+        ++nEig;
       }
+    }
+
+    auto virtVisCurrent = virtVis.slice_view(idxImage);
+
+    if (!nEig) {
+      api::memset_async(virtVisCurrent.data(), 0, virtVisCurrent.size_in_bytes());
+    } else {
+      auto v = vArray.sub_view({0, 0}, {vArray.shape(0), nEig});
+      auto vScaled = vScaledArray.sub_view({0, 0}, {vArray.shape(0), nEig});
+      auto d = dArray.sub_view(0, nEig);
+      dHost = dHost.sub_view(0, nEig);
+
+      copy(queue, dHost, d);
+
+      // Multiply each col of V with the selected eigenvalue
+      scale_matrix<T>(queue, nAntenna, nEig, v.data(), v.strides(1), d.data(), vScaled.data(),
+                      vScaled.strides(1));
+
+      for (std::size_t k = 0; k < nEig; ++k) {
+        ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} to level {}", dHost[k],
+                         idxImage);
+      }
+
+      // Matrix multiplication of the previously scaled V and the original V
+      // with the selected eigenvalues
+      api::blas::gemm<api::ComplexType<T>>(
+          queue.blas_handle(), api::blas::operation::None, api::blas::operation::ConjugateTranspose,
+          one, vScaled, v, zero,
+          DeviceView<api::ComplexType<T>, 2>(virtVisCurrent.data(), {nAntenna, nAntenna},
+                                             {1, nAntenna}));
     }
   }
 }
 
-template auto virtual_vis<float>(
-    ContextInternal& ctx, std::size_t nFilter, const BippFilter* filter, std::size_t nIntervals,
-    const float* intervals, std::size_t ldIntervals, std::size_t nEig, const float* D,
-    std::size_t nAntenna, const api::ComplexType<float>* V, std::size_t ldv, std::size_t nBeam,
-    const api::ComplexType<float>* W, std::size_t ldw, api::ComplexType<float>* virtVis,
-    std::size_t ldVirtVis1, std::size_t ldVirtVis2, std::size_t ldVirtVis3) -> void;
+template auto virtual_vis<float>(ContextInternal& ctx, ConstHostView<float, 2> dMasked,
+                                 ConstDeviceView<api::ComplexType<float>, 2> vAll,
+                                 DeviceView<api::ComplexType<float>, 2> virtVis) -> void;
 
-template auto virtual_vis<double>(
-    ContextInternal& ctx, std::size_t nFilter, const BippFilter* filter, std::size_t nIntervals,
-    const double* intervals, std::size_t ldIntervals, std::size_t nEig, const double* D,
-    std::size_t nAntenna, const api::ComplexType<double>* V, std::size_t ldv, std::size_t nBeam,
-    const api::ComplexType<double>* W, std::size_t ldw, api::ComplexType<double>* virtVis,
-    std::size_t ldVirtVis1, std::size_t ldVirtVis2, std::size_t ldVirtVis3) -> void;
+template auto virtual_vis<double>(ContextInternal& ctx, ConstHostView<double, 2> dMasked,
+                                  ConstDeviceView<api::ComplexType<double>, 2> vAll,
+                                  DeviceView<api::ComplexType<double>, 2> virtVis) -> void;
 
 }  // namespace gpu
 }  // namespace bipp

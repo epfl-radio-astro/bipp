@@ -56,6 +56,7 @@ option(BIPP_MAGMA "Use MAGMA library as eigensolver" OFF)
 option(BIPP_UMPIRE "Use Umpire memory pool library" OFF)
 option(BIPP_VC "Use VC vectorization library" OFF)
 option(BIPP_OMP "Use OpenMP for multi-threading" ON)
+option(BIPP_MPI "Use MPI for multi-process parallization" OFF)
 option(BIPP_BUNDLED_LIBS "Use bundled libraries for spdlog, googletest and json" ON)
 
 cmake_dependent_option(BIPP_BUNDLED_SPDLOG "Use bundled spdlog lib" ON "BIPP_BUNDLED_LIBS" OFF)
@@ -102,6 +103,7 @@ endif()
 
 set(BIPP_FLAGS "")
 set(BIPP_EXTERNAL_LIBS "")
+set(BIPP_EXTERNAL_LIBS_PUBLIC "")
 set(BIPP_INCLUDE_DIRS "")
 
 # CUDA
@@ -177,6 +179,12 @@ endif()
 
 set(BLA_SIZEOF_INTEGER 4) # 32 bit interface to blas / lapack
 
+# MPI
+if(BIPP_MPI)
+  find_package(MPI COMPONENTS CXX REQUIRED)
+  list(APPEND BIPP_EXTERNAL_LIBS_PUBLIC MPI::MPI_CXX)
+endif()
+
 # BLAS
 find_package(BLAS REQUIRED)
 if(NOT TARGET BLAS::BLAS)
@@ -244,7 +252,7 @@ unset(BIPP_BLAS_C CACHE) # Result is cached, so change of library will not lead 
 CHECK_FUNCTION_EXISTS(cblas_zgemm BIPP_BLAS_C)
 
 unset(BIPP_LAPACK_C CACHE) # Result is cached, so change of library will not lead to a new check automatically
-CHECK_FUNCTION_EXISTS(LAPACKE_zheevx BIPP_LAPACK_C)
+CHECK_FUNCTION_EXISTS(LAPACKE_chegv BIPP_LAPACK_C)
 
 # generate config.h
 configure_file(include/bipp/config.h.in ${PROJECT_BINARY_DIR}/bipp/config.h)

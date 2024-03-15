@@ -8,6 +8,7 @@
 Simulation LOFAR imaging with Bipp (NUFFT).
 """
 
+import sys
 from tqdm import tqdm as ProgressBar
 import astropy.units as u
 import astropy.coordinates as coord
@@ -24,13 +25,28 @@ import bipp.source as source
 import bipp.instrument as instrument
 import bipp.frame as frame
 import bipp.statistics as statistics
+import bipp.filter
 import time as tt
 import matplotlib.pyplot as plt
 
 
+comm = bipp.communicator.world()
+
 # Create context with selected processing unit.
 # Options are "AUTO", "CPU" and "GPU".
-ctx = bipp.Context("AUTO")
+#Note : When using MPI, mixing "CPU" and "GPU" on different ranks is possible.
+ctx = bipp.Context("AUTO", comm)
+
+# Only required when using MPI. Has no effect otherwise.
+if ctx.attach_non_root():
+    sys.exit(0)
+
+# print build config
+print("===== Build config ====")
+print("MPI = ", bipp.config.mpi)
+print("OMP = ", bipp.config.omp)
+print("CUDA = ", bipp.config.cuda)
+print("ROCM = ", bipp.config.rocm)
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
@@ -58,10 +74,9 @@ obs_end = time[-1]
 opt = bipp.NufftSynthesisOptions()
 # Set the tolerance for NUFFT, which is the maximum relative error.
 opt.set_tolerance(1e-3)
-# Set the maximum number of data packages that are processed together after collection.
+# Set the maximum number amount of memory to be used for collecting time step data.
 # A larger number increases memory usage, but usually improves performance.
-# If set to "None", an internal heuristic will be used.
-opt.set_collect_group_size(None)
+#  opt.set_collect_memory(0.2)
 # Set the domain splitting methods for image and uvw coordinates.
 # Splitting decreases memory usage, but may lead to lower performance.
 # Best used with a wide spread of image or uvw coordinates.
@@ -78,6 +93,7 @@ t1 = tt.time()
 N_level = 3
 time_slice = 25
 
+print("===== Image Synthesis ====")
 print("N_pix = ", N_pix)
 print("precision = ", precision)
 print("N_station = ", N_station)
@@ -88,24 +104,21 @@ lmn_grid, xyz_grid = frame.make_grids(N_pix, FoV, field_center)
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
-I_est = bb_pe.IntensityFieldParameterEstimator(N_level, sigma=0.95, ctx=ctx)
+I_est = bb_pe.ParameterEstimator(N_level, sigma=0.95, ctx=ctx)
 for t in ProgressBar(time[::200]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
     S = vis(XYZ, W, wl)
-    I_est.collect(S, G)
+    I_est.collect(wl, S.data, W.data, XYZ.data)
 
-N_eig, intensity_intervals = I_est.infer_parameters()
+intervals = I_est.infer_parameters()
+fi = bipp.filter.Filter(lsq=intervals, std=intervals)
 
 # Imaging
 imager = bipp.NufftSynthesis(
     ctx,
     opt,
-    N_antenna,
-    N_station,
-    intensity_intervals.shape[0],
-    ["LSQ", "SQRT"],
+    fi.num_images(),
     lmn_grid[0],
     lmn_grid[1],
     lmn_grid[2],
@@ -118,52 +131,18 @@ for t in ProgressBar(time[::time_slice]):
     W = mb(XYZ, wl)
     S = vis(XYZ, W, wl)
     uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
-    imager.collect(N_eig, wl, intensity_intervals, W.data, XYZ.data, uvw, S.data)
+    imager.collect(wl, fi, S.data, W.data, XYZ.data, uvw)
 
-lsq_image = imager.get("LSQ").reshape((-1, N_pix, N_pix))
-sqrt_image = imager.get("SQRT").reshape((-1, N_pix, N_pix))
+images = imager.get().reshape((-1, N_pix, N_pix))
 
-### Sensitivity Field =========================================================
-# Parameter Estimation
-S_est = bb_pe.SensitivityFieldParameterEstimator(sigma=0.95, ctx=ctx)
-for t in ProgressBar(time[::200]):
-    XYZ = dev(t)
-    W = mb(XYZ, wl)
-    G = gram(XYZ, W, wl)
-
-    S_est.collect(G)
-N_eig = S_est.infer_parameters()
-
-# Imaging
-sensitivity_intervals = np.array([[0, np.finfo("f").max]])
-imager = None  # release previous imager first to some additional memory
-imager = bipp.NufftSynthesis(
-    ctx,
-    opt,
-    N_antenna,
-    N_station,
-    sensitivity_intervals.shape[0],
-    ["INV_SQ"],
-    lmn_grid[0],
-    lmn_grid[1],
-    lmn_grid[2],
-    precision,
-)
-
-for t in ProgressBar(time[::time_slice]):
-    XYZ = dev(t)
-    W = mb(XYZ, wl)
-    UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
-    uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
-    imager.collect(N_eig, wl, sensitivity_intervals, W.data, XYZ.data, uvw, None)
-
-sensitivity_image = imager.get("INV_SQ").reshape((-1, N_pix, N_pix))
-
-# Plot Results ================================================================
-I_lsq_eq = s2image.Image(lsq_image / sensitivity_image, xyz_grid)
-I_sqrt_eq = s2image.Image(sqrt_image / sensitivity_image, xyz_grid)
 t2 = tt.time()
 print(f"Elapsed time: {t2 - t1} seconds.")
+
+lsq_image = fi.get_filter_images("lsq", images)
+std_image = fi.get_filter_images("std", images)
+
+I_lsq_eq = s2image.Image(lsq_image, xyz_grid)
+I_std_eq = s2image.Image(std_image, xyz_grid)
 
 plt.figure()
 ax = plt.gca()
@@ -182,7 +161,7 @@ ax.set_title(
 
 plt.figure()
 ax = plt.gca()
-I_sqrt_eq.draw(
+I_std_eq.draw(
     catalog=sky_model.xyz.T,
     ax=ax,
     data_kwargs=dict(cmap="cubehelix"),
@@ -190,11 +169,12 @@ I_sqrt_eq.draw(
     catalog_kwargs=dict(s=30, linewidths=0.5, alpha=0.5),
 )
 ax.set_title(
-    f"Bipp sqrt, sensitivity-corrected image (NUFFT)\n"
+    f"Bipp STD, sensitivity-corrected image (NUFFT)\n"
     f"Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n"
     f"Run time {np.floor(t2 - t1)} seconds."
 )
 
+plt.savefig("nufft_synthesis_std.png")
 plt.figure()
 titles = ["Strong sources", "Mild sources", "Faint Sources"]
 for i in range(lsq_image.shape[0]):
@@ -211,5 +191,5 @@ for i in range(lsq_image.shape[0]):
     )
 
 plt.suptitle(f"Bipp Eigenmaps")
-#  plt.show()
-plt.savefig("final_bb.png")
+plt.savefig("nufft_synthesis_lsq.png")
+plt.show()
