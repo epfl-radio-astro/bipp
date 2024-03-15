@@ -29,16 +29,16 @@ import bipp.gram as gr
 import bipp.filter
 import bipp.pybipp
 
-def centroid_to_intervals(centroid=None, d_min=0.0, fne=True):
+def centroid_to_intervals(centroid=None, min_pos_d=0.0, fne=True):
     r"""
     Convert centroid to invervals as required by VirtualVisibilitiesDataProcessingBlock.
 
     Args
         centroid: Optional[np.ndarray]
             (N_centroid) centroid values. If None, [0, max_float] is returned.
-        d_min: Optional[float]
-            Optional lower bound of first interval containing the smallest eigenvalues (i.e. the
-            smallest of all eigenvalues considered when computing the centroids).
+        min_pos_d: Optional[float]
+            Optional lower bound for the first interval containing the smallest positive eigenvalues
+            (i.e. the smallest of all (positive) eigenvalues considered when computing the centroids).
             Defaults to zero.
         fne: Optional[bool]
             Filter out negative eigenvalues (default is True to only keep positive ones).
@@ -47,15 +47,23 @@ def centroid_to_intervals(centroid=None, d_min=0.0, fne=True):
         intervals: np.ndarray
          (N_centroid, 2) Intervals matching the input with lower and upper bound.
     """
-    if centroid is None or centroid.size <= 1:
+    if centroid is None or centroid.size == 0:
         return np.array([[0, np.finfo("f").max]])
+
+    if centroid.size == 1:
+        if fne:
+            return np.array([[min_pos_d, np.finfo("f").max]])
+        else:
+            return np.array([[0, np.finfo("f").max],
+                             [np.finfo("f").min, -np.finfo("f").tiny]])
+    
     intervals = np.empty((centroid.size, 2))
     sorted_idx = np.argsort(centroid)
     sorted_centroid = centroid[sorted_idx]
     for i in range(centroid.size):
         idx = sorted_idx[i]
         if idx == 0:
-            intervals[i, 0] = d_min if fne else 0
+            intervals[i, 0] = min_pos_d if fne else 0
         else:
             intervals[i, 0] = (sorted_centroid[idx] + sorted_centroid[idx - 1]) / 2
 
@@ -143,5 +151,8 @@ class ParameterEstimator:
         cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1]
 
         self._inferred = True
-        self._intervals = centroid_to_intervals(cluster_centroid, np.min(D_all), self._fne)
+
+        min_pos_d = np.min(D_all) if self._fne else 0
+        
+        self._intervals = centroid_to_intervals(cluster_centroid, min_pos_d, self._fne)
         return self._intervals
