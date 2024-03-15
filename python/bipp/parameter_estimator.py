@@ -30,14 +30,17 @@ import bipp.filter
 import bipp.pybipp
 
 
-def centroid_to_intervals(centroid):
+def centroid_to_intervals(centroid=None, d_min=0.0):
     r"""
     Convert centroid to invervals as required by VirtualVisibilitiesDataProcessingBlock.
 
     Args
         centroid: Optional[np.ndarray]
             (N_centroid) centroid values. If None, [0, max_float] is returned.
-
+        d_min: Optional[float]
+            Optional lower bound of first interval containing the smallest eigenvalues (i.e. the
+            smallest of all eigenvalues considered when computing the centroids).
+            Defaults to zero.
     Returns
         intervals: np.ndarray
          (N_centroid, 2) Intervals matching the input with lower and upper bound.
@@ -50,7 +53,7 @@ def centroid_to_intervals(centroid):
     for i in range(centroid.size):
         idx = sorted_idx[i]
         if idx == 0:
-            intervals[i, 0] = 0
+            intervals[i, 0] = d_min
         else:
             intervals[i, 0] = (sorted_centroid[idx] + sorted_centroid[idx - 1]) / 2
 
@@ -134,5 +137,5 @@ class ParameterEstimator:
         cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1]
 
         self._inferred = True
-        self._intervals = centroid_to_intervals(cluster_centroid)
+        self._intervals = centroid_to_intervals(cluster_centroid, np.min(D_all))
         return self._intervals
