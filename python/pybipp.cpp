@@ -77,6 +77,23 @@ auto processing_unit_to_string(BippProcessingUnit pu) -> std::string {
   throw InvalidParameterError();
 }
 
+void center_array(py::array_t<double> input_array) {
+  py::buffer_info buf_info = input_array.request();
+  double *ptr = static_cast<double *>(buf_info.ptr);
+  const auto N = buf_info.shape[0];
+  const auto M = buf_info.shape[1];
+  for (auto j=0; j<M; j++) {
+    double mean = 0.0;
+    for (auto i=j*N; i<(j+1)*N; i++) {
+      mean += ptr[i];
+    }
+    mean /= N;
+    for (auto i=j*N; i<(j+1)*N; i++) {
+      ptr[i] = ptr[i] - mean;
+    }
+  }
+}
+
 auto create_context(const std::string& pu) -> Context {
   return Context(string_to_processing_unit(pu));
 }
@@ -174,6 +191,8 @@ struct StandardSynthesisDispatcher {
             check_2d_array(wArray);
             auto nAntenna = wArray.shape(0);
             auto nBeam = wArray.shape(1);
+            // Always center xyz array in double precision
+            center_array(xyz);
             py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(xyz);
             check_2d_array(xyzArray, {nAntenna, 3});
             py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast> sArray(s);
