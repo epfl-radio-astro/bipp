@@ -18,6 +18,7 @@
 #include "gpu/collector.hpp"
 #include "gpu/eigensolver.hpp"
 #include "gpu/kernels/center_vector.hpp"
+#include "gpu/kernels/scale_vector.hpp"
 #include "gpu/nufft_synthesis.hpp"
 #include "gpu/standard_synthesis.hpp"
 #include "gpu/util/device_accessor.hpp"
@@ -37,6 +38,13 @@ static auto center_vector(std::size_t n, const T* __restrict__ in, T* __restrict
   mean /= n;
   for (std::size_t i = 0; i < n; ++i) {
     out[i] = in[i] - mean;
+  }
+}
+
+template <typename T>
+static auto scale_vector(std::size_t n, const std::size_t scale, T* __restrict__ vec) -> void {
+   for (std::size_t i = 0; i < n; ++i) {
+    vec[i] /= scale;
   }
 }
 
@@ -120,6 +128,20 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
                         ConstView<T, 2> xyz, ConstView<T, 2> uvw) -> void {
   if (!synthesis_) throw InternalError();
 
+  // Count the number of non-zero visibilities
+  assert(s.shape(0) == s.shape(1));
+  std::size_t nVis = {0};
+  const std::complex<T> c0 = 0.0;
+  nVis = s.shape(0) * s.shape(1);
+  const auto S = s.data();
+  for (std::size_t col = 0; col < s.shape(1); ++col) {
+    for (std::size_t row = col; row < s.shape(0); ++row) {
+      if (S[col * s.shape(1) + row] == c0) {
+        col == row ? nVis -= 1 : nVis -= 2;
+      }
+    }
+  }
+
   const auto nAntenna = w.shape(0);
   const auto nBeam = w.shape(1);
   const auto nImages = synthesis_->image().shape(1);
@@ -162,6 +184,10 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
         gpu::eigh<T>(ctx, wl, sDevice.view(), wDevice.view(), xyzCentered, dArray, vUnbeamArray);
 
     auto d = dArray.sub_view(0, nEig);
+
+    T d_scale = T(1) / T(nVis);
+    gpu::scale_vector<T>(queue.device_prop(), queue.stream(), nEig, d_scale, d.data());
+
     auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna, nEig});
     auto vUnbeamCast =
         ConstView<std::complex<T>, 2>(reinterpret_cast<const std::complex<T>*>(vUnbeam.data()),
@@ -215,6 +241,10 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
     const auto nEig = host::eigh<T>(ctx, wl, sHost, wHost, xyzHost, dArray, vUnbeamArray);
 
     auto d = dArray.sub_view(0, nEig);
+
+    // Scale eigenvalues by number of non-zero visibilities
+    scale_vector(nEig, nVis, d.data());
+
     auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna, nEig});
 
     auto dMaskedArray = HostArray<T, 2>(ctx.host_alloc(), {d.size(), nImages});
