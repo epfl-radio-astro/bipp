@@ -42,6 +42,7 @@ set(BIPP_PYTHON_SRC
 	statistics.py
 	beamforming.py
 	filter.py
+	measurement_set.py
 	imot_tools/io/s2image.py
 	imot_tools/io/plot.py
 	imot_tools/io/fits.py
