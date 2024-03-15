@@ -29,6 +29,7 @@ StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx,
       nImages_(nImages),
       nPixel_(pixelX.size()),
       count_(0),
+      totalVisibilityCount_(0),
       pixel_(ctx_->host_alloc(), {pixelX.size(), 3}),
       img_(ctx_->host_alloc(), {nPixel_, nImages_}) {
   assert(pixelX.size() == pixelY.size());
@@ -45,6 +46,7 @@ auto StandardSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
   auto data = collector.get_data();
 
   for (const auto& s : data) {
+    totalVisibilityCount_ += s.nVis;
     this->process_single(s.wl, s.v, s.dMasked, s.xyzUvw);
   }
 }
@@ -138,10 +140,10 @@ auto StandardSynthesis<T>::get(View<T, 2> out) -> void {
     for (std::size_t i = 0; i < nImages_; ++i) {
       const T* __restrict__ localImg = &img_[{0, i}];
       T* __restrict__ outputImg = &outHost[{0, i}];
-      const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
-
+      const T visScale =
+          totalVisibilityCount_ ? static_cast<T>(1.0 / static_cast<double>(totalVisibilityCount_)) : 0;
       for (std::size_t j = 0; j < nPixel_; ++j) {
-        outputImg[j] = scale * localImg[j];
+        outputImg[j] = localImg[j] * visScale;
       }
     }
   } else {

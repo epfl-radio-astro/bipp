@@ -38,7 +38,8 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
       pixel_(std::move(pixel)),
       img_(ctx_->gpu_queue().create_device_array<T, 2>({nPixel_, nImages_})),
       imgPartition_(DomainPartition::none(ctx_, nPixel_)),
-      totalCollectCount_(0) {
+      totalCollectCount_(0),
+      totalVisibilityCount_(0) {
   auto& queue = ctx_->gpu_queue();
   api::memset_async(img_.data(), 0, img_.size() * sizeof(T), queue.stream());
 
@@ -71,8 +72,10 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
   if (data.empty()) return;
 
   std::size_t collectPoints = 0;
+  std::size_t visibilityCount = 0;
   for (const auto& s : data) {
     collectPoints += s.xyzUvw.shape(0);
+    visibilityCount += s.nVis;
     assert(s.v.shape(0) * s.v.shape(0) == s.xyzUvw.shape(0));
   }
 
@@ -238,6 +241,7 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
   queue.sync_with_stream(nullptr);
 
   totalCollectCount_ += data.size();
+  totalVisibilityCount_ += visibilityCount;
 }
 
 template <typename T>
@@ -249,8 +253,12 @@ auto NufftSynthesis<T>::get(View<T, 2> out) -> void {
 
   DeviceAccessor<T, 2> outDevice(queue, out);
 
-  const T scale =
-      totalCollectCount_ ? static_cast<T>(1.0 / static_cast<double>(totalCollectCount_)) : 0;
+  const T visScale =
+      totalVisibilityCount_ ? static_cast<T>(1.0 / static_cast<double>(totalVisibilityCount_)) : 0;
+
+  ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
+                     "NufftSynthesis<T>::get totalVisibilityCount_ = {}, visScale = {}",
+                     totalVisibilityCount_, visScale);
 
   auto outDeviceView = outDevice.view();
 
@@ -261,7 +269,7 @@ auto NufftSynthesis<T>::get(View<T, 2> out) -> void {
     imgPartition_.reverse<T>(levelImage, levelOut);
 
     if (opt_.normalizeImage) {
-      scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale, levelOut.data());
+      scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, visScale, levelOut.data());
     }
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", levelOut);
   }

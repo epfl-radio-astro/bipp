@@ -35,6 +35,7 @@ private:
   DomainPartition imgPartition_;
 
   std::size_t totalCollectCount_;
+  std::size_t totalVisibilityCount_;
   DeviceArray<T, 2> img_;
 };
 

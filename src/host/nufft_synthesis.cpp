@@ -43,7 +43,8 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
       pixel_(ctx_->host_alloc(), {pixelX.size(), 3}),
       img_(ctx_->host_alloc(), {nPixel_, nImages_}),
       imgPartition_(DomainPartition::none(ctx_, nPixel_)),
-      totalCollectCount_(0) {
+      totalCollectCount_(0),
+      totalVisibilityCount_(0) {
   assert(pixelX.size() == pixelY.size());
   assert(pixelX.size() == pixelZ.size());
 
@@ -78,8 +79,10 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
   if (data.empty()) return;
 
   std::size_t collectPoints = 0;
+  std::size_t visibilityCount = 0;
   for (const auto& s : data) {
     collectPoints += s.xyzUvw.shape(0);
+    visibilityCount += s.nVis;
     assert(s.v.shape(0) * s.v.shape(0) == s.xyzUvw.shape(0));
   }
 
@@ -224,6 +227,7 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
     }
   }
   totalCollectCount_ += data.size();
+  totalVisibilityCount_ += visibilityCount;
 }
 
 template <typename T>
@@ -233,9 +237,12 @@ auto NufftSynthesis<T>::get(View<T, 2> out) -> void {
 
   HostView<T, 2> outHost(out);
 
-  const T scale =
-      totalCollectCount_ ? static_cast<T>(1.0 / static_cast<double>(totalCollectCount_)) : 0;
+  const T visScale =
+      totalVisibilityCount_ ? static_cast<T>(1.0 / static_cast<double>(totalVisibilityCount_)) : 0;
 
+  ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
+                     "NufftSynthesis<T>::get totalVisibilityCount_ = {}, visScale = {}",
+                     totalVisibilityCount_, visScale);
 
   for (std::size_t i = 0; i < nImages_; ++i) {
     auto currentImg = img_.slice_view(i);
@@ -246,7 +253,7 @@ auto NufftSynthesis<T>::get(View<T, 2> out) -> void {
     if (opt_.normalizeImage) {
       T* __restrict__ outPtr = &outHost[{0, i}];
       for (std::size_t j = 0; j < nPixel_; ++j) {
-          outPtr[j] *= scale;
+          outPtr[j] *= visScale;
       }
     }
 

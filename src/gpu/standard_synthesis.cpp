@@ -34,6 +34,7 @@ StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx,
       nImages_(nLevel),
       nPixel_(pixel.shape(0)),
       count_(0),
+      totalVisibilityCount_(0),
       pixel_(std::move(pixel)),
       img_(ctx_->gpu_queue().create_device_array<T, 2>({nPixel_, nImages_})) {
   auto& queue = ctx_->gpu_queue();
@@ -45,6 +46,7 @@ auto StandardSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
   auto data = collector.get_data();
 
   for (const auto& s : data) {
+    totalVisibilityCount_ += s.nVis;
     this->process_single(s.wl, s.v, s.dMasked, s.xyzUvw);
     ctx_->gpu_queue().sync();  // make sure memory inside process_single is available again
   }
@@ -144,10 +146,16 @@ auto StandardSynthesis<T>::get(View<T, 2> out) -> void {
   if (opt_.normalizeImage) {
     DeviceAccessor<T, 2> outDevice(queue, out);
 
-    const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
+    const T visScale =
+        totalVisibilityCount_ ? static_cast<T>(1.0 / static_cast<double>(totalVisibilityCount_)) : 0;
+    
+    ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
+                       "NufftSynthesis<T>::get totalVisibilityCount_ = {}, visScale = {}",
+                       totalVisibilityCount_, visScale);
+
     for (std::size_t i = 0; i < nImages_; ++i) {
       scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, img_.slice_view(i).data(),
-                      scale, outDevice.view().slice_view(i).data());
+                      visScale, outDevice.view().slice_view(i).data());
     }
 
     outDevice.copy_back(queue);

@@ -22,6 +22,7 @@ namespace {
 template <typename T>
 struct SerialInfo {
   T wl;
+  std::size_t nVis;
   std::size_t vShape[2];
   std::size_t dMaskedShape[2];
   std::size_t xyzUvwShape[2];
@@ -32,6 +33,7 @@ template <typename T>
 Collector<T>::Collector(std::shared_ptr<ContextInternal> ctx) : ctx_(std::move(ctx)) {
   assert(ctx_->processing_unit() == BIPP_PU_GPU);
   wlData_.reserve(100);
+  nVisData_.reserve(100);
   vData_.reserve(100);
   dMaskedData_.reserve(100);
   xyzUvwData_.reserve(100);
@@ -40,22 +42,26 @@ Collector<T>::Collector(std::shared_ptr<ContextInternal> ctx) : ctx_(std::move(c
 template <typename T>
 auto Collector<T>::clear() -> void {
   wlData_.clear();
+  nVisData_.clear();
   vData_.clear();
   dMaskedData_.clear();
   xyzUvwData_.clear();
   wlData_.reserve(100);
+  nVisData_.reserve(100);
   vData_.reserve(100);
   dMaskedData_.reserve(100);
   xyzUvwData_.reserve(100);
 }
 
 template <typename T>
-auto Collector<T>::collect(T wl, ConstView<std::complex<T>, 2> v, ConstHostView<T, 2> dMasked,
-                           ConstView<T, 2> xyzUvw) -> void {
+auto Collector<T>::collect(T wl, const std::size_t nVis, ConstView<std::complex<T>, 2> v,
+                           ConstHostView<T, 2> dMasked, ConstView<T, 2> xyzUvw) -> void {
 
   auto& queue = ctx_->gpu_queue();
 
   wlData_.emplace_back(wl);
+
+  nVisData_.emplace_back(nVis);
 
   vData_.emplace_back(queue.create_device_array<std::complex<T>, 2>(v.shape()));
   copy(queue, v, vData_.back());
@@ -75,7 +81,7 @@ auto Collector<T>::get_data() const -> std::vector<typename CollectorInterface<T
   std::vector<DataType> data;
   data.reserve(this->size());
   for(std::size_t i = 0; i < this->size(); ++i) {
-    data.emplace_back(wlData_[i], vData_[i], dMaskedData_[i], xyzUvwData_[i]);
+    data.emplace_back(wlData_[i], nVisData_[i], vData_[i], dMaskedData_[i], xyzUvwData_[i]);
   }
   return data;
 }
@@ -94,6 +100,7 @@ auto Collector<T>::serialize() const -> HostArray<char, 1> {
 
   for(std::size_t i = 0; i < wlData_.size(); ++i) {
     totalNumBytes += sizeof(SerialInfo<T>);
+    totalNumBytes += sizeof(std::size_t);
     totalNumBytes += vData_[i].size_in_bytes();
     totalNumBytes += dMaskedData_[i].size_in_bytes();
     totalNumBytes += xyzUvwData_[i].size_in_bytes();
@@ -113,6 +120,7 @@ auto Collector<T>::serialize() const -> HostArray<char, 1> {
   for (std::size_t i = 0; i < numSteps; ++i) {
     SerialInfo<T> info;
     info.wl = wlData_[i];
+    info.nVis = nVisData_[i];
     info.vShape[0] = vData_[i].shape(0);
     info.vShape[1] = vData_[i].shape(1);
     info.dMaskedShape[0] = dMaskedData_[i].shape(0);
@@ -153,6 +161,7 @@ auto Collector<T>::deserialize(ConstHostView<char, 1> serialData) -> void {
 
   // clear all current data
   wlData_.clear();
+  nVisData_.clear();
   vData_.clear();
   dMaskedData_.clear();
   xyzUvwData_.clear();
@@ -163,6 +172,7 @@ auto Collector<T>::deserialize(ConstHostView<char, 1> serialData) -> void {
 
   // reserve for received number of steps
   wlData_.reserve(numSteps);
+  nVisData_.reserve(numSteps);
   vData_.reserve(numSteps);
   dMaskedData_.reserve(numSteps);
   xyzUvwData_.reserve(numSteps);
@@ -175,6 +185,8 @@ auto Collector<T>::deserialize(ConstHostView<char, 1> serialData) -> void {
     currentOffset += sizeof(SerialInfo<T>);
 
     wlData_.emplace_back(info.wl);
+
+    nVisData_.emplace_back(info.nVis);
 
     vData_.emplace_back(
         queue.create_device_array<std::complex<T>, 2>({info.vShape[0], info.vShape[1]}));

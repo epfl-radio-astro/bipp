@@ -43,6 +43,7 @@ private:
   std::shared_ptr<ContextInternal> ctx_;
   std::size_t id_;
   std::size_t totalCollectCount_;
+  std::size_t totalVisibilityCount_;
   HostArray<T, 2> img_;
   host::DomainPartition imgPartition_;
   SynthesisType type_;

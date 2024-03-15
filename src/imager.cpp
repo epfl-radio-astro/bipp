@@ -128,6 +128,8 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
                         ConstView<T, 2> xyz, ConstView<T, 2> uvw) -> void {
   if (!synthesis_) throw InternalError();
 
+  auto& ctx = *synthesis_->context();
+
   // Count the number of non-zero visibilities
   assert(s.shape(0) == s.shape(1));
   std::size_t nVis = {0};
@@ -141,12 +143,11 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
       }
     }
   }
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Imager::collect nVis = {}", nVis);
 
   const auto nAntenna = w.shape(0);
   const auto nBeam = w.shape(1);
   const auto nImages = synthesis_->image().shape(1);
-
-  auto& ctx = *synthesis_->context();
 
   auto t =
       ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(this) + " collect");
@@ -185,9 +186,6 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
 
     auto d = dArray.sub_view(0, nEig);
 
-    T d_scale = T(1) / T(nVis);
-    gpu::scale_vector<T>(queue.device_prop(), queue.stream(), nEig, d_scale, d.data());
-
     auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna, nEig});
     auto vUnbeamCast =
         ConstView<std::complex<T>, 2>(reinterpret_cast<const std::complex<T>*>(vUnbeam.data()),
@@ -206,7 +204,7 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
     }
 
     collector_->collect(
-        wl, vUnbeamCast, dMaskedArray,
+        wl, nVis, vUnbeamCast, dMaskedArray,
         synthesis_->type() == SynthesisType::Standard ? xyzCentered : uvwDevice.view());
 
     if (collector_->size() >= collectGroupSize_) {
@@ -242,9 +240,6 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
 
     auto d = dArray.sub_view(0, nEig);
 
-    // Scale eigenvalues by number of non-zero visibilities
-    scale_vector(nEig, nVis, d.data());
-
     auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna, nEig});
 
     auto dMaskedArray = HostArray<T, 2>(ctx.host_alloc(), {d.size(), nImages});
@@ -254,7 +249,7 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
       eigMaskFunc(idxLevel, nEig, dMaskedArray.slice_view(idxLevel).data());
     }
 
-    collector_->collect(wl, vUnbeam, dMaskedArray,
+    collector_->collect(wl, nVis, vUnbeam, dMaskedArray,
                         synthesis_->type() == SynthesisType::Standard ? xyzHost : uvwHost);
 
     if (collector_->size() >= collectGroupSize_) {
