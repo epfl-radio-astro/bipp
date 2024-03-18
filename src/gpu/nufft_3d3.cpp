@@ -19,6 +19,7 @@ Nufft3d3<double>::Nufft3d3(int iflag, double tol, std::size_t numTrans, std::siz
                            const double* s, const double* t, const double* u) {
   cufinufft_opts opts;
   cufinufft_default_opts(3, 3, &opts);
+  opts.gpu_method = 1;
   cufinufft_plan p;
   if (cufinufft_makeplan(3, 3, nullptr, iflag, numTrans, tol, numTrans, &p, &opts))
     throw FiNUFFTError();
@@ -46,6 +47,9 @@ Nufft3d3<float>::Nufft3d3(int iflag, float tol, std::size_t numTrans, std::size_
                           const float* t, const float* u) {
   cufinufft_opts opts;
   cufinufftf_default_opts(3, 3, &opts);
+  // Do not use shared memory method of cuFINUFFT in single precision with a tolerance
+  // below 0.001 as this may trigger "not enough shared memory" errors.
+  if (tol < 1e-3) opts.gpu_method = 1;
   cufinufftf_plan p;
   if (cufinufftf_makeplan(3, 3, nullptr, iflag, numTrans, tol, numTrans, &p, &opts))
     throw FiNUFFTError();
