@@ -100,7 +100,6 @@ auto Collector<T>::serialize() const -> HostArray<char, 1> {
 
   for(std::size_t i = 0; i < wlData_.size(); ++i) {
     totalNumBytes += sizeof(SerialInfo<T>);
-    totalNumBytes += sizeof(std::size_t);
     totalNumBytes += vData_[i].size_in_bytes();
     totalNumBytes += dMaskedData_[i].size_in_bytes();
     totalNumBytes += xyzUvwData_[i].size_in_bytes();
