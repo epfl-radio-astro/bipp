@@ -27,8 +27,10 @@ public:
 
   auto image() -> View<T, 2> override { return img_; }
 
+  auto normalize_by_nvis() const -> bool override { return opt_.normalizeImageNvis; }
+
 private:
-  auto process_single(T wl, ConstView<std::complex<T>, 2> vView, ConstHostView<T, 2> dMasked,
+  auto process_single(T wl, const std::size_t nVis, ConstView<std::complex<T>, 2> vView, ConstHostView<T, 2> dMasked,
                       ConstView<T, 2> xyzUvwView) -> void;
 
   std::shared_ptr<ContextInternal> ctx_;

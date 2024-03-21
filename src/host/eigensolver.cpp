@@ -45,7 +45,7 @@ static auto copy_lower_triangle_at_indices(const std::vector<std::size_t>& indic
 template <typename T>
 auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
           ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz, HostView<T, 1> d,
-          HostView<std::complex<T>, 2> vUnbeam) -> std::size_t {
+          HostView<std::complex<T>, 2> vUnbeam) -> std::pair<std::size_t, std::size_t> {
   const auto nAntenna = w.shape(0);
   const auto nBeam = w.shape(1);
 
@@ -88,6 +88,21 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
       nonZeroIndexFlag[col] = 0;
     }
   }
+
+  // Count the number of non-zero visibilities
+  std::size_t nVis = {0};
+  const std::complex<T> c0 = 0.0;
+  nVis = s.shape(0) * s.shape(1);
+  const auto S = s.data();
+  for (std::size_t col = 0; col < s.shape(1); ++col) {
+    for (std::size_t row = col; row < s.shape(0); ++row) {
+      if (S[col * s.shape(1) + row] == c0 || nonZeroIndexFlag[row] == 0 || nonZeroIndexFlag[col] == 0) {
+        col == row ? nVis -= 1 : nVis -= 2;
+      }
+    }
+  }
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "eigensolver (host) nVis = {}", nVis);
+
 
   std::vector<std::size_t> indices;
   indices.reserve(nBeam);
@@ -143,19 +158,19 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", d.sub_view(0, nBeamReduced));
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", v);
 
-  return nBeamReduced;
+  return std::make_pair(nBeamReduced, nVis);
 }
 
 template auto eigh<float>(ContextInternal& ctx, float wl, ConstHostView<std::complex<float>, 2> s,
                           ConstHostView<std::complex<float>, 2> w, ConstHostView<float, 2> xyz,
                           HostView<float, 1> d, HostView<std::complex<float>, 2> vUnbeam)
-    -> std::size_t;
+    -> std::pair<std::size_t, std::size_t>;
 
 template auto eigh<double>(ContextInternal& ctx, double wl,
                            ConstHostView<std::complex<double>, 2> s,
                            ConstHostView<std::complex<double>, 2> w, ConstHostView<double, 2> xyz,
                            HostView<double, 1> d, HostView<std::complex<double>, 2> vUnbeam)
-    -> std::size_t;
+    -> std::pair<std::size_t, std::size_t>;
 
 }  // namespace host
 }  // namespace bipp

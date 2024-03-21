@@ -30,8 +30,10 @@ DistributedSynthesis<T>::DistributedSynthesis(
       totalVisibilityCount_(0),
       img_(ctx_->host_alloc(), {pixelX.size(), nLevel}),
       imgPartition_(host::DomainPartition::none(ctx_, pixelX.size())),
-      type_(std::holds_alternative<NufftSynthesisOptions>(opt) ? SynthesisType::NUFFT
-                                                               : SynthesisType::Standard) {
+      type_(std::holds_alternative<NufftSynthesisOptions>(opt) ? SynthesisType::NUFFT : SynthesisType::Standard),
+      normalize_by_nvis_(std::holds_alternative<NufftSynthesisOptions>(opt) ?
+                         std::get<NufftSynthesisOptions>(opt).normalizeImageNvis : std::get<StandardSynthesisOptions>(opt).normalizeImageNvis) {
+
   if (!comm_->is_root()) throw InvalidParameterError();
 
   assert(comm_->comm().rank() == 0);

@@ -47,13 +47,13 @@ auto StandardSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
 
   for (const auto& s : data) {
     totalVisibilityCount_ += s.nVis;
-    this->process_single(s.wl, s.v, s.dMasked, s.xyzUvw);
+    this->process_single(s.wl, s.nVis, s.v, s.dMasked, s.xyzUvw);
     ctx_->gpu_queue().sync();  // make sure memory inside process_single is available again
   }
 }
 
 template <typename T>
-auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vView,
+auto StandardSynthesis<T>::process_single(T wl, const std::size_t nVis, ConstView<std::complex<T>, 2> vView,
                                           ConstHostView<T, 2> dMasked, ConstView<T, 2> xyzUvwView)
     -> void {
   const auto nAntenna = vView.shape(0);
@@ -124,8 +124,8 @@ auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vV
       if (dMaskedSlice[idxEig]) {
         const auto scale = dMaskedSlice[idxEig];
 
-        ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} (filtered {}) to bin {}",
-                           dMaskedSlice[{idxEig}], scale, idxImage);
+        ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "Assigning (rescaled by nVis = {}) eigenvalue {} to bin {}",
+                           nVis, dMaskedSlice[{idxEig}] * nVis, idxImage);
 
         api::blas::axpy(queue.blas_handle(), nPixel_, &scale,
                         unlayeredStats.slice_view(idxEig).data(), 1, imgCurrent.data(), 1);
@@ -146,16 +146,15 @@ auto StandardSynthesis<T>::get(View<T, 2> out) -> void {
   if (opt_.normalizeImage) {
     DeviceAccessor<T, 2> outDevice(queue, out);
 
-    const T visScale =
-        totalVisibilityCount_ ? static_cast<T>(1.0 / static_cast<double>(totalVisibilityCount_)) : 0;
-    
+    const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
+
     ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
-                       "NufftSynthesis<T>::get totalVisibilityCount_ = {}, visScale = {}",
-                       totalVisibilityCount_, visScale);
+                       "StandardSynthesis<T>::get (gpu) totalVisibilityCount_ = {}, totalCollectCount_ = {}, scale = {}",
+                       totalVisibilityCount_, count_, scale);
 
     for (std::size_t i = 0; i < nImages_; ++i) {
       scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, img_.slice_view(i).data(),
-                      visScale, outDevice.view().slice_view(i).data());
+                      scale, outDevice.view().slice_view(i).data());
     }
 
     outDevice.copy_back(queue);

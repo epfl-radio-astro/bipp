@@ -92,7 +92,7 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
 
       auto virtVisCurrent =
           virtualVis.sub_view({currentCount, 0}, {nAntenna * nAntenna, virtualVis.shape(1)});
-      virtual_vis<T>(*ctx_, s.dMasked, vDevice.view(), virtVisCurrent);
+      virtual_vis<T>(*ctx_, s.nVis, s.dMasked, vDevice.view(), virtVisCurrent);
       currentCount += s.xyzUvw.shape(0);
     }
   }
@@ -253,12 +253,12 @@ auto NufftSynthesis<T>::get(View<T, 2> out) -> void {
 
   DeviceAccessor<T, 2> outDevice(queue, out);
 
-  const T visScale =
-      totalVisibilityCount_ ? static_cast<T>(1.0 / static_cast<double>(totalVisibilityCount_)) : 0;
+  const T scale =
+      totalCollectCount_ ? static_cast<T>(1.0 / static_cast<double>(totalCollectCount_)) : 0;
 
   ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
-                     "NufftSynthesis<T>::get totalVisibilityCount_ = {}, visScale = {}",
-                     totalVisibilityCount_, visScale);
+                     "NufftSynthesis<T>::get totalVisibilityCount_ = {}, totalCollectCount_ = {}, scale = {}",
+                     totalVisibilityCount_, totalCollectCount_, scale);
 
   auto outDeviceView = outDevice.view();
 
@@ -269,7 +269,7 @@ auto NufftSynthesis<T>::get(View<T, 2> out) -> void {
     imgPartition_.reverse<T>(levelImage, levelOut);
 
     if (opt_.normalizeImage) {
-      scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, visScale, levelOut.data());
+      scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale, levelOut.data());
     }
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", levelOut);
   }

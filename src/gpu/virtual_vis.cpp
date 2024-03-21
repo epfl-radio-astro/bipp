@@ -14,7 +14,7 @@ namespace bipp {
 namespace gpu {
 
 template <typename T>
-auto virtual_vis(ContextInternal& ctx, ConstHostView<T, 2> dMasked,
+auto virtual_vis(ContextInternal& ctx, const std::size_t nVis, ConstHostView<T, 2> dMasked,
                  ConstDeviceView<api::ComplexType<T>, 2> vAll,
                  DeviceView<api::ComplexType<T>, 2> virtVis) -> void {
   assert(dMasked.shape(1) == virtVis.shape(1));
@@ -63,8 +63,8 @@ auto virtual_vis(ContextInternal& ctx, ConstHostView<T, 2> dMasked,
                       vScaled.strides(1));
 
       for (std::size_t k = 0; k < nEig; ++k) {
-        ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} to level {}", dHost[k],
-                         idxImage);
+        ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "virtual vis (gpu) Assigning (rescaled by nVis = {}) eigenvalue {} to level {}",
+                         nVis, dHost[k] * nVis, idxImage);
       }
 
       // Matrix multiplication of the previously scaled V and the original V
@@ -78,11 +78,13 @@ auto virtual_vis(ContextInternal& ctx, ConstHostView<T, 2> dMasked,
   }
 }
 
-template auto virtual_vis<float>(ContextInternal& ctx, ConstHostView<float, 2> dMasked,
+template auto virtual_vis<float>(ContextInternal& ctx, const std::size_t nVis,
+                                 ConstHostView<float, 2> dMasked,
                                  ConstDeviceView<api::ComplexType<float>, 2> vAll,
                                  DeviceView<api::ComplexType<float>, 2> virtVis) -> void;
 
-template auto virtual_vis<double>(ContextInternal& ctx, ConstHostView<double, 2> dMasked,
+template auto virtual_vis<double>(ContextInternal& ctx, const std::size_t nVis,
+                                  ConstHostView<double, 2> dMasked,
                                   ConstDeviceView<api::ComplexType<double>, 2> vAll,
                                   DeviceView<api::ComplexType<double>, 2> virtVis) -> void;
 

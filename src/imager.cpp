@@ -42,9 +42,9 @@ static auto center_vector(std::size_t n, const T* __restrict__ in, T* __restrict
 }
 
 template <typename T>
-static auto scale_vector(std::size_t n, const std::size_t scale, T* __restrict__ vec) -> void {
+static auto scale_vector(std::size_t n, const T scale, T* __restrict__ vec) -> void {
    for (std::size_t i = 0; i < n; ++i) {
-    vec[i] /= scale;
+    vec[i] *= scale;
   }
 }
 
@@ -130,21 +130,6 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
 
   auto& ctx = *synthesis_->context();
 
-  // Count the number of non-zero visibilities
-  assert(s.shape(0) == s.shape(1));
-  std::size_t nVis = {0};
-  const std::complex<T> c0 = 0.0;
-  nVis = s.shape(0) * s.shape(1);
-  const auto S = s.data();
-  for (std::size_t col = 0; col < s.shape(1); ++col) {
-    for (std::size_t row = col; row < s.shape(0); ++row) {
-      if (S[col * s.shape(1) + row] == c0) {
-        col == row ? nVis -= 1 : nVis -= 2;
-      }
-    }
-  }
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Imager::collect nVis = {}", nVis);
-
   const auto nAntenna = w.shape(0);
   const auto nBeam = w.shape(1);
   const auto nImages = synthesis_->image().shape(1);
@@ -181,8 +166,14 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
       center_vector<T>(queue, nAntenna, xyzCentered.slice_view(i).data());
     }
 
-    const auto nEig =
+    const auto pev =
         gpu::eigh<T>(ctx, wl, sDevice.view(), wDevice.view(), xyzCentered, dArray, vUnbeamArray);
+
+    const auto nEig = pev.first;
+    const auto nVis = pev.second;
+
+    const T visScale = synthesis_->normalize_by_nvis() ? 1 / static_cast<T>(nVis) : 1;
+    ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "imager nVis = {}, visScale = {}", nVis, visScale);
 
     auto d = dArray.sub_view(0, nEig);
 
@@ -201,6 +192,7 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
     for (std::size_t idxLevel = 0; idxLevel < nImages; ++idxLevel) {
       copy(dHostArray, dMaskedArray.slice_view(idxLevel));
       eigMaskFunc(idxLevel, nEig, dMaskedArray.slice_view(idxLevel).data());
+      scale_vector(nEig, visScale, dMaskedArray.slice_view(idxLevel).data());
     }
 
     collector_->collect(
@@ -236,7 +228,13 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
       xyzHost = xyzCentered;
     }
 
-    const auto nEig = host::eigh<T>(ctx, wl, sHost, wHost, xyzHost, dArray, vUnbeamArray);
+    const auto pev = host::eigh<T>(ctx, wl, sHost, wHost, xyzHost, dArray, vUnbeamArray);
+
+    const auto nEig = pev.first;
+    const auto nVis = pev.second;
+
+    const T visScale = synthesis_->normalize_by_nvis() ? 1 / static_cast<T>(nVis) : 1;
+    ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "imager nVis = {}, visScale = {}", nVis, visScale);
 
     auto d = dArray.sub_view(0, nEig);
 
@@ -247,6 +245,7 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
     for (std::size_t idxLevel = 0; idxLevel < nImages; ++idxLevel) {
       copy(d, dMaskedArray.slice_view(idxLevel));
       eigMaskFunc(idxLevel, nEig, dMaskedArray.slice_view(idxLevel).data());
+      scale_vector(nEig, visScale, dMaskedArray.slice_view(idxLevel).data());
     }
 
     collector_->collect(wl, nVis, vUnbeam, dMaskedArray,

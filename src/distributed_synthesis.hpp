@@ -38,6 +38,8 @@ public:
 
   auto image() -> View<T, 2> override { return img_; }
 
+  auto normalize_by_nvis() const -> bool override { return normalize_by_nvis_; }
+
 private:
   std::shared_ptr<CommunicatorInternal> comm_;
   std::shared_ptr<ContextInternal> ctx_;
@@ -47,7 +49,7 @@ private:
   HostArray<T, 2> img_;
   host::DomainPartition imgPartition_;
   SynthesisType type_;
-
+  bool normalize_by_nvis_;
 };
 
 }  // namespace bipp

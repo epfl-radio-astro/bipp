@@ -24,7 +24,7 @@ namespace gpu {
 template <typename T>
 auto eigh(ContextInternal& ctx, T wl, ConstDeviceView<api::ComplexType<T>, 2> s,
           ConstDeviceView<api::ComplexType<T>, 2> w, ConstDeviceView<T, 2> xyz, DeviceView<T, 1> d,
-          DeviceView<api::ComplexType<T>, 2> vUnbeam) -> std::size_t {
+          DeviceView<api::ComplexType<T>, 2> vUnbeam) -> std::pair<std::size_t, std::size_t> {
   const auto nAntenna = w.shape(0);
   const auto nBeam = w.shape(1);
   auto& queue = ctx.gpu_queue();
@@ -75,6 +75,21 @@ auto eigh(ContextInternal& ctx, T wl, ConstDeviceView<api::ComplexType<T>, 2> s,
     }
   }
 
+  // Count the number of non-zero visibilities
+  std::size_t nVis = {0};
+  const std::complex<T> c0 = 0.0;
+  nVis = s.shape(0) * s.shape(1);
+  for (std::size_t col = 0; col < s.shape(1); ++col) {
+    for (std::size_t row = col; row < s.shape(0); ++row) {
+      auto val = sHost[{row, col}];
+      if ((val.x == 0 && val.y == 0) || nonZeroIndexFlag[row] == 0 || nonZeroIndexFlag[col] == 0) {
+        col == row ? nVis -= 1 : nVis -= 2;
+      }
+    }
+  }
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "eigensolver (gpu) nVis = {}", nVis);
+
+
   std::vector<std::size_t> indices;
   indices.reserve(nBeam);
   for (std::size_t i = 0; i < nBeam; ++i) {
@@ -93,6 +108,7 @@ auto eigh(ContextInternal& ctx, T wl, ConstDeviceView<api::ComplexType<T>, 2> s,
   const char mode = vUnbeam.size() ? 'V' : 'N';
   const api::ComplexType<T> one{1, 0};
   const api::ComplexType<T> zero{0, 0};
+
   if(nBeamReduced == nBeam) {
     copy(queue, s,v);
 
@@ -135,19 +151,19 @@ auto eigh(ContextInternal& ctx, T wl, ConstDeviceView<api::ComplexType<T>, 2> s,
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", d.sub_view(0, nBeamReduced));
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", v);
 
-  return nBeamReduced;
+  return std::make_pair(nBeamReduced, nVis);
 }
 
 template auto eigh<float>(ContextInternal& ctx, float wl,
                           ConstDeviceView<api::ComplexType<float>, 2> s,
                           ConstDeviceView<api::ComplexType<float>, 2> w,
                           ConstDeviceView<float, 2> xyz, DeviceView<float, 1> d,
-                          DeviceView<api::ComplexType<float>, 2> vUnbeam) -> std::size_t;
+                          DeviceView<api::ComplexType<float>, 2> vUnbeam) -> std::pair<std::size_t, std::size_t>;
 
 template auto eigh<double>(ContextInternal& ctx, double wl,
                            ConstDeviceView<api::ComplexType<double>, 2> s,
                            ConstDeviceView<api::ComplexType<double>, 2> w,
                            ConstDeviceView<double, 2> xyz, DeviceView<double, 1> d,
-                           DeviceView<api::ComplexType<double>, 2> vUnbeam) -> std::size_t;
+                           DeviceView<api::ComplexType<double>, 2> vUnbeam) -> std::pair<std::size_t, std::size_t>;
 }  // namespace gpu
 }  // namespace bipp

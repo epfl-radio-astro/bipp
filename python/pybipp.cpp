@@ -129,14 +129,12 @@ auto call_eigh(Context& ctx, T wl, const py::array_t<std::complex<T>, py::array:
   check_2d_array(s, {nBeam, nBeam});
 
   auto d = py::array_t<T, py::array::f_style>({py::ssize_t(nBeam)});
-  std::size_t nEigOut = 0;
-
-  nEigOut = eigh<T>(ctx, wl, nAntenna, nBeam, s.data(0),
+  std::pair<std::size_t, std::size_t> pev{0, 0};
+  pev = eigh<T>(ctx, wl, nAntenna, nBeam, s.data(0),
                     safe_cast<std::size_t>(s.strides(1) / s.itemsize()), w.data(0),
                     safe_cast<std::size_t>(w.strides(1) / w.itemsize()), xyz.data(0),
                     safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()), d.mutable_data(0));
-
-  d.resize({nEigOut});
+  d.resize({pev.first});
 
   return d;
 }
@@ -449,14 +447,16 @@ PYBIND11_MODULE(pybipp, m) {
       .def_readwrite("local_uvw_partition", &NufftSynthesisOptions::localUVWPartition)
       .def("set_local_uvw_partition", &NufftSynthesisOptions::set_local_uvw_partition)
       .def_readwrite("normalizeImage", &NufftSynthesisOptions::normalizeImage)
-      .def("set_normalize_image", &NufftSynthesisOptions::set_normalize_image);
+      .def("set_normalize_image", &NufftSynthesisOptions::set_normalize_image)
+      .def_readwrite("normalizeImageNvis", &NufftSynthesisOptions::normalizeImageNvis)
+      .def("set_normalize_image_by_nvis", &NufftSynthesisOptions::set_normalize_image_by_nvis);
 
   pybind11::class_<StandardSynthesisOptions>(m, "StandardSynthesisOptions")
       .def(py::init())
       .def_readwrite("collect_group_size", &StandardSynthesisOptions::collectGroupSize)
       .def("set_collect_group_size", &StandardSynthesisOptions::set_collect_group_size)
-      .def_readwrite("normalizeImage", &StandardSynthesisOptions::normalizeImage)
-      .def("set_normalize_image", &StandardSynthesisOptions::set_normalize_image);
+      .def_readwrite("normalizeImageNvis", &StandardSynthesisOptions::normalizeImageNvis)
+      .def("set_normalize_image_by_nvis", &StandardSynthesisOptions::set_normalize_image_by_nvis);
 
   pybind11::class_<NufftSynthesisDispatcher>(m, "NufftSynthesis")
       .def(pybind11::init<Context&, NufftSynthesisOptions, std::size_t, const py::array&,

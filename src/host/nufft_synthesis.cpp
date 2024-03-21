@@ -94,7 +94,7 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
       const auto nAntenna = s.v.shape(0);
       auto virtVisCurrent =
           virtualVis.sub_view({currentCount, 0}, {nAntenna * nAntenna, virtualVis.shape(1)});
-      virtual_vis<T>(*ctx_, s.dMasked, ConstHostView<std::complex<T>, 2>(s.v), virtVisCurrent);
+      virtual_vis<T>(*ctx_, s.nVis, s.dMasked, ConstHostView<std::complex<T>, 2>(s.v), virtVisCurrent);
       currentCount += s.xyzUvw.shape(0);
     }
   }
@@ -237,12 +237,12 @@ auto NufftSynthesis<T>::get(View<T, 2> out) -> void {
 
   HostView<T, 2> outHost(out);
 
-  const T visScale =
-      totalVisibilityCount_ ? static_cast<T>(1.0 / static_cast<double>(totalVisibilityCount_)) : 0;
+  const T scale =
+      totalCollectCount_ ? static_cast<T>(1.0 / static_cast<double>(totalCollectCount_)) : 0;
 
   ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
-                     "NufftSynthesis<T>::get totalVisibilityCount_ = {}, visScale = {}",
-                     totalVisibilityCount_, visScale);
+                     "NufftSynthesis<T>::get totalVisibilityCount_ = {}, totalCollectCount_ = {}, scale = {}",
+                     totalVisibilityCount_, totalCollectCount_, scale);
 
   for (std::size_t i = 0; i < nImages_; ++i) {
     auto currentImg = img_.slice_view(i);
@@ -253,7 +253,7 @@ auto NufftSynthesis<T>::get(View<T, 2> out) -> void {
     if (opt_.normalizeImage) {
       T* __restrict__ outPtr = &outHost[{0, i}];
       for (std::size_t j = 0; j < nPixel_; ++j) {
-          outPtr[j] *= visScale;
+          outPtr[j] *= scale;
       }
     }
 

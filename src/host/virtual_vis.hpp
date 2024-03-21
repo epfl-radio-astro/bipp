@@ -12,7 +12,7 @@ namespace bipp {
 namespace host {
 
 template <typename T>
-auto virtual_vis(ContextInternal& ctx, ConstHostView<T, 2> dMasked,
+auto virtual_vis(ContextInternal& ctx, const std::size_t nVis, ConstHostView<T, 2> dMasked,
                  ConstHostView<std::complex<T>, 2> v, HostView<std::complex<T>, 2> virtVis) -> void;
 
 }  // namespace host

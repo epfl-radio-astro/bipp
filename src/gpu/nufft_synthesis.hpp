@@ -27,6 +27,8 @@ public:
 
   auto image() -> View<T, 2> override { return img_; }
 
+  auto normalize_by_nvis() const -> bool override { return opt_.normalizeImageNvis; }
+
 private:
   std::shared_ptr<ContextInternal> ctx_;
   NufftSynthesisOptions opt_;

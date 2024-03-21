@@ -47,12 +47,12 @@ auto StandardSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
 
   for (const auto& s : data) {
     totalVisibilityCount_ += s.nVis;
-    this->process_single(s.wl, s.v, s.dMasked, s.xyzUvw);
+    this->process_single(s.wl, s.nVis, s.v, s.dMasked, s.xyzUvw);
   }
 }
 
 template <typename T>
-auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vView,
+auto StandardSynthesis<T>::process_single(T wl, const std::size_t nVis, ConstView<std::complex<T>, 2> vView,
                                           ConstHostView<T, 2> dMasked, ConstView<T, 2> xyzUvwView)
     -> void {
   HostArray<std::complex<T>, 2> v(ctx_->host_alloc(),vView.shape());
@@ -118,8 +118,8 @@ auto StandardSynthesis<T>::process_single(T wl, ConstView<std::complex<T>, 2> vV
       if (dMaskedSlice[idxEig]) {
         const auto scale = dMaskedSlice[idxEig];
 
-        ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "Assigning eigenvalue {} (filtered {}) to bin {}",
-                           dMaskedSlice[{idxEig}], scale, idxLevel);
+        ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "Assigning (rescaled by nVis = {}) eigenvalue {} to bin {}",
+                           nVis, dMaskedSlice[{idxEig}] * nVis, idxLevel);
 
         blas::axpy(nPixel_, scale, &unlayeredStats[{0, idxEig}], 1, imgCurrent.data(), 1);
       }
@@ -140,10 +140,15 @@ auto StandardSynthesis<T>::get(View<T, 2> out) -> void {
     for (std::size_t i = 0; i < nImages_; ++i) {
       const T* __restrict__ localImg = &img_[{0, i}];
       T* __restrict__ outputImg = &outHost[{0, i}];
-      const T visScale =
-          totalVisibilityCount_ ? static_cast<T>(1.0 / static_cast<double>(totalVisibilityCount_)) : 0;
+
+      const T scale = count_ ? static_cast<T>(1.0 / static_cast<double>(count_)) : 0;
+
+      ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
+                         "StandardSynthesis<T>::get (host) totalVisibilityCount_ = {}, totalCollectCount_ = {}, scale = {}",
+                         totalVisibilityCount_, count_, scale);
+
       for (std::size_t j = 0; j < nPixel_; ++j) {
-        outputImg[j] = localImg[j] * visScale;
+        outputImg[j] = localImg[j] * scale;
       }
     }
   } else {
