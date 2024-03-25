@@ -65,54 +65,35 @@ if(BIPP_ROCM)
 endif()
 
 
-# Creates bipp library with given name. All common target modifications should be done here.
-macro(bipp_create_library _TARGET_NAME)
-	add_library(${_TARGET_NAME} ${BIPP_LIBRARY_TYPE}
-		${BIPP_SOURCE_FILES}
-		)
 
-	set_property(TARGET ${_TARGET_NAME} PROPERTY VERSION ${BIPP_VERSION})
-	set_property(TARGET ${_TARGET_NAME} PROPERTY SOVERSION ${BIPP_SO_VERSION})
+add_library(bipp_objects OBJECT ${BIPP_SOURCE_FILES})
 
-
-	# Don't export any symbols of external static libaries. Only works on linux.
-	if(UNIX AND NOT APPLE)
-		if(${CMAKE_VERSION} VERSION_LESS "3.13.5") 
-			target_link_libraries(${_TARGET_NAME} PRIVATE "-Wl,--exclude-libs,ALL")
-		else()
-			target_link_options(${_TARGET_NAME} PRIVATE "-Wl,--exclude-libs,ALL")
-		endif()
-	endif()
-
-	# All .cu files are self-contained. Device linking can have issues with propageted linker flags of other targets like MPI.
-	if(BIPP_CUDA)
-		set_property(TARGET ${_TARGET_NAME} PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS OFF)
-		set_property(TARGET ${_TARGET_NAME} PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
-	endif()
-	# make static libraries linkable into shared ones
-	set_property(TARGET ${_TARGET_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
-
-	target_compile_options(${_TARGET_NAME} PRIVATE ${BIPP_FLAGS})
-	target_include_directories(${_TARGET_NAME} PRIVATE ${BIPP_INCLUDE_DIRS})
-	target_link_libraries(${_TARGET_NAME} PRIVATE ${BIPP_EXTERNAL_LIBS})
-	target_link_libraries(${_TARGET_NAME} PUBLIC ${BIPP_EXTERNAL_LIBS_PUBLIC})
-
-	target_include_directories(${_TARGET_NAME} INTERFACE $<INSTALL_INTERFACE:include>) # for install(EXPORT ...)
-	target_include_directories(${_TARGET_NAME} INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>) # for export(...)
-
-endmacro()
-
-bipp_create_library(bipp)
-set_target_properties(bipp PROPERTIES VISIBILITY_INLINES_HIDDEN TRUE CXX_VISIBILITY_PRESET hidden)
-
-if(BIPP_BUILD_TESTS)
-	# create library with default visibility if tests are build, to allow linking to internal symbols
-	bipp_create_library(bipp_test)
-	set_target_properties(bipp_test PROPERTIES VISIBILITY_INLINES_HIDDEN FALSE CXX_VISIBILITY_PRESET default)
-	target_include_directories(bipp_test INTERFACE ${BIPP_INCLUDE_DIRS})
-	target_link_libraries(bipp_test INTERFACE ${BIPP_EXTERNAL_LIBS})
-	target_compile_options(bipp_test PUBLIC -DBIPP_STATIC_DEFINE)
+# All .cu files are self-contained. Device linking can have issues with propageted linker flags of other targets like MPI.
+if(BIPP_CUDA)
+	set_property(TARGET bipp_objects PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS OFF)
+	set_property(TARGET bipp_objects PROPERTY CUDA_SEPARABLE_COMPILATION OFF)
 endif()
+# make static libraries linkable into shared ones
+set_property(TARGET bipp_objects PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+target_compile_options(bipp_objects PRIVATE ${BIPP_FLAGS})
+target_include_directories(bipp_objects PRIVATE ${BIPP_INCLUDE_DIRS})
+target_link_libraries(bipp_objects PRIVATE ${BIPP_EXTERNAL_LIBS})
+target_link_libraries(bipp_objects PRIVATE ${BIPP_EXTERNAL_LIBS_PUBLIC})
+target_include_directories(bipp_objects INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
+
+
+#shared library
+add_library(bipp $<TARGET_OBJECTS:bipp_objects>)
+
+set_property(TARGET bipp PROPERTY VERSION ${BIPP_VERSION})
+set_property(TARGET bipp PROPERTY SOVERSION ${BIPP_SO_VERSION})
+
+target_link_libraries(bipp PRIVATE ${BIPP_EXTERNAL_LIBS})
+target_link_libraries(bipp PUBLIC ${BIPP_EXTERNAL_LIBS_PUBLIC})
+target_include_directories(bipp INTERFACE $<INSTALL_INTERFACE:include>) # for install(EXPORT ...)
+target_include_directories(bipp INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>) # for export(...)
+set_target_properties(bipp PROPERTIES VISIBILITY_INLINES_HIDDEN TRUE CXX_VISIBILITY_PRESET hidden)
 
 # generate export header to control symbol visibility
 include(GenerateExportHeader)
@@ -161,7 +142,7 @@ configure_file(${PROJECT_SOURCE_DIR}/cmake/bippTargets.cmake
 )
 
 # installation commands
-if(BIPP_INSTALL STREQUAL "LIB")
+if(BIPP_INSTALL_LIB)
 	install(TARGETS bipp DESTINATION ${CMAKE_INSTALL_LIBDIR} EXPORT bippTargets)
 	install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/bipp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" PATTERN "*.f90")
 	install(FILES ${PROJECT_BINARY_DIR}/bipp/config.h "${PROJECT_BINARY_DIR}/bipp/bipp_export.h" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/bipp)

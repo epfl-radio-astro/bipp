@@ -1,6 +1,3 @@
-set(Python_FIND_FRAMEWORK LAST) # Prefer Brew/Conda to Apple framework python
-find_package(Python 3.6 COMPONENTS Interpreter Development REQUIRED)
-
 if (BIPP_BUNDLED_PYBIND11)
 	FetchContent_Declare(
 		pybind11
@@ -23,7 +20,7 @@ endif()
 
 
 pybind11_add_module(pybipp pybipp.cpp)
-target_link_libraries(pybipp PRIVATE bipp)
+target_link_libraries(pybipp PRIVATE bipp_objects ${BIPP_EXTERNAL_LIBS_PUBLIC})
 set_target_properties(pybipp PROPERTIES
 	ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bipp"
 	LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bipp"
@@ -83,27 +80,12 @@ foreach(src IN LISTS BIPP_PYTHON_SRC)
 	)
 endforeach()
 
-if(BIPP_INSTALL STREQUAL "PIP" OR BIPP_INSTALL STREQUAL "PYTHON")
-	# make sure the module can find the library
-	if(APPLE)
-		set(BIPP_PYTHON_RPATH "@loader_path/_libs" CACHE STRING "RPATH used for python module")
-	else()
-		set(BIPP_PYTHON_RPATH "$ORIGIN/_libs" CACHE STRING "RPATH used for python module")
-	endif()
-	if(BIPP_PYTHON_RPATH)
-		set_target_properties(pybipp PROPERTIES
-				INSTALL_RPATH_USE_LINK_PATH TRUE
-				INSTALL_RPATH ${BIPP_PYTHON_RPATH})
-	endif()
-
-	if(BIPP_INSTALL STREQUAL "PYTHON")
-		foreach(src IN LISTS BIPP_PYTHON_SRC)
-			get_filename_component(dir bipp/${src} DIRECTORY )
-			install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/bipp/${src} DESTINATION ${dir})
-		endforeach()
-	endif()
+if(BIPP_INSTALL_PYTHON)
+	foreach(src IN LISTS BIPP_PYTHON_SRC)
+		get_filename_component(dir ${BIPP_INSTALL_PYTHON_PATH}/bipp/${src} DIRECTORY )
+		install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/bipp/${src} DESTINATION ${dir})
+	endforeach()
 
 	# destiantion dir must match module name in setup.py
-	install(TARGETS pybipp DESTINATION bipp)
-	install(TARGETS bipp DESTINATION bipp/_libs)
+	install(TARGETS pybipp DESTINATION ${BIPP_INSTALL_PYTHON_PATH}/bipp)
 endif()
