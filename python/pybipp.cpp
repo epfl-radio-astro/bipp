@@ -455,6 +455,8 @@ PYBIND11_MODULE(pybipp, m) {
       .def(py::init())
       .def_readwrite("collect_group_size", &StandardSynthesisOptions::collectGroupSize)
       .def("set_collect_group_size", &StandardSynthesisOptions::set_collect_group_size)
+      .def_readwrite("normalizeImage", &StandardSynthesisOptions::normalizeImage)
+      .def("set_normalize_image", &StandardSynthesisOptions::set_normalize_image)
       .def_readwrite("normalizeImageNvis", &StandardSynthesisOptions::normalizeImageNvis)
       .def("set_normalize_image_by_nvis", &StandardSynthesisOptions::set_normalize_image_by_nvis);
 
