@@ -16,6 +16,7 @@
 #include <complex>
 #include <cstddef>
 #include <type_traits>
+#include <utility>
 
 
 
@@ -58,7 +59,7 @@ BIPP_EXPORT auto gram_matrix(Context& ctx, std::size_t nAntenna, std::size_t nBe
  * @param[in] xyz 2D antenna position array of size (nAntenna, 3).
  * @param[in] ldxyz Leading dimension of xyz.
  * @param[out] d Eigenvalues. Size nBeam. Zero padded if number of computed eigenvalues < nBeam.
- * @return Number of computed eigenvalues.
+ * @return A pair consisting of the number of computed eigenvalues and the number of (non-zero) processed visibilities.
  */
 template <typename T,
           typename = std::enable_if_t<std::is_same_v<T, double> || std::is_same_v<T, float>>>
