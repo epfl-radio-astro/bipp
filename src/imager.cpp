@@ -18,6 +18,7 @@
 #include "gpu/collector.hpp"
 #include "gpu/eigensolver.hpp"
 #include "gpu/kernels/center_vector.hpp"
+#include "gpu/kernels/scale_vector.hpp"
 #include "gpu/nufft_synthesis.hpp"
 #include "gpu/standard_synthesis.hpp"
 #include "gpu/util/device_accessor.hpp"
@@ -37,6 +38,13 @@ static auto center_vector(std::size_t n, const T* __restrict__ in, T* __restrict
   mean /= n;
   for (std::size_t i = 0; i < n; ++i) {
     out[i] = in[i] - mean;
+  }
+}
+
+template <typename T>
+static auto scale_vector(std::size_t n, const T scale, T* __restrict__ vec) -> void {
+   for (std::size_t i = 0; i < n; ++i) {
+    vec[i] *= scale;
   }
 }
 
@@ -120,11 +128,11 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
                         ConstView<T, 2> xyz, ConstView<T, 2> uvw) -> void {
   if (!synthesis_) throw InternalError();
 
+  auto& ctx = *synthesis_->context();
+
   const auto nAntenna = w.shape(0);
   const auto nBeam = w.shape(1);
   const auto nImages = synthesis_->image().shape(1);
-
-  auto& ctx = *synthesis_->context();
 
   auto t =
       ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(this) + " collect");
@@ -158,10 +166,17 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
       center_vector<T>(queue, nAntenna, xyzCentered.slice_view(i).data());
     }
 
-    const auto nEig =
+    const auto pev =
         gpu::eigh<T>(ctx, wl, sDevice.view(), wDevice.view(), xyzCentered, dArray, vUnbeamArray);
 
+    const auto nEig = pev.first;
+    const auto nVis = pev.second;
+
+    const T visScale = synthesis_->normalize_by_nvis() ? 1 / static_cast<T>(nVis) : 1;
+    ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "imager nVis = {}, visScale = {}", nVis, visScale);
+
     auto d = dArray.sub_view(0, nEig);
+
     auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna, nEig});
     auto vUnbeamCast =
         ConstView<std::complex<T>, 2>(reinterpret_cast<const std::complex<T>*>(vUnbeam.data()),
@@ -177,10 +192,11 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
     for (std::size_t idxLevel = 0; idxLevel < nImages; ++idxLevel) {
       copy(dHostArray, dMaskedArray.slice_view(idxLevel));
       eigMaskFunc(idxLevel, nEig, dMaskedArray.slice_view(idxLevel).data());
+      scale_vector(nEig, visScale, dMaskedArray.slice_view(idxLevel).data());
     }
 
     collector_->collect(
-        wl, vUnbeamCast, dMaskedArray,
+        wl, nVis, vUnbeamCast, dMaskedArray,
         synthesis_->type() == SynthesisType::Standard ? xyzCentered : uvwDevice.view());
 
     if (collector_->size() >= collectGroupSize_) {
@@ -212,9 +228,16 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
       xyzHost = xyzCentered;
     }
 
-    const auto nEig = host::eigh<T>(ctx, wl, sHost, wHost, xyzHost, dArray, vUnbeamArray);
+    const auto pev = host::eigh<T>(ctx, wl, sHost, wHost, xyzHost, dArray, vUnbeamArray);
+
+    const auto nEig = pev.first;
+    const auto nVis = pev.second;
+
+    const T visScale = synthesis_->normalize_by_nvis() ? 1 / static_cast<T>(nVis) : 1;
+    ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "imager nVis = {}, visScale = {}", nVis, visScale);
 
     auto d = dArray.sub_view(0, nEig);
+
     auto vUnbeam = vUnbeamArray.sub_view({0, 0}, {nAntenna, nEig});
 
     auto dMaskedArray = HostArray<T, 2>(ctx.host_alloc(), {d.size(), nImages});
@@ -222,9 +245,10 @@ auto Imager<T>::collect(T wl, const std::function<void(std::size_t, std::size_t,
     for (std::size_t idxLevel = 0; idxLevel < nImages; ++idxLevel) {
       copy(d, dMaskedArray.slice_view(idxLevel));
       eigMaskFunc(idxLevel, nEig, dMaskedArray.slice_view(idxLevel).data());
+      scale_vector(nEig, visScale, dMaskedArray.slice_view(idxLevel).data());
     }
 
-    collector_->collect(wl, vUnbeam, dMaskedArray,
+    collector_->collect(wl, nVis, vUnbeam, dMaskedArray,
                         synthesis_->type() == SynthesisType::Standard ? xyzHost : uvwHost);
 
     if (collector_->size() >= collectGroupSize_) {

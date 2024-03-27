@@ -52,11 +52,12 @@ struct SerializedPartition {
 };
 
 struct SerializedNufftOptions {
-  decltype(NufftSynthesisOptions::tolerance) tolerance = 0;;
+  decltype(NufftSynthesisOptions::tolerance) tolerance = 0;
   std::size_t collectGroupSize = 0;
   SerializedPartition localImagePartition;
   SerializedPartition localUVWPartition;
   bool normalizeImage = true;
+  bool normalizeImageNvis = true;
 
   SerializedNufftOptions() = default;
   SerializedNufftOptions(const NufftSynthesisOptions& opt);
@@ -67,6 +68,7 @@ struct SerializedNufftOptions {
 struct SerializedStandardOptions {
   std::size_t collectGroupSize = 0;
   bool normalizeImage = true;
+  bool normalizeImageNvis = true;
 
   SerializedStandardOptions() = default;
   SerializedStandardOptions(const StandardSynthesisOptions& opt);
@@ -435,6 +437,7 @@ SerializedNufftOptions::SerializedNufftOptions(const NufftSynthesisOptions& opt)
   localImagePartition = opt.localImagePartition;
   localUVWPartition = opt.localUVWPartition;
   normalizeImage = opt.normalizeImage;
+  normalizeImageNvis = opt.normalizeImageNvis;
 }
 
 auto SerializedNufftOptions::get() const -> NufftSynthesisOptions {
@@ -447,12 +450,14 @@ auto SerializedNufftOptions::get() const -> NufftSynthesisOptions {
   opt.localImagePartition = localImagePartition.get();
   opt.localUVWPartition = localUVWPartition.get();
   opt.normalizeImage = normalizeImage;
+  opt.normalizeImageNvis = normalizeImageNvis;
   return opt;
 }
 
 SerializedStandardOptions::SerializedStandardOptions(const StandardSynthesisOptions& opt) {
   collectGroupSize = opt.collectGroupSize.value_or(0);
   normalizeImage = opt.normalizeImage;
+  normalizeImageNvis = opt.normalizeImageNvis;
 }
 
 auto SerializedStandardOptions::get() const -> StandardSynthesisOptions {
@@ -462,6 +467,7 @@ auto SerializedStandardOptions::get() const -> StandardSynthesisOptions {
   else
     opt.collectGroupSize = std::nullopt;
   opt.normalizeImage = normalizeImage;
+  opt.normalizeImageNvis = normalizeImageNvis;
   return opt;
 }
 
