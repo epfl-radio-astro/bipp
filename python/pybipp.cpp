@@ -190,6 +190,7 @@ struct StandardSynthesisDispatcher {
             auto nAntenna = wArray.shape(0);
             auto nBeam = wArray.shape(1);
             // Always center xyz array in double precision
+            // TODO: unify this and the C interface
             center_array(xyz);
             py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(xyz);
             check_2d_array(xyzArray, {nAntenna, 3});
