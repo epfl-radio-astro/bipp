@@ -60,49 +60,18 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
   nonZeroIndexFlag.zero();
 
   // flag working coloumns / rows
+  std::size_t nVis = 0;
   for (std::size_t col = 0; col < s.shape(1); ++col) {
     for (std::size_t row = col; row < s.shape(0); ++row) {
       const auto val = s[{row, col}];
-      if (val.real() != 0 || val.imag() != 0) {
+      if (std::norm(val) > std::numeric_limits<T>::epsilon()) {
         nonZeroIndexFlag[col] |= 1;
         nonZeroIndexFlag[row] |= 1;
-      }
-    }
-  }
-
-  // Discard rows / columns with sum close to zero
-  for (std::size_t col = 0; col < s.shape(1); ++col) {
-    auto sum = s[{col, col}];
-    for (std::size_t row = col+1; row < s.shape(0); ++row) {
-      const auto val = s[{row, col}];
-      sum += val;
-    }
-    auto const row = col;
-    for (std::size_t col = 0; col < row; ++col) {
-      const auto val = s[{row, col}];
-      sum += std::conj(val);
-    }
-    auto norm = std::norm(sum);
-    if (norm <= std::numeric_limits<T>::epsilon()) {
-      ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing column {} / row {} with ||sum|| = {}", col, row, norm);
-      nonZeroIndexFlag[col] = 0;
-    }
-  }
-
-  // Count the number of non-zero visibilities
-  std::size_t nVis = {0};
-  const std::complex<T> c0 = 0.0;
-  nVis = s.shape(0) * s.shape(1);
-  const auto S = s.data();
-  for (std::size_t col = 0; col < s.shape(1); ++col) {
-    for (std::size_t row = col; row < s.shape(0); ++row) {
-      if (S[col * s.shape(1) + row] == c0 || nonZeroIndexFlag[row] == 0 || nonZeroIndexFlag[col] == 0) {
-        col == row ? nVis -= 1 : nVis -= 2;
+        nVis += 1 + (row != col);
       }
     }
   }
   ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "eigensolver (host) nVis = {}", nVis);
-
 
   std::vector<std::size_t> indices;
   indices.reserve(nBeam);

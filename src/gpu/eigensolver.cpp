@@ -44,51 +44,19 @@ auto eigh(ContextInternal& ctx, T wl, ConstDeviceView<api::ComplexType<T>, 2> s,
   queue.sync();
 
   // flag working columns / rows
+  std::size_t nVis = 0;
   for (std::size_t col = 0; col < s.shape(1); ++col) {
     for (std::size_t row = col; row < s.shape(0); ++row) {
       const auto val = sHost[{row, col}];
-      if (val.x != 0 || val.y != 0) {
+      const auto norm = std::sqrt(val.x * val.x + val.y * val.y);
+      if (norm > std::numeric_limits<T>::epsilon()) {
         nonZeroIndexFlag[col] |= 1;
         nonZeroIndexFlag[row] |= 1;
-      }
-    }
-  }
-
-  // Discard rows / columns with sum close to zero
-  for (std::size_t col = 0; col < s.shape(1); ++col) {
-    auto sum = sHost[{col, col}];
-    for (std::size_t row = col+1; row < s.shape(0); ++row) {
-      const auto val = sHost[{row, col}];
-      sum.x += val.x;
-      sum.y += val.y;
-    }
-    auto const row = col;
-    for (std::size_t col = 0; col < row; ++col) {
-      const auto val = sHost[{row, col}];
-      sum.x += val.x;
-      sum.y += -val.y; // Use conjugate in sum!
-    }
-    auto norm = std::sqrt(sum.x * sum.x + sum.y * sum.y);
-    if (norm <= std::numeric_limits<T>::epsilon()) {
-      ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing column {} / row {} with ||sum|| = {}", col, row, norm);
-      nonZeroIndexFlag[col] = 0;
-    }
-  }
-
-  // Count the number of non-zero visibilities
-  std::size_t nVis = {0};
-  const std::complex<T> c0 = 0.0;
-  nVis = s.shape(0) * s.shape(1);
-  for (std::size_t col = 0; col < s.shape(1); ++col) {
-    for (std::size_t row = col; row < s.shape(0); ++row) {
-      auto val = sHost[{row, col}];
-      if ((val.x == 0 && val.y == 0) || nonZeroIndexFlag[row] == 0 || nonZeroIndexFlag[col] == 0) {
-        col == row ? nVis -= 1 : nVis -= 2;
+        nVis += 1 + (row != col);
       }
     }
   }
   ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "eigensolver (gpu) nVis = {}", nVis);
-
 
   std::vector<std::size_t> indices;
   indices.reserve(nBeam);
