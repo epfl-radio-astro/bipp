@@ -286,6 +286,21 @@ BIPP_EXPORT BippError bipp_ss_options_set_normalize_image(BippStandardSynthesisO
   }
   return BIPP_SUCCESS;
 }
+
+BIPP_EXPORT BippError bipp_ss_options_set_normalize_image_by_nvis(BippStandardSynthesisOptions opt,
+                                                                  bool normalize) {
+  if (!opt) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<StandardSynthesisOptions*>(opt)->set_normalize_image_by_nvis(normalize);
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
 }
 
 }  // namespace bipp

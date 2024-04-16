@@ -27,10 +27,13 @@ DistributedSynthesis<T>::DistributedSynthesis(
     : comm_(std::move(comm)),
       ctx_(std::move(ctx)),
       totalCollectCount_(0),
+      totalVisibilityCount_(0),
       img_(ctx_->host_alloc(), {pixelX.size(), nLevel}),
       imgPartition_(host::DomainPartition::none(ctx_, pixelX.size())),
-      type_(std::holds_alternative<NufftSynthesisOptions>(opt) ? SynthesisType::NUFFT
-                                                               : SynthesisType::Standard) {
+      type_(std::holds_alternative<NufftSynthesisOptions>(opt) ? SynthesisType::NUFFT : SynthesisType::Standard),
+      normalize_by_nvis_(std::holds_alternative<NufftSynthesisOptions>(opt) ?
+                         std::get<NufftSynthesisOptions>(opt).normalizeImageNvis : std::get<StandardSynthesisOptions>(opt).normalizeImageNvis) {
+
   if (!comm_->is_root()) throw InvalidParameterError();
 
   assert(comm_->comm().rank() == 0);
@@ -64,6 +67,7 @@ DistributedSynthesis<T>::DistributedSynthesis(
 template <typename T>
 auto DistributedSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
   totalCollectCount_ += collector.size();
+  totalVisibilityCount_ += collector.get_nvis();
   comm_->send_synthesis_collect<T>(id_, collector);
 }
 
@@ -73,9 +77,6 @@ auto DistributedSynthesis<T>::get(View<T, 2> out) -> void {
                                           imgPartition_.groups().size(), 1);
   comm_->gather_image<T>(id_, groups, img_);
 
-  const T scale =
-      totalCollectCount_ ? static_cast<T>(1.0 / static_cast<double>(totalCollectCount_)) : 0;
-
   HostArray<T, 1> buffer(ctx_->host_alloc(), img_.shape(0));
   for(std::size_t idxLevel = 0; idxLevel < img_.shape(1); ++idxLevel) {
     auto levelImg = img_.slice_view(idxLevel);
@@ -84,7 +85,7 @@ auto DistributedSynthesis<T>::get(View<T, 2> out) -> void {
     T* __restrict__ imgPtr = levelImg.data();
     const T* __restrict__ bufferPtr = buffer.data();
     for(std::size_t i = 0; i < levelImg.size();++i) {
-      imgPtr[i] = bufferPtr[i] * scale;
+      imgPtr[i] = bufferPtr[i];
     }
   }
 

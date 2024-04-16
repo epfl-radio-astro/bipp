@@ -29,28 +29,41 @@ import bipp.gram as gr
 import bipp.filter
 import bipp.pybipp
 
-
-def centroid_to_intervals(centroid):
+def centroid_to_intervals(centroid=None, min_pos_d=0.0, fne=True):
     r"""
     Convert centroid to invervals as required by VirtualVisibilitiesDataProcessingBlock.
 
     Args
         centroid: Optional[np.ndarray]
             (N_centroid) centroid values. If None, [0, max_float] is returned.
+        min_pos_d: Optional[float]
+            Optional lower bound for the first interval containing the smallest positive eigenvalues
+            (i.e. the smallest of all (positive) eigenvalues considered when computing the centroids).
+            Defaults to zero.
+        fne: Optional[bool]
+            Filter out negative eigenvalues (default is True to only keep positive ones).
 
     Returns
         intervals: np.ndarray
          (N_centroid, 2) Intervals matching the input with lower and upper bound.
     """
-    if centroid is None or centroid.size <= 1:
+    if centroid is None or centroid.size == 0:
         return np.array([[0, np.finfo("f").max]])
+
+    if centroid.size == 1:
+        if fne:
+            return np.array([[min_pos_d, np.finfo("f").max]])
+        else:
+            return np.array([[0, np.finfo("f").max],
+                             [np.finfo("f").min, -np.finfo("f").tiny]])
+    
     intervals = np.empty((centroid.size, 2))
     sorted_idx = np.argsort(centroid)
     sorted_centroid = centroid[sorted_idx]
     for i in range(centroid.size):
         idx = sorted_idx[i]
         if idx == 0:
-            intervals[i, 0] = 0
+            intervals[i, 0] = min_pos_d if fne else 0
         else:
             intervals[i, 0] = (sorted_centroid[idx] + sorted_centroid[idx - 1]) / 2
 
@@ -58,6 +71,9 @@ def centroid_to_intervals(centroid):
             intervals[i, 1] = np.finfo("f").max
         else:
             intervals[i, 1] = (sorted_centroid[idx] + sorted_centroid[idx + 1]) / 2
+
+    if not fne:
+        intervals = np.append(intervals, [[np.finfo("f").min, -np.finfo("f").tiny]], axis=0)
 
     return intervals
 
@@ -75,7 +91,7 @@ class ParameterEstimator:
             Bipp context. If provided, will use bipp module for computation.
     """
 
-    def __init__(self, N_level, sigma, ctx):
+    def __init__(self, N_level, sigma, ctx, fne: bool=True):
         super().__init__()
 
         if N_level <= 0:
@@ -91,6 +107,7 @@ class ParameterEstimator:
         self._d_all = []
         self._ctx = ctx
         self._inferred = False
+        self._fne = fne
 
     def collect(self, wl, S, W, XYZ):
         """
@@ -102,11 +119,12 @@ class ParameterEstimator:
             G : :py:class:`~bipp.phased_array.bipp.gram.GramMatrix`
                 (N_beam, N_beam) gram matrix.
         """
-
         D =  bipp.pybipp.eigh(self._ctx, wl,S, W, XYZ)
         D = D[D > 0.0]
-        idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
-        D = D[idx]
+        D = D[np.argsort(D)[::-1]]
+        if self._fne:
+            idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
+            D = D[idx]
         self._d_all.append(D)
         self._inferred = False
 
@@ -133,5 +151,8 @@ class ParameterEstimator:
         cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1]
 
         self._inferred = True
-        self._intervals = centroid_to_intervals(cluster_centroid)
+
+        min_pos_d = np.min(D_all) if self._fne else 0
+        
+        self._intervals = centroid_to_intervals(cluster_centroid, min_pos_d, self._fne)
         return self._intervals

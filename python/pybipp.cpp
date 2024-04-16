@@ -77,6 +77,23 @@ auto processing_unit_to_string(BippProcessingUnit pu) -> std::string {
   throw InvalidParameterError();
 }
 
+void center_array(py::array_t<double> input_array) {
+  py::buffer_info buf_info = input_array.request();
+  double *ptr = static_cast<double *>(buf_info.ptr);
+  const auto N = buf_info.shape[0];
+  const auto M = buf_info.shape[1];
+  for (auto j=0; j<M; j++) {
+    double mean = 0.0;
+    for (auto i=j*N; i<(j+1)*N; i++) {
+      mean += ptr[i];
+    }
+    mean /= N;
+    for (auto i=j*N; i<(j+1)*N; i++) {
+      ptr[i] = ptr[i] - mean;
+    }
+  }
+}
+
 auto create_context(const std::string& pu) -> Context {
   return Context(string_to_processing_unit(pu));
 }
@@ -112,14 +129,12 @@ auto call_eigh(Context& ctx, T wl, const py::array_t<std::complex<T>, py::array:
   check_2d_array(s, {nBeam, nBeam});
 
   auto d = py::array_t<T, py::array::f_style>({py::ssize_t(nBeam)});
-  std::size_t nEigOut = 0;
-
-  nEigOut = eigh<T>(ctx, wl, nAntenna, nBeam, s.data(0),
+  std::pair<std::size_t, std::size_t> pev{0, 0};
+  pev = eigh<T>(ctx, wl, nAntenna, nBeam, s.data(0),
                     safe_cast<std::size_t>(s.strides(1) / s.itemsize()), w.data(0),
                     safe_cast<std::size_t>(w.strides(1) / w.itemsize()), xyz.data(0),
                     safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()), d.mutable_data(0));
-
-  d.resize({nEigOut});
+  d.resize({pev.first});
 
   return d;
 }
@@ -174,6 +189,9 @@ struct StandardSynthesisDispatcher {
             check_2d_array(wArray);
             auto nAntenna = wArray.shape(0);
             auto nBeam = wArray.shape(1);
+            // Always center xyz array in double precision
+            // TODO: unify this and the C interface
+            center_array(xyz);
             py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(xyz);
             check_2d_array(xyzArray, {nAntenna, 3});
             py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast> sArray(s);
@@ -430,14 +448,18 @@ PYBIND11_MODULE(pybipp, m) {
       .def_readwrite("local_uvw_partition", &NufftSynthesisOptions::localUVWPartition)
       .def("set_local_uvw_partition", &NufftSynthesisOptions::set_local_uvw_partition)
       .def_readwrite("normalizeImage", &NufftSynthesisOptions::normalizeImage)
-      .def("set_normalize_image", &NufftSynthesisOptions::set_normalize_image);
+      .def("set_normalize_image", &NufftSynthesisOptions::set_normalize_image)
+      .def_readwrite("normalizeImageNvis", &NufftSynthesisOptions::normalizeImageNvis)
+      .def("set_normalize_image_by_nvis", &NufftSynthesisOptions::set_normalize_image_by_nvis);
 
   pybind11::class_<StandardSynthesisOptions>(m, "StandardSynthesisOptions")
       .def(py::init())
       .def_readwrite("collect_group_size", &StandardSynthesisOptions::collectGroupSize)
       .def("set_collect_group_size", &StandardSynthesisOptions::set_collect_group_size)
       .def_readwrite("normalizeImage", &StandardSynthesisOptions::normalizeImage)
-      .def("set_normalize_image", &StandardSynthesisOptions::set_normalize_image);
+      .def("set_normalize_image", &StandardSynthesisOptions::set_normalize_image)
+      .def_readwrite("normalizeImageNvis", &StandardSynthesisOptions::normalizeImageNvis)
+      .def("set_normalize_image_by_nvis", &StandardSynthesisOptions::set_normalize_image_by_nvis);
 
   pybind11::class_<NufftSynthesisDispatcher>(m, "NufftSynthesis")
       .def(pybind11::init<Context&, NufftSynthesisOptions, std::size_t, const py::array&,

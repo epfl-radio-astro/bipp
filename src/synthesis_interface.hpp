@@ -40,6 +40,8 @@ public:
 
   virtual auto image() -> View<T, 2> = 0;
 
+  virtual auto normalize_by_nvis() const -> bool = 0;
+
   virtual ~SynthesisInterface() = default;
 };
 
