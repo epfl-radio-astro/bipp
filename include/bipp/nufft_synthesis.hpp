@@ -76,6 +76,11 @@ struct NufftSynthesisOptions {
   bool normalizeImage = true;
 
   /**
+   * Normalize image by the number of non-zero visibilities.
+   */
+  bool normalizeImageNvis = true;
+
+  /**
    * Set the tolerance.
    *
    * @param[in] tol Tolerance.
@@ -122,6 +127,16 @@ struct NufftSynthesisOptions {
    */
   inline auto set_normalize_image(bool normalize) -> NufftSynthesisOptions& {
     normalizeImage = normalize;
+    return *this;
+  }
+
+  /**
+   * Set normalization of image by number of non-zero visibilities.
+   *
+   * @param[in] normalize True or false.
+   */
+  inline auto set_normalize_image_by_nvis(bool normalize) -> NufftSynthesisOptions& {
+    normalizeImageNvis = normalize;
     return *this;
   }
 };

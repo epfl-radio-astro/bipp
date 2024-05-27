@@ -13,6 +13,7 @@ bipp_gpu = str(os.getenv("BIPP_GPU", "OFF"))
 bipp_umpire = str(os.getenv("BIPP_UMPIRE", "OFF"))
 bipp_omp = str(os.getenv("BIPP_OMP", "ON"))
 bipp_vc = str(os.getenv("BIPP_VC", "OFF"))
+bipp_mpi = str(os.getenv("BIPP_MPI", "OFF"))
 bipp_magma = str(os.getenv("BIPP_MAGMA", "OFF"))
 bipp_cmake_args = str(os.getenv("BIPP_CMAKE_ARGS", ""))
 bipp_cmake_args_list = shlex.split(bipp_cmake_args) if bipp_cmake_args else []
@@ -33,11 +34,14 @@ setup(
         "-DBIPP_GPU=" + bipp_gpu,
         "-DBIPP_UMPIRE=" + bipp_umpire,
         "-DBIPP_OMP=" + bipp_omp,
+        "-DBIPP_MPI=" + bipp_mpi,
         "-DBIPP_VC=" + bipp_vc,
         "-DBIPP_MAGMA=" + bipp_magma,
         "-DBIPP_BUNDLED_LIBS=ON",
         "-DBUILD_SHARED_LIBS=ON",
-        "-DBIPP_INSTALL=PIP",
+        "-DBIPP_INSTALL_LIB=OFF",
+        "-DBIPP_INSTALL_PYTHON=ON",
+        "-DBIPP_INSTALL_PYTHON_SUFFIX=",
     ]
     + bipp_cmake_args_list,
     install_requires=[

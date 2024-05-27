@@ -34,6 +34,8 @@ public:
 
   auto image() -> View<T, 2> override { return img_; }
 
+  auto normalize_by_nvis() const -> bool override { return opt_.normalizeImageNvis; }
+
 private:
 
   std::shared_ptr<ContextInternal> ctx_;
@@ -41,8 +43,8 @@ private:
   const std::size_t nImages_, nPixel_;
   HostArray<T, 2> pixel_;
   DomainPartition imgPartition_;
-
   std::size_t totalCollectCount_;
+  std::size_t totalVisibilityCount_;
   HostArray<T, 2> img_;
 };
 

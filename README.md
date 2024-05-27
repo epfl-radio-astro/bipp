@@ -40,17 +40,22 @@ Bipp uses CMake to configure the build.
 
 ### CMake options
 Bipp can be configured with the following options:
-| Option                   |  Values                   | Default | Description                                                             |
-|--------------------------|---------------------------|---------|-------------------------------------------------------------------------|
-| `BIPP_PYTHON`            |  `ON`, `OFF`              | `ON`    | Build Python interface                                                  |
-| `BIPP_OMP`               |  `ON`, `OFF`              | `ON`    | Enable multi-threading with OpenMP                                      |
-| `BIPP_VC`                |  `ON`, `OFF`              | `OFF`   | Use the VC library for vectorization                                    |
-| `BIPP_GPU`               |  `OFF`, `CUDA`, `ROCM`    | `OFF`   | Select GPU backend                                                      |
-| `BIPP_MAGMA`             |  `ON`, `OFF`              | `OFF`   | Use MAGMA as eigensolver on GPU                                         |
-| `BIPP_BUILD_TESTS`       |  `ON`, `OFF`              | `OFF`   | Build test executables                                                  |
-| `BIPP_INSTALL`           |  `LIB`, `PYTHON`, `OFF`   | `LIB`   | Set installation target                                                 |
-| `BIPP_UMPIRE`            |  `ON`, `OFF`              | `OFF`   | Use the UMPIRE library for memory allocations                           |
-| `BIPP_BUNDLED_LIBS`      |  `ON`, `OFF`              | `ON`    | Download and build spdlog, pybind11, googletest and json library.       |
+| Option                      |  Values                   | Default     | Description                                                                                               |
+|-----------------------------|---------------------------|-------------|-----------------------------------------------------------------------------------------------------------|
+| `BIPP_PYTHON`               |  `ON`, `OFF`              | `ON`        | Build Python interface                                                                                    |
+| `BIPP_OMP`                  |  `ON`, `OFF`              | `ON`        | Enable multi-threading with OpenMP                                                                        |
+| `BIPP_VC`                   |  `ON`, `OFF`              | `OFF`       | Use the VC library for vectorization                                                                      |
+| `BIPP_GPU`                  |  `OFF`, `CUDA`, `ROCM`    | `OFF`       | Select GPU backend                                                                                        |
+| `BIPP_MAGMA`                |  `ON`, `OFF`              | `OFF`       | Use MAGMA as eigensolver on GPU                                                                           |
+| `BIPP_BUILD_TESTS`          |  `ON`, `OFF`              | `OFF`       | Build test executables                                                                                    |
+| `BIPP_INSTALL`              |  `LIB`, `PYTHON`, `OFF`   | `LIB`       | Set installation target                                                                                   |
+| `BIPP_UMPIRE`               |  `ON`, `OFF`              | `OFF`       | Use the UMPIRE library for memory allocations                                                             |
+| `BIPP_BUNDLED_LIBS`         |  `ON`, `OFF`              | `ON`        | Download and build spdlog, pybind11, googletest and json library.                                         |
+| `BIPP_INSTALL_LIB`          |  `ON`, `OFF`              | `ON`        | Add library to list of install targets.                                                                   |
+| `BIPP_INSTALL_PYTHON`       |  `ON`, `OFF`              | `ON`        | Add python module to list of install targets.                                                             |
+| `BIPP_INSTALL_LIB_SUFFIX`   |  string                   | lib or lib64| Installation path suffix appended to `CMAKE_INSTALL_PREFIX` for library target                            |
+| `BIPP_INSTALL_PYTHON_PREFIX`|  string                   |             |  If set, used instead of `CMAKE_INSTALL_PREFIX` for python module target.                                 |
+| `BIPP_INSTALL_PYTHON_SUFFIX`|  string                   |  platlib    | Installation path suffix for python module target.  If "platlib", the python platlib path will be used.   |
 
 
 Some useful general CMake options are:

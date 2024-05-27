@@ -18,16 +18,17 @@ public:
   static_assert(std::is_same_v<T, float> || std::is_same_v<T, double>);
 
   struct Data {
-    Data(T wl, ConstView<std::complex<T>, 2> v, ConstHostView<T, 2> dMasked, ConstView<T, 2> xyzUvw)
-        : wl(wl), v(v), dMasked(dMasked), xyzUvw(xyzUvw) {}
+    Data(T wl, const std::size_t nVis, ConstView<std::complex<T>, 2> v, ConstHostView<T, 2> dMasked, ConstView<T, 2> xyzUvw)
+         : wl(wl), nVis(nVis), v(v), dMasked(dMasked), xyzUvw(xyzUvw) {}
 
     T wl;
+    std::size_t nVis;
     ConstView<std::complex<T>, 2> v;
     ConstHostView<T, 2> dMasked;
     ConstView<T, 2> xyzUvw;
   };
 
-  virtual auto collect(T wl, ConstView<std::complex<T>, 2> v, ConstHostView<T, 2> dMasked,
+  virtual auto collect(T wl, const std::size_t nVis, ConstView<std::complex<T>, 2> v, ConstHostView<T, 2> dMasked,
                        ConstView<T, 2> xyzUvw) -> void = 0;
 
   virtual auto serialize() const -> HostArray<char, 1> = 0;
@@ -37,6 +38,8 @@ public:
   virtual auto get_data() const -> std::vector<typename CollectorInterface<T>::Data> = 0;
 
   virtual auto size() const -> std::size_t = 0;
+
+  virtual auto get_nvis() const -> std::size_t = 0;
 
   virtual auto clear() -> void = 0;
 
