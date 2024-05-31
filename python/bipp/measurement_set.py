@@ -9,7 +9,6 @@ Measurement Set (MS) readers and tools.
 """
 
 import pathlib
-
 import astropy.coordinates as coord
 import astropy.table as tb
 import astropy.time as time
@@ -22,6 +21,8 @@ import bipp.imot_tools.util.argcheck as chk
 import bipp.beamforming as beamforming
 import bipp.instrument as instrument
 import bipp.statistics as vis
+from time import perf_counter as pcf
+import sys
 
 
 @chk.check(
@@ -78,6 +79,29 @@ def filter_data(S, W):
     W_f = beamforming.BeamWeights(data=w_f, ant_idx=W.index[0], beam_idx=beam_idx2)
 
     return S_f, W_f
+
+
+def time_idx_in_slice(slice, idx):
+    if (idx < slice.start) or (idx >= slice.stop):
+        return False
+    if (idx - slice.start) % slice.step != 0:
+        return False
+    return True
+
+def check_continuity(list):
+    return not any(a+1!=b for a, b in zip(list, list[1:]))
+
+
+# Define chunks of size chunk_size. chunk_size should be optimized for fastest
+# block reading (see readms app from casacore for testing around -chansize paramater)
+def chunk_channel_block(channel_block, chunk_size):
+    block_size = len(channel_block)
+    chan0 = channel_block[0]
+    for chunk_start in range(chan0, chan0 + block_size, chunk_size):
+        chunk_end = chunk_start + chunk_size - 1
+        if (chunk_end >= chan0 + block_size):
+            chunk_end = chan0 + block_size - 1
+        yield [chunk_start, chunk_end]
 
 
 class MeasurementSet:
@@ -160,7 +184,6 @@ class MeasurementSet:
             # conventions may be used.
             query = f"select CHAN_FREQ, CHAN_WIDTH from {self._msf}::SPECTRAL_WINDOW"
             table = ct.taql(query)
-
             f = table.getcell("CHAN_FREQ", 0).flatten() * u.Hz
             f_id = range(len(f))
             self._channels = tb.QTable(dict(CHANNEL_ID=f_id, FREQUENCY=f))
@@ -221,6 +244,10 @@ class MeasurementSet:
         """
         raise NotImplementedError
 
+    ########################################################################################
+    # MEERKAT 
+    ########################################################################################
+    
     @chk.check(
         dict(
             channel_id=chk.accept_any(chk.has_integers, chk.is_instance(slice)),
@@ -228,7 +255,298 @@ class MeasurementSet:
             column=chk.is_instance(str),
         )
     )
-    def visibilities(self, channel_id, time_id, column):
+    def new_visibilities_meerkat(self, channel_id, time_id, column, sort_time=True):
+        query = f"select NAME from {self._msf}::ANTENNA"
+        antenna_table = ct.taql(query)
+        n_ant = len(antenna_table.getcol("NAME"))
+        print(f"-I- number of antenna =", n_ant, flush=True)
+
+        if column not in ct.taql(f"select * from {self._msf}").colnames():
+            raise ValueError(f"column={column} does not exist in {self._msf}::MAIN.")
+
+        # Check whether channels is a single block
+        channel_block = True
+        if type(channel_id) == slice:
+            if (abs(channel_id.step) != 1):
+                channel_block = False
+        else:
+            channel_id = sorted(channel_id)
+            nchan = len(channel_id)
+            if nchan > 1:
+                channel_block = check_continuity(channel_id)
+        
+        print(f"-I- requested {len(channel_id)} channels over the {len(self.channels['CHANNEL_ID'])} available") 
+        channel_id = self.channels["CHANNEL_ID"][channel_id]
+        if channel_block:
+            block_size = len(channel_id)
+            if block_size == 0:
+                raise Exception("Empty block of channels to process")
+        
+        # Create beam index, time independent
+        beam_id = np.unique(self.instrument._layout.index.get_level_values("STATION_ID"))
+        beam_idx = pd.Index(beam_id, name="BEAM_ID")
+            
+        if chk.is_integer(time_id):
+            time_id = slice(time_id, time_id + 1, 1)
+        
+        # Start reading the table
+        table = ct.table(self._msf)
+
+        # Allocate once, size is time invariant, but reset to zero while iterating
+        S  = np.zeros((n_ant, n_ant), dtype=complex)
+        WS = np.zeros((n_ant, n_ant), dtype=float)
+
+        time_sorted = True
+        previous_time = 0.0
+
+        for idx, sub_table in enumerate(table.iter("TIME", sort=sort_time)):
+
+            # Skip unwanted epochs            
+            if not time_idx_in_slice(time_id, idx):
+                continue
+
+            t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
+            if t.to_value('mjd') < previous_time:
+                time_sorted = False
+            previous_time = t.to_value('mjd')
+
+            f = self.channels["FREQUENCY"]            
+            
+            ant1 = sub_table.getcol("ANTENNA1")  # (N_entry,)
+            ant2 = sub_table.getcol("ANTENNA2")  # (N_entry,)
+
+            # If processing a (single) block of channels, then chunk it and loop over to read data.
+            # Otherwise, loop over single channels
+            # TODO(EO): check whether blocking would help for close enough channels.
+            chunk_size = 8
+            if channel_block:
+                for chunk in chunk_channel_block(channel_id, chunk_size):
+                    data = sub_table.getcolslice(column, blc=(chunk[0], 0), trc=(chunk[1], 1), inc=(1,1))
+                    data = np.average(data[:, :, [0,1]], axis=2)
+                    flag = sub_table.getcolslice('FLAG', blc=(chunk[0], 0), trc=(chunk[1], 1), inc=(1,1))
+                    flag = np.any(flag[:, :, [0,1]], axis=2)
+                    data[flag] = 0
+                    try:
+                        weight_spectrum = sub_table.getcolslice('WEIGHT_SPECTRUM', blc=(chunk[0], 0), trc=(chunk[1], 1), inc=(1,1))
+                    except:
+                        weight_spectrum = None
+                    
+                    if weight_spectrum is not None:
+                        # Mimic WSClean
+                        weight = np.min(weight_spectrum[:, :, [0,1]], axis=2)
+                        weight[flag] = 0
+                    
+                    for i in range(0, (chunk[1] - chunk[0] + 1)):
+
+                        # Skip channels with less than 40% of expected data
+                        if np.count_nonzero(data[:, i]) / len(data[:, i]) < 0.4:
+                            continue
+                        
+                        S.fill(0)
+                        S[ant2, ant1] = data[:, i].conj()
+                        if weight_spectrum is not None and np.any(weight[:, i]):
+                            WS.fill(0)
+                            WS[ant2, ant1] = weight[:, i]
+                            vis_mat = vis.VisibilityMatrix(S, beam_idx, check_hermitian=False, weight_spectrum=WS)
+                        else:
+                            vis_mat = vis.VisibilityMatrix(S, beam_idx, check_hermitian=False)
+                        
+                        # Skip empty channels
+                        if np.count_nonzero(vis_mat.data) == 0:
+                            print(f"-W- skipping empty channel {chunk[0] + i}")
+                            continue
+                        else:
+                            print(f"-I- channel {chunk[0] + i} has {np.count_nonzero(vis_mat.data)} non-zero visibilities")
+                        
+                        yield t, f[chunk[0] + i], vis_mat
+            else:
+                for chan in channel_id:
+                    data = sub_table.getcolslice(column, blc=(chan, 0), trc=(chan, 3), inc=(1,3))
+                    data = np.average(data[:, :, [0,1]], axis=2)
+                    flag = sub_table.getcolslice('FLAG', blc=(chan, 0), trc=(chan, 3), inc=(1,3))
+                    flag = np.any(flag[:, :, [0,1]], axis=2)
+                    data[flag] = 0
+                    try:
+                        weight_spectrum = sub_table.getcolslice('WEIGHT_SPECTRUM', blc=(chan, 0), trc=(chan, 3), inc=(1,3))
+                    except:
+                        weight_spectrum = None
+                    
+                    if weight_spectrum is not None:
+                        # Mimic WSClean
+                        weight = np.min(weight_spectrum[:, :, [0,1]], axis=2)
+                        weight[flag] = 0
+                    
+                    S.fill(0)
+                    S[ant2, ant1] = data[:, 0].conj()
+                    if weight_spectrum is not None and np.any(weight):
+                        WS.fill(0)
+                        WS[ant2, ant1] = weight[:, 0]
+                        vis_mat = vis.VisibilityMatrix(S, beam_idx, check_hermitian=False, weight_spectrum=WS)
+                    else:
+                        vis_mat = vis.VisibilityMatrix(S, beam_idx, check_hermitian=False)
+
+                    # Skip empty channels
+                    if np.count_nonzero(vis_mat.data) == 0:
+                        continue
+
+                    yield t, f[chan], vis_mat
+        
+        print(f"-I- Was sorting time requested? {sort_time}. Was TIME sorted? {time_sorted}")
+
+    ########################################################################################
+    ########################################################################################
+    ########################################################################################
+    ########################################################################################
+    
+    @chk.check(
+        dict(
+            channel_id=chk.accept_any(chk.has_integers, chk.is_instance(slice)),
+            time_id=chk.accept_any(chk.is_integer, chk.is_instance(slice)),
+            column=chk.is_instance(str),
+        )
+    )
+    def new_visibilities(self, channel_id, time_id, column, sort_time=True):
+        query = f"select NAME from {self._msf}::ANTENNA"
+        antenna_table = ct.taql(query)
+        n_ant = len(antenna_table.getcol("NAME"))
+        print(f"-I- number of antenna =", n_ant, flush=True)
+
+        if column not in ct.taql(f"select * from {self._msf}").colnames():
+            raise ValueError(f"column={column} does not exist in {self._msf}::MAIN.")
+
+        # Check whether channels is a single block
+        channel_block = True
+        if type(channel_id) == slice:
+            if (abs(channel_id.step) != 1):
+                channel_block = False
+        else:
+            channel_id = sorted(channel_id)
+            nchan = len(channel_id)
+            if nchan > 1:
+                channel_block = check_continuity(channel_id)
+        
+        print(f"-I- requested {len(channel_id)} channels over the {len(self.channels['CHANNEL_ID'])} available") 
+        channel_id = self.channels["CHANNEL_ID"][channel_id]
+        if channel_block:
+            block_size = len(channel_id)
+            if block_size == 0:
+                raise Exception("Empty block of channels to process")
+        
+        # Create beam index, time independent
+        beam_id = np.unique(self.instrument._layout.index.get_level_values("STATION_ID"))
+        beam_idx = pd.Index(beam_id, name="BEAM_ID")
+            
+        if chk.is_integer(time_id):
+            time_id = slice(time_id, time_id + 1, 1)
+        
+        # Start reading the table
+        table = ct.table(self._msf)
+
+        # Allocate once, size is time invariant, but reset to zero while iterating
+        S  = np.zeros((n_ant, n_ant), dtype=complex)
+        WS = np.zeros((n_ant, n_ant), dtype=float)
+
+        time_sorted = True
+        previous_time = 0.0
+
+        for idx, sub_table in enumerate(table.iter("TIME", sort=sort_time)):
+
+            # Skip unwanted epochs            
+            if not time_idx_in_slice(time_id, idx):
+                continue
+
+            t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
+            if t.to_value('mjd') < previous_time:
+                time_sorted = False
+            previous_time = t.to_value('mjd')
+
+            f = self.channels["FREQUENCY"]            
+            
+            ant1 = sub_table.getcol("ANTENNA1")  # (N_entry,)
+            ant2 = sub_table.getcol("ANTENNA2")  # (N_entry,)
+
+            # If processing a (single) block of channels, then chunk it and loop over to read data.
+            # Otherwise, loop over single channels
+            # TODO(EO): check whether blocking would help for close enough channels.
+            chunk_size = 8
+            if channel_block:
+                for chunk in chunk_channel_block(channel_id, chunk_size):
+                    data = sub_table.getcolslice(column, blc=(chunk[0], 0), trc=(chunk[1], 3), inc=(1,3))
+                    data = np.average(data[:, :, [0,1]], axis=2)
+                    flag = sub_table.getcolslice('FLAG', blc=(chunk[0], 0), trc=(chunk[1], 3), inc=(1,3))
+                    flag = np.any(flag[:, :, [0,1]], axis=2)
+                    data[flag] = 0
+                    try:
+                        weight_spectrum = sub_table.getcolslice('WEIGHT_SPECTRUM', blc=(chunk[0], 0), trc=(chunk[1], 3), inc=(1,3))
+                    except:
+                        weight_spectrum = None
+                    
+                    if weight_spectrum is not None:
+                        # Mimic WSClean
+                        weight = np.min(weight_spectrum[:, :, [0,1]], axis=2)
+                        weight[flag] = 0
+                    
+                    for i in range(0, (chunk[1] - chunk[0] + 1)):
+                        S.fill(0)
+                        S[ant2, ant1] = data[:, i].conj()
+                        if weight_spectrum is not None and np.any(weight[:, i]):
+                            WS.fill(0)
+                            WS[ant2, ant1] = weight[:, i]
+                            vis_mat = vis.VisibilityMatrix(S, beam_idx, check_hermitian=False, weight_spectrum=WS)
+                        else:
+                            vis_mat = vis.VisibilityMatrix(S, beam_idx, check_hermitian=False)
+                        
+                        # Skip empty channels
+                        if np.count_nonzero(vis_mat.data) == 0:
+                            continue
+                        
+                        yield t, f[chunk[0] + i], vis_mat
+            else:
+                for chan in channel_id:
+                    data = sub_table.getcolslice(column, blc=(chan, 0), trc=(chan, 3), inc=(1,3))
+                    data = np.average(data[:, :, [0,1]], axis=2)
+                    flag = sub_table.getcolslice('FLAG', blc=(chan, 0), trc=(chan, 3), inc=(1,3))
+                    flag = np.any(flag[:, :, [0,1]], axis=2)
+                    data[flag] = 0
+                    try:
+                        weight_spectrum = sub_table.getcolslice('WEIGHT_SPECTRUM', blc=(chan, 0), trc=(chan, 3), inc=(1,3))
+                    except:
+                        weight_spectrum = None
+                    
+                    if weight_spectrum is not None:
+                        # Mimic WSClean
+                        weight = np.min(weight_spectrum[:, :, [0,1]], axis=2)
+                        weight[flag] = 0
+                    
+                    S.fill(0)
+                    S[ant2, ant1] = data[:, 0].conj()
+                    if weight_spectrum is not None and np.any(weight):
+                        WS.fill(0)
+                        WS[ant2, ant1] = weight[:, 0]
+                        vis_mat = vis.VisibilityMatrix(S, beam_idx, check_hermitian=False, weight_spectrum=WS)
+                    else:
+                        vis_mat = vis.VisibilityMatrix(S, beam_idx, check_hermitian=False)
+
+                    # Skip empty channels
+                    if np.count_nonzero(vis_mat.data) == 0:
+                        continue
+
+                    yield t, f[chan], vis_mat
+        
+        print(f"-I- Was sorting time requested? {sort_time}. Was TIME sorted? {time_sorted}")
+
+    ########################################################################################
+    ########################################################################################
+
+
+    @chk.check(
+        dict(
+            channel_id=chk.accept_any(chk.has_integers, chk.is_instance(slice)),
+            time_id=chk.accept_any(chk.is_integer, chk.is_instance(slice)),
+            column=chk.is_instance(str),
+        )
+    )
+    def visibilities(self, channel_id, time_id, column, sort_time=True):
         """
         Extract visibility matrices.
 
@@ -240,8 +558,9 @@ class MeasurementSet:
             Several TIME_IDs from :py:attr:`~pypeline.phased_array.util.measurement_set.MeasurementSet.time`.
         column : str
             Column name from MAIN table where visibility data resides.
-
             (This is required since several visibility-holding columns can co-exist.)
+        sort_time: bool
+            Wether to sort TIME column or not. Sorting is time consuming.
 
         Returns
         -------
@@ -255,12 +574,19 @@ class MeasurementSet:
         """
         if column not in ct.taql(f"select * from {self._msf}").colnames():
             raise ValueError(f"column={column} does not exist in {self._msf}::MAIN.")
-
-        channel_id = self.channels["CHANNEL_ID"][channel_id]
+        
         if chk.is_integer(time_id):
             time_id = slice(time_id, time_id + 1, 1)
+        
+        print(f"-I- requested {len(channel_id)} channels over the {len(self.channels['CHANNEL_ID'])} available") 
+        channel_id = self.channels["CHANNEL_ID"][channel_id]
+        
+
+        # Single shot, but time consuming!
         N_time = len(self.time)
+        
         time_start, time_stop, time_step = time_id.indices(N_time)
+        print(N_time, time_start, time_stop, time_step)
 
         # Only a subset of the MAIN table's columns are needed to extract visibility information.
         # As such, it makes sense to construct a TaQL query that only extracts the columns of
@@ -275,17 +601,20 @@ class MeasurementSet:
         )
         table = ct.taql(query)
 
-        for sub_table in table.iter("TIME", sort=True):
+        time_sorted = True
+        previous_time = 0.0
+
+        for sub_table in table.iter("TIME", sort=sort_time):
             beam_id_0 = sub_table.getcol("ANTENNA1")  # (N_entry,)
             beam_id_1 = sub_table.getcol("ANTENNA2")  # (N_entry,)
-            data_flag = sub_table.getcol("FLAG")  # (N_entry, N_channel, 4)
-            data = sub_table.getcol(column)  # (N_entry, N_channel, 4)
-
+            data_flag = sub_table.getcol("FLAG")      # (N_entry, N_channel, 4)
+            data = sub_table.getcol(column)           # (N_entry, N_channel, 4)
+            
             try:
                 weight_spectrum = sub_table.getcol("WEIGHT_SPECTRUM")
             except:
                 weight_spectrum = None
-
+            
             # We only want XX and YY correlations
             data = np.average(data[:, :, [0, 3]], axis=2)[:, channel_id]
             data_flag = np.any(data_flag[:, :, [0, 3]], axis=2)[:, channel_id]
@@ -325,6 +654,10 @@ class MeasurementSet:
 
             # Break S into columns and stream out
             t = time.Time(sub_table.calc("MJD(TIME)")[0], format="mjd", scale="utc")
+            if t.to_value('mjd') < previous_time:
+                time_sorted = False
+            previous_time = t.to_value('mjd')
+
             f = self.channels["FREQUENCY"]
             beam_idx = pd.Index(beam_id, name="BEAM_ID")
 
@@ -352,6 +685,7 @@ class MeasurementSet:
                 visibility = vis.VisibilityMatrix(v, beam_idx)
                 yield t, f[ch_id], visibility
 
+        print(f"-I- Was sorting time requested? {sort_time}. Was TIME sorted? {time_sorted}")
 
 def _series2array(visibility: pd.Series) -> np.ndarray:
     b_idx_0 = visibility.index.get_level_values("B_0").to_series()
@@ -658,7 +992,6 @@ class SKALowMeasurementSet(MeasurementSet):
             cfg = pd.DataFrame(data=station_mean, columns=("X", "Y", "Z"), index=cfg_idx)
 
             XYZ = instrument.InstrumentGeometry(xyz=cfg.values, ant_idx=cfg.index)
-            
             self._instrument = instrument.EarthBoundInstrumentGeometryBlock(XYZ)
 
         return self._instrument
