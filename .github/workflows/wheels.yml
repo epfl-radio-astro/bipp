@@ -71,7 +71,7 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
           BIPP_CMAKE_ARGS: -DBLAS_LIBRARIES=/usr/lib64/libopenblaso.so.0
           CIBW_BEFORE_ALL_LINUX: >
-            yum install openblas-openmp fftw-devel wget &&
+            yum install -y openblas-openmp fftw-devel wget &&
             cd ${HOME} &&
             wget https://github.com/flatironinstitute/finufft/archive/refs/tags/v2.2.0.tar.gz &&
             tar -xzvf v2.2.0.tar.gz &&
