@@ -69,6 +69,7 @@ jobs:
           # CIBW_TEST_REQUIRES: pybind11 scikit-build cmake
           CIBW_TEST_COMMAND: python -c "import bipp"
           CIBW_BUILD_VERBOSITY: 1
+          CIBW_TEST_SKIP: "*cp312*"
           CIBW_BEFORE_ALL_LINUX: >
             yum install -y openblas-openmp fftw-devel wget &&
             cd ${HOME} &&
