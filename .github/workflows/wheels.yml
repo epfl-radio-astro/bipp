@@ -69,6 +69,16 @@ jobs:
           # CIBW_TEST_REQUIRES: pybind11 scikit-build cmake
           CIBW_TEST_COMMAND: python -c "import bipp"
           CIBW_BUILD_VERBOSITY: 1
+          BIPP_CMAKE_ARGS: -DBLAS_LIBRARIES=/usr/lib64/libopenblaso.so.0
+          CIBW_BEFORE_ALL_LINUX: >
+            yum install openblas-openmp fftw-devel wget &&
+            cd ${HOME} &&
+            wget https://github.com/flatironinstitute/finufft/archive/refs/tags/v2.2.0.tar.gz &&
+            tar -xzvf v2.2.0.tar.gz &&
+            cd finufft-2.2.0 && mkdir build && cd build &&
+            cmake .. -DCMAKE_BUILD_TYPE=RELEASE -DFINUFFT_ARCH_FLAGS="" &&
+            make install -j
+
 
         run: bash .github/build_tools/build_wheels.sh
 
