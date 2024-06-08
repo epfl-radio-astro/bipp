@@ -1,0 +1,79 @@
+# Workflow to build and test wheels
+name: Wheel builder
+
+on:
+  schedule:
+    # Nightly build at 3:42 A.M.
+    - cron: "42 3 */1 * *"
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  # Manual run
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # Build the wheels for Linux, and macOS for Python 3.9 and newer
+  build_wheels:
+    name: Build wheel for cp${{ matrix.python }}-${{ matrix.platform_id }}-${{ matrix.manylinux_image }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # Ensure that a wheel builder finishes even if another fails
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: 39
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
+
+          - os: ubuntu-latest
+            python: 310
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
+
+          - os: ubuntu-latest
+            python: 311
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
+
+          - os: ubuntu-latest
+            python: 312
+            platform_id: manylinux_x86_64
+            manylinux_image: manylinux2014
+
+    steps:
+      - name: Checkout bipp
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11" # update once build dependencies are available
+
+      - name: Build and test wheels
+        env:
+          CIBW_PRERELEASE_PYTHONS: ${{ matrix.prerelease }}
+          CIBW_ENVIRONMENT: BIPP_GPU=OFF
+          CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
+          CIBW_ARCHS: all
+          CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
+          CIBW_MANYLINUX_I686_IMAGE: ${{ matrix.manylinux_image }}
+          # CIBW_TEST_REQUIRES: pybind11 scikit-build cmake
+          CIBW_TEST_COMMAND: python -c "import bipp"
+          CIBW_BUILD_VERBOSITY: 1
+
+        run: bash .github/build_tools/build_wheels.sh
+
+      - name: Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-cp${{ matrix.python }}-${{ matrix.platform_id }}
+          path: wheelhouse/*.whl
