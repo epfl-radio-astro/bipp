@@ -61,7 +61,7 @@ jobs:
       - name: Build and test wheels
         env:
           CIBW_PRERELEASE_PYTHONS: ${{ matrix.prerelease }}
-          CIBW_ENVIRONMENT: BIPP_GPU=OFF
+          CIBW_ENVIRONMENT: BIPP_CMAKE_ARGS="-DBLAS_LIBRARIES=/usr/lib64/libopenblaso.so.0"
           CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
           CIBW_ARCHS: all
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
@@ -76,8 +76,7 @@ jobs:
             tar -xzvf v2.2.0.tar.gz &&
             cd finufft-2.2.0 && mkdir build && cd build &&
             cmake .. -DCMAKE_BUILD_TYPE=RELEASE -DFINUFFT_ARCH_FLAGS="" &&
-            make install -j &&
-            export BIPP_CMAKE_ARGS="-DBLAS_LIBRARIES=/usr/lib64/libopenblaso.so.0"
+            make install -j
 
         run: bash .github/build_tools/build_wheels.sh
 
