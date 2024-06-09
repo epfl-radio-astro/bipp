@@ -22,6 +22,7 @@ setup(
     name="bipp",
     version=version,
     description="Bluebild imaging algorithm written in C++",
+    long_description="Bluebild imaging algorithm written in C++",
     packages=find_packages(where="python"),
     package_dir={"": "python"},
     cmake_install_dir="python",  # must match package dir name. Otherwise, installed libraries are seen as independent data
