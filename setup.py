@@ -23,6 +23,7 @@ setup(
     version=version,
     description="Bluebild imaging algorithm written in C++",
     long_description="Bluebild imaging algorithm written in C++",
+    long_description_content_type='text/markdown',
     packages=find_packages(where="python"),
     package_dir={"": "python"},
     cmake_install_dir="python",  # must match package dir name. Otherwise, installed libraries are seen as independent data
