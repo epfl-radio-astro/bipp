@@ -19,7 +19,7 @@ bipp_cmake_args = str(os.getenv("BIPP_CMAKE_ARGS", ""))
 bipp_cmake_args_list = shlex.split(bipp_cmake_args) if bipp_cmake_args else []
 
 setup(
-    name="bipptest",
+    name="bipp",
     version=version,
     description="Bluebild imaging algorithm written in C++",
     long_description="Bluebild imaging algorithm written in C++",
@@ -27,7 +27,7 @@ setup(
     packages=find_packages(where="python"),
     package_dir={"": "python"},
     cmake_install_dir="python",  # must match package dir name. Otherwise, installed libraries are seen as independent data
-    package_data={"bipptest": ["data/instrument/*.csv"], "bipptest.imot_tools": ["data/math/special/*.csv", "data/io/colormap/*.csv", "data/io/colormap/imot_tools.mplstyle"]},
+    package_data={"bipp": ["data/instrument/*.csv"], "bipp.imot_tools": ["data/math/special/*.csv", "data/io/colormap/*.csv", "data/io/colormap/imot_tools.mplstyle"]},
     include_package_data=True,
     python_requires=">=3.6",
     license_files = ('LICENSE',),
