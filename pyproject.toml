@@ -5,4 +5,5 @@ requires = [
     "cmake>=3.15",
     "pybind11>=2.9",
     "make",
+    "setuptools_scm>=8"
 ]

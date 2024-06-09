@@ -3,11 +3,14 @@ import os
 import pathlib
 from setuptools import find_packages
 import shlex
+import setuptools_scm
 
 
-current_dir = pathlib.Path(__file__).parent.resolve()
-with open(str(current_dir) + "/VERSION") as f:
-    version = f.readline().strip()
+#  current_dir = pathlib.Path(__file__).parent.resolve()
+#  with open(str(current_dir) + "/VERSION") as f:
+#      version = f.readline().strip()
+
+version = setuptools_scm.get_version()
 
 bipp_gpu = str(os.getenv("BIPP_GPU", "OFF"))
 bipp_umpire = str(os.getenv("BIPP_UMPIRE", "OFF"))
