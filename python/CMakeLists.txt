@@ -75,16 +75,16 @@ set(BIPP_PYTHON_SRC
 
 
 foreach(src IN LISTS BIPP_PYTHON_SRC)
-	configure_file("${CMAKE_CURRENT_SOURCE_DIR}/bipp/${src}"
-		"${CMAKE_CURRENT_BINARY_DIR}/bipp/${src}"
+	configure_file("${CMAKE_CURRENT_SOURCE_DIR}/bipptest/${src}"
+		"${CMAKE_CURRENT_BINARY_DIR}/bipptest/${src}"
 		COPYONLY
 	)
 endforeach()
 
 if(BIPP_INSTALL_PYTHON)
 	foreach(src IN LISTS BIPP_PYTHON_SRC)
-		get_filename_component(dir ${BIPP_INSTALL_PYTHON_PATH}/bipp/${src} DIRECTORY )
-		install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/bipp/${src} DESTINATION ${dir})
+		get_filename_component(dir ${BIPP_INSTALL_PYTHON_PATH}/bipptest/${src} DIRECTORY )
+		install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/bipptest/${src} DESTINATION ${dir})
 	endforeach()
 
 	if(BIPP_INSTALL_PYTHON_DEPS)
@@ -104,14 +104,14 @@ if(BIPP_INSTALL_PYTHON)
 				file(GLOB dep_link "${dep}.[0-9]")
 				if(dep_link)
 					cmake_path(GET dep_link FILENAME dep_link_file)
-					install(FILES ${dep_resolved} DESTINATION ${BIPP_INSTALL_PYTHON_PATH}/bipp/_libs RENAME ${dep_link_file})
+					install(FILES ${dep_resolved} DESTINATION ${BIPP_INSTALL_PYTHON_PATH}/bipptest/_libs RENAME ${dep_link_file})
 				else()
-					install(FILES ${dep_resolved} DESTINATION ${BIPP_INSTALL_PYTHON_PATH}/bipp/_libs)
+					install(FILES ${dep_resolved} DESTINATION ${BIPP_INSTALL_PYTHON_PATH}/bipptest/_libs)
 				endif()
 			endif()
 		endforeach()
 	endif()
 
 	# destiantion dir must match module name in setup.py
-	install(TARGETS pybipp DESTINATION ${BIPP_INSTALL_PYTHON_PATH}/bipp)
+	install(TARGETS pybipp DESTINATION ${BIPP_INSTALL_PYTHON_PATH}/bipptest)
 endif()
