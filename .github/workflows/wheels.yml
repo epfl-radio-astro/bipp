@@ -2,15 +2,8 @@
 name: Wheel builder
 
 on:
-  schedule:
-    # Nightly build at 3:42 A.M.
-    - cron: "42 3 */1 * *"
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  release:
+    types: [published]
   # Manual run
   workflow_dispatch:
 
@@ -69,6 +62,7 @@ jobs:
           # CIBW_TEST_REQUIRES: pybind11 scikit-build cmake
           CIBW_TEST_COMMAND: python -c "import bipp"
           CIBW_BUILD_VERBOSITY: 1
+          # casacore has no wheel for 3.12
           CIBW_TEST_SKIP: "*cp312*"
           CIBW_BEFORE_ALL_LINUX: >
             yum install -y openblas-openmp fftw-devel wget &&
@@ -119,8 +113,6 @@ jobs:
     environment:
       name: testpypi
     needs: [build_wheels, build_sdist]
-    # The artifacts cannot be uploaded on PRs
-    # if: github.event_name != 'pull_request'
     permissions:
       id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
 
