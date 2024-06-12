@@ -86,7 +86,7 @@ jobs:
             export CFLAGS="-fPIC -O3 -funroll-loops" &&
             export CUDACXX=/usr/local/cuda/bin/nvcc &&
             export NVCC=$CUDACXX &&
-            export NVARCH="-gencode=arch=compute_70,code=sm_70 &&
+            export NVARCH="-gencode=arch=compute_70,code=sm_70" &&
             make lib -j &&
             echo "${HOME}"
 
