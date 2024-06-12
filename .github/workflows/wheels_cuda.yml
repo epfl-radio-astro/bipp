@@ -30,10 +30,10 @@ jobs:
         platform_id: [manylinux_x86_64]
         manylinux_image: [manylinux2014]
         python: [39, 310]
-        cuda: [{url: "https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run", arch: "70;80"}]
-        # include:
-        #   - python: 39
-        #     cuda_url: https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run
+        include:
+          - cuda_arch: "70;80"
+            cuda_url: https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run
+            package_name: bipp-cuda12x
 
         #   - python: 310
         #     cuda_url: https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run
@@ -51,9 +51,10 @@ jobs:
         env:
           CIBW_PRERELEASE_PYTHONS: ${{ matrix.prerelease }}
           CIBW_ENVIRONMENT: >
+           BIPP_PACKAGE_NAME=${{ matrix.package_name }} &&
            BIPP_GPU=CUDA &&
            CUDACXX=/usr/local/cuda/bin/nvcc &&
-           CUDAARCHS=${{ matrix.cuda.arch }} &&
+           CUDAARCHS=${{ matrix.cuda_arch }} &&
            BIPP_CMAKE_ARGS="-DBLAS_LIBRARIES=/usr/lib64/libopenblaso.so.0 -DCMAKE_PREFIX_PATH=/root/cufinufft" &&
            LD_LIBRARY_PATH="/root/cufinufft/lib:$LD_LIBRARY_PATH"
           CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
@@ -74,9 +75,9 @@ jobs:
             cmake .. -DCMAKE_BUILD_TYPE=RELEASE -DFINUFFT_ARCH_FLAGS="" &&
             make install -j &&
             cd ${HOME} &&
-            wget --quiet ${{ matrix.cuda.url }} &&
-            chmod +x cuda_12.0.0_525.60.13_linux.run &&
-            ./cuda_12.0.0_525.60.13_linux.run --silent --override --toolkit &&
+            wget --quiet -O cuda_install.run ${{ matrix.cuda_url }} &&
+            chmod +x cuda_install.run &&
+            ./cuda_install.run --silent --override --toolkit &&
             git clone https://github.com/AdhocMan/cufinufft.git &&
             cd ${HOME}/cufinufft && git checkout t3_d3 &&
             export CFLAGS="-fPIC -O3 -funroll-loops" &&
