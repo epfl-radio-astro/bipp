@@ -51,7 +51,7 @@ jobs:
         env:
           CIBW_PRERELEASE_PYTHONS: ${{ matrix.prerelease }}
           CIBW_ENVIRONMENT: >
-           BIPP_PACKAGE_NAME=${{ matrix.package_name }} &&
+           BIPP_PACKAGE_NAME="${{ matrix.package_name }}" &&
            BIPP_GPU=CUDA &&
            CUDACXX=/usr/local/cuda/bin/nvcc &&
            CUDAARCHS="${{ matrix.cuda_arch }}" &&
