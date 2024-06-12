@@ -26,9 +26,9 @@ jobs:
       # Ensure that a wheel builder finishes even if another fails
       fail-fast: false
       matrix:
-        os: ubuntu-latest
-        platform_id: manylinux_x86_64
-        manylinux_image: manylinux2014
+        os: [ubuntu-latest]
+        platform_id: [manylinux_x86_64]
+        manylinux_image: [manylinux2014]
         include:
           - python: 39
             cuda_url: https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run
