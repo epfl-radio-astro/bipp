@@ -26,26 +26,15 @@ jobs:
       # Ensure that a wheel builder finishes even if another fails
       fail-fast: false
       matrix:
+        os: ubuntu-latest
+        platform_id: manylinux_x86_64
+        manylinux_image: manylinux2014
         include:
-          - os: ubuntu-latest
-            python: 39
-            platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
+          - python: 39
+            cuda_url: https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run
 
-          - os: ubuntu-latest
-            python: 310
-            platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
-
-          - os: ubuntu-latest
-            python: 311
-            platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
-
-          - os: ubuntu-latest
-            python: 312
-            platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
+          - python: 310
+            cuda_url: https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run
 
     steps:
       - name: Checkout bipp
@@ -59,7 +48,7 @@ jobs:
       - name: Build and test wheels
         env:
           CIBW_PRERELEASE_PYTHONS: ${{ matrix.prerelease }}
-          CIBW_ENVIRONMENT: BIPP_GPU=CUDA BIPP_CMAKE_ARGS="-DBLAS_LIBRARIES=/usr/lib64/libopenblaso.so.0 -DCMAKE_PREFIX_PATH=${/root/cufinufft} -DCMAKE_CUDA_ARCHITECTURES=70 -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc"
+          CIBW_ENVIRONMENT: BIPP_GPU=CUDA BIPP_CMAKE_ARGS="-DBLAS_LIBRARIES=/usr/lib64/libopenblaso.so.0 -DCMAKE_PREFIX_PATH=/root/cufinufft -DCMAKE_CUDA_ARCHITECTURES=70 -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc"
           CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
           CIBW_ARCHS: all
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
@@ -78,7 +67,7 @@ jobs:
             cmake .. -DCMAKE_BUILD_TYPE=RELEASE -DFINUFFT_ARCH_FLAGS="" &&
             make install -j &&
             cd ${HOME} &&
-            wget --quiet https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run &&
+            wget --quiet ${{ matrix.cuda_url }} &&
             chmod +x cuda_12.0.0_525.60.13_linux.run &&
             ./cuda_12.0.0_525.60.13_linux.run --silent --override --toolkit &&
             git clone https://github.com/AdhocMan/cufinufft.git &&
