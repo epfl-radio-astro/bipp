@@ -1,5 +1,5 @@
 # Workflow to build and test wheels
-name: Wheel builder
+name: Cuda 12x Wheel builder
 
 # on:
 #   release:
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   # Build the wheels for Linux, and macOS for Python 3.9 and newer
-  build_wheels_cuda:
+  build_cuda_12_wheels:
     name: Build wheel for cp${{ matrix.python }}-${{ matrix.platform_id }}-${{ matrix.manylinux_image }}
     runs-on: ${{ matrix.os }}
 
@@ -91,7 +91,7 @@ jobs:
             echo "${HOME}"
 
 
-        run: bash .github/build_tools/build_wheels_cuda.sh
+        run: bash .github/build_tools/build_wheels.sh
 
  #      - name: Store artifacts
  #        uses: actions/upload-artifact@v4
@@ -130,7 +130,7 @@ jobs:
  #    runs-on: ubuntu-latest
  #    environment:
  #      name: testpypi
- #    needs: [build_wheels_cuda, build_sdist]
+ #    needs: [build_cuda_12_wheels, build_sdist]
  #    permissions:
  #      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
 
