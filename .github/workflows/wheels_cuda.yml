@@ -50,7 +50,7 @@ jobs:
       - name: Build and test wheels
         env:
           CIBW_PRERELEASE_PYTHONS: ${{ matrix.prerelease }}
-          CIBW_ENVIRONMENT: BIPP_GPU=CUDA BIPP_CMAKE_ARGS="-DBLAS_LIBRARIES=/usr/lib64/libopenblaso.so.0 -DCMAKE_PREFIX_PATH=/root/cufinufft -DCMAKE_CUDA_ARCHITECTURES=${{ matrix.cuda.arch }} -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc" LD_LIBRARY_PATH=/root/cufinufft/lib:$LD_LIBRARY_PATH
+          CIBW_ENVIRONMENT: BIPP_GPU=CUDA BIPP_CMAKE_ARGS="-DBLAS_LIBRARIES=/usr/lib64/libopenblaso.so.0 -DCMAKE_PREFIX_PATH=/root/cufinufft -DCMAKE_CUDA_ARCHITECTURES=${{ matrix.cuda.arch }} -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc" LD_LIBRARY_PATH="/root/cufinufft/lib:$LD_LIBRARY_PATH"
           CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
           CIBW_ARCHS: all
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
