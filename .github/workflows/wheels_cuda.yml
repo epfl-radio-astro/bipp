@@ -51,11 +51,11 @@ jobs:
         env:
           CIBW_PRERELEASE_PYTHONS: ${{ matrix.prerelease }}
           CIBW_ENVIRONMENT: >
-           BIPP_PACKAGE_NAME="${{ matrix.package_name }}" &&
-           BIPP_GPU=CUDA &&
-           CUDACXX=/usr/local/cuda/bin/nvcc &&
-           CUDAARCHS="${{ matrix.cuda_arch }}" &&
-           BIPP_CMAKE_ARGS="-DBLAS_LIBRARIES=/usr/lib64/libopenblaso.so.0 -DCMAKE_PREFIX_PATH=/root/cufinufft" &&
+           BIPP_PACKAGE_NAME="${{ matrix.package_name }}"
+           BIPP_GPU=CUDA
+           CUDACXX=/usr/local/cuda/bin/nvcc
+           CUDAARCHS="${{ matrix.cuda_arch }}"
+           BIPP_CMAKE_ARGS="-DBLAS_LIBRARIES=/usr/lib64/libopenblaso.so.0 -DCMAKE_PREFIX_PATH=/root/cufinufft"
            LD_LIBRARY_PATH="/root/cufinufft/lib:$LD_LIBRARY_PATH"
           CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
           CIBW_ARCHS: all
