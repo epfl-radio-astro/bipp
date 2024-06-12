@@ -7,13 +7,18 @@ name: Wheel builder
 #   # Manual run
 #   workflow_dispatch:
 
+on:
+  pull_request:
+    branches: [ "main" ]
+
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   # Build the wheels for Linux, and macOS for Python 3.9 and newer
-  build_wheels:
+  build_wheels_cuda:
     name: Build wheel for cp${{ matrix.python }}-${{ matrix.platform_id }}-${{ matrix.manylinux_image }}
     runs-on: ${{ matrix.os }}
 
@@ -86,7 +91,7 @@ jobs:
             echo "${HOME}"
 
 
-        run: bash .github/build_tools/build_wheels.sh
+        run: bash .github/build_tools/build_wheels_cuda.sh
 
  #      - name: Store artifacts
  #        uses: actions/upload-artifact@v4
@@ -125,7 +130,7 @@ jobs:
  #    runs-on: ubuntu-latest
  #    environment:
  #      name: testpypi
- #    needs: [build_wheels, build_sdist]
+ #    needs: [build_wheels_cuda, build_sdist]
  #    permissions:
  #      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
 
