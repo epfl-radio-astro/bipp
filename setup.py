@@ -9,6 +9,9 @@ current_dir = pathlib.Path(__file__).parent.resolve()
 with open(str(current_dir) + "/VERSION") as f:
     version = f.readline().strip()
 
+
+bipp_package_name = str(os.getenv("BIPP_PACKAGE_NAME", "bipp"))
+
 bipp_gpu = str(os.getenv("BIPP_GPU", "OFF"))
 bipp_umpire = str(os.getenv("BIPP_UMPIRE", "OFF"))
 bipp_omp = str(os.getenv("BIPP_OMP", "ON"))
@@ -19,7 +22,7 @@ bipp_cmake_args = str(os.getenv("BIPP_CMAKE_ARGS", ""))
 bipp_cmake_args_list = shlex.split(bipp_cmake_args) if bipp_cmake_args else []
 
 setup(
-    name="bipp",
+    name=bipp_package_name,
     version=version,
     description="Bluebild imaging algorithm written in C++",
     long_description="Bluebild imaging algorithm written in C++",
