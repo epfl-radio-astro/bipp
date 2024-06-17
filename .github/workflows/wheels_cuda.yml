@@ -88,6 +88,8 @@ jobs:
           #   export NVARCH="-gencode=arch=compute_89,code=sm_89" &&
           #   make lib -j
           CIBW_BEFORE_ALL_LINUX: >
+            cd ${HOME} &&
+            yum install -y openblas-openmp fftw-devel wget &&
             wget --quiet -O cuda_install.run ${{ matrix.cuda_url }} &&
             chmod +x cuda_install.run &&
             ./cuda_install.run --silent --override --toolkit &&
