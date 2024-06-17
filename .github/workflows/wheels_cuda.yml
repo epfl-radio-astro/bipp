@@ -36,9 +36,6 @@ jobs:
             package_name: bipp-cuda12x
             wheel_repair: auditwheel repair -w {dest_dir} {wheel} --exclude libcuda.so.1 --exclude libcudart.so.12.2.53 --exclude libcudart.so.12 --exclude libcupti.so.12 --exclude libcupti.so.2023.2.2 --exclude libnppidei.so.12 --exclude libcusolver.so.11.5.2.141 --exclude libcurand.so.10 --exclude libnvblas.so.12 --exclude libnvrtc.so.12 --exclude libcufile.so.1.7.2 --exclude libcusparse.so.12 --exclude libnppim.so.12.1.1.14 --exclude libnppist.so.12 --exclude libnppitc.so.12.1.1.14 --exclude libnppif.so.12 --exclude libcublasLt.so.12 --exclude libnppisu.so.12.1.1.14 --exclude libnppitc.so.12 --exclude libnppial.so.12.1.1.14 --exclude libcublas.so.12 --exclude libcublas.so.12.2.1.16 --exclude libcufftw.so.11.0.8.103 --exclude libnvjpeg.so.12.2.2.4 --exclude libcusolver.so.11 --exclude libnvrtc-builtins.so.12.2 --exclude libnppig.so.12.1.1.14 --exclude libnvJitLink.so.12 --exclude libcufftw.so.11 --exclude libnpps.so.12 --exclude libnppc.so.12 --exclude libnppicc.so.12.1.1.14 --exclude libnppidei.so.12.1.1.14 --exclude libnppial.so.12 --exclude libnppicc.so.12 --exclude libcurand.so.10.3.3.141 --exclude libnppisu.so.12 --exclude libnvJitLink.so.12.2.140 --exclude libcufft.so.11.0.8.103 --exclude libnvrtc-builtins.so.12.2.140 --exclude libnvrtc.so.12.2.140 --exclude libnpps.so.12.1.1.14 --exclude libcufft.so.11 --exclude libnppif.so.12.1.1.14 --exclude libnvjpeg.so.12 --exclude libcublasLt.so.12.2.1.16 --exclude libcufile_rdma.so.1 --exclude libnppc.so.12.1.1.14 --exclude libnppim.so.12 --exclude libcusolverMg.so.11.5.2.141 --exclude libnppist.so.12.1.1.14 --exclude libcusolverMg.so.11 --exclude libnppig.so.12 --exclude libcufile.so.0 --exclude libnvToolsExt.so.1 --exclude libcusparse.so.12.1.1.53 --exclude libnvblas.so.12.2.1.16 --exclude libcufile_rdma.so.1.7.2 --exclude libnvToolsExt.so.1.0.0
 
-        #   - python: 310
-        #     cuda_url: https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run
-
     steps:
       - name: Checkout bipp
         uses: actions/checkout@v4
@@ -62,31 +59,9 @@ jobs:
           CIBW_ARCHS: all
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
           CIBW_MANYLINUX_I686_IMAGE: ${{ matrix.manylinux_image }}
-          # CIBW_TEST_REQUIRES: pybind11 scikit-build cmake
-          # CIBW_TEST_COMMAND: python -c "import bipp"
-          CIBW_REPAIR_WHEEL_COMMAND: ${{ matrix.wheel_repair }}
+          # CIBW_REPAIR_WHEEL_COMMAND: ${{ matrix.wheel_repair }}
+          CIBW_REPAIR_WHEEL_COMMAND: auditwheel repair -w {dest_dir} {wheel} --exclude libcuda.so.1 $({project}/.github/build_tools/repair_exclude_cuda.sh)
           CIBW_BUILD_VERBOSITY: 1
-          # casacore has no wheel for 3.12
-          # CIBW_TEST_SKIP: "*cp312*"
-          # CIBW_BEFORE_ALL_LINUX: >
-          #   yum install -y openblas-openmp fftw-devel wget &&
-          #   cd ${HOME} &&
-          #   wget --quiet https://github.com/flatironinstitute/finufft/archive/refs/tags/v2.2.0.tar.gz &&
-          #   tar -xzvf v2.2.0.tar.gz &&
-          #   cd finufft-2.2.0 && mkdir build && cd build &&
-          #   cmake .. -DCMAKE_BUILD_TYPE=RELEASE -DFINUFFT_ARCH_FLAGS="" &&
-          #   make install -j &&
-          #   cd ${HOME} &&
-          #   wget --quiet -O cuda_install.run ${{ matrix.cuda_url }} &&
-          #   chmod +x cuda_install.run &&
-          #   ./cuda_install.run --silent --override --toolkit &&
-          #   git clone https://github.com/AdhocMan/cufinufft.git &&
-          #   cd ${HOME}/cufinufft && git checkout t3_d3 &&
-          #   export CFLAGS="-fPIC -O3 -funroll-loops" &&
-          #   export CUDACXX=/usr/local/cuda/bin/nvcc &&
-          #   export NVCC=$CUDACXX &&
-          #   export NVARCH="-gencode=arch=compute_89,code=sm_89" &&
-          #   make lib -j
           CIBW_BEFORE_ALL_LINUX: >
             cd ${HOME} &&
             yum install -y openblas-openmp fftw-devel wget &&
