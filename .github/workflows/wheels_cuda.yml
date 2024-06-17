@@ -68,25 +68,31 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
           # casacore has no wheel for 3.12
           # CIBW_TEST_SKIP: "*cp312*"
+          # CIBW_BEFORE_ALL_LINUX: >
+          #   yum install -y openblas-openmp fftw-devel wget &&
+          #   cd ${HOME} &&
+          #   wget --quiet https://github.com/flatironinstitute/finufft/archive/refs/tags/v2.2.0.tar.gz &&
+          #   tar -xzvf v2.2.0.tar.gz &&
+          #   cd finufft-2.2.0 && mkdir build && cd build &&
+          #   cmake .. -DCMAKE_BUILD_TYPE=RELEASE -DFINUFFT_ARCH_FLAGS="" &&
+          #   make install -j &&
+          #   cd ${HOME} &&
+          #   wget --quiet -O cuda_install.run ${{ matrix.cuda_url }} &&
+          #   chmod +x cuda_install.run &&
+          #   ./cuda_install.run --silent --override --toolkit &&
+          #   git clone https://github.com/AdhocMan/cufinufft.git &&
+          #   cd ${HOME}/cufinufft && git checkout t3_d3 &&
+          #   export CFLAGS="-fPIC -O3 -funroll-loops" &&
+          #   export CUDACXX=/usr/local/cuda/bin/nvcc &&
+          #   export NVCC=$CUDACXX &&
+          #   export NVARCH="-gencode=arch=compute_89,code=sm_89" &&
+          #   make lib -j
           CIBW_BEFORE_ALL_LINUX: >
-            yum install -y openblas-openmp fftw-devel wget &&
-            cd ${HOME} &&
-            wget --quiet https://github.com/flatironinstitute/finufft/archive/refs/tags/v2.2.0.tar.gz &&
-            tar -xzvf v2.2.0.tar.gz &&
-            cd finufft-2.2.0 && mkdir build && cd build &&
-            cmake .. -DCMAKE_BUILD_TYPE=RELEASE -DFINUFFT_ARCH_FLAGS="" &&
-            make install -j &&
-            cd ${HOME} &&
             wget --quiet -O cuda_install.run ${{ matrix.cuda_url }} &&
             chmod +x cuda_install.run &&
             ./cuda_install.run --silent --override --toolkit &&
-            git clone https://github.com/AdhocMan/cufinufft.git &&
-            cd ${HOME}/cufinufft && git checkout t3_d3 &&
-            export CFLAGS="-fPIC -O3 -funroll-loops" &&
-            export CUDACXX=/usr/local/cuda/bin/nvcc &&
-            export NVCC=$CUDACXX &&
-            export NVARCH="-gencode=arch=compute_89,code=sm_89" &&
-            make lib -j
+            bash .github/build_tools/install_finufft.sh &&
+            bash .github/build_tools/install_cufinufft.sh
 
         run: |
          bash .github/build_tools/build_wheels.sh
