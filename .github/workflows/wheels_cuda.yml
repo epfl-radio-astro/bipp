@@ -90,7 +90,7 @@ jobs:
 
 
         run: |
-         export CIBW_REPAIR_WHEEL_COMMAND=abcd
+         export CIBW_REPAIR_WHEEL_COMMAND="auditwheel repair -w {dest_dir} {wheel} $(.github/build_tools/repair_exclude_cuda.sh)"
          bash .github/build_tools/build_wheels.sh
 
       - name: Store artifacts
