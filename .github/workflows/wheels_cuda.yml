@@ -93,8 +93,8 @@ jobs:
             wget --quiet -O cuda_install.run ${{ matrix.cuda_url }} &&
             chmod +x cuda_install.run &&
             ./cuda_install.run --silent --override --toolkit &&
-            bash .github/build_tools/install_finufft.sh &&
-            bash .github/build_tools/install_cufinufft.sh
+            bash {project}/.github/build_tools/install_finufft.sh &&
+            bash {project}/.github/build_tools/install_cufinufft.sh
 
         run: |
          bash .github/build_tools/build_wheels.sh
