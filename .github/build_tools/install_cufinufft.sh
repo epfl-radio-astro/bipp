@@ -9,7 +9,7 @@ export NVCC=$CUDACXX
 IFS=';' read -ra ADDR <<< "$CUDAARCHS"
 NVARCH=""
 for i in "${ADDR[@]}"; do
-    NVARCH="$args -gencode=arch=compute_${i},code=sm_${i}"
+    NVARCH="$NVARCH -gencode=arch=compute_${i},code=sm_${i}"
 done
 export NVARCH=$NVARCH
 
