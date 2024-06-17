@@ -64,7 +64,7 @@ jobs:
           CIBW_MANYLINUX_I686_IMAGE: ${{ matrix.manylinux_image }}
           # CIBW_TEST_REQUIRES: pybind11 scikit-build cmake
           # CIBW_TEST_COMMAND: python -c "import bipp"
-          CIBW_REPAIR_WHEEL_COMMAND: ${{ matrix.wheel_repair }}
+          # CIBW_REPAIR_WHEEL_COMMAND: ${{ matrix.wheel_repair }}
           CIBW_BUILD_VERBOSITY: 1
           # casacore has no wheel for 3.12
           # CIBW_TEST_SKIP: "*cp312*"
@@ -89,7 +89,9 @@ jobs:
             make lib -j
 
 
-        run: bash .github/build_tools/build_wheels.sh
+        run: |
+         export CIBW_REPAIR_WHEEL_COMMAND=abcd
+         bash .github/build_tools/build_wheels.sh
 
       - name: Store artifacts
         uses: actions/upload-artifact@v4
