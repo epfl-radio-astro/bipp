@@ -47,6 +47,7 @@ jobs:
 
       - name: Build and test wheels
         env:
+          PROJECT_ROOT: {project}
           CIBW_PRERELEASE_PYTHONS: ${{ matrix.prerelease }}
           CIBW_ENVIRONMENT: >
            BIPP_PACKAGE_NAME="${{ matrix.package_name }}"
@@ -60,7 +61,7 @@ jobs:
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
           CIBW_MANYLINUX_I686_IMAGE: ${{ matrix.manylinux_image }}
           # CIBW_REPAIR_WHEEL_COMMAND: ${{ matrix.wheel_repair }}
-          CIBW_REPAIR_WHEEL_COMMAND: auditwheel repair -w {dest_dir} {wheel} --exclude libcuda.so.1 $({project}/.github/build_tools/repair_exclude_cuda.sh)
+          CIBW_REPAIR_WHEEL_COMMAND: auditwheel repair -w {dest_dir} {wheel} --exclude libcuda.so.1 $(${PROJECT_ROOT}/.github/build_tools/repair_exclude_cuda.sh)
           CIBW_BUILD_VERBOSITY: 1
           CIBW_BEFORE_ALL_LINUX: >
             cd ${HOME} &&
