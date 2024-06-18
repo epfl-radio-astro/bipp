@@ -30,8 +30,7 @@ jobs:
         platform_id: [manylinux_x86_64]
         manylinux_image: [manylinux2014]
         python: [39, 310, 311, 312]
-        package:
-         [
+        package: [
            {
              name: "bipp-cuda12x",
              cuda_arch: "60;61;70;75;80;86;89;90",
