@@ -1,11 +1,15 @@
 # Workflow to build and test wheels
 name: Wheel builder
 
+# on:
+#   release:
+#     types: [published]
+#   # Manual run
+#   workflow_dispatch:
+
 on:
-  release:
-    types: [published]
-  # Manual run
-  workflow_dispatch:
+  pull_request:
+    branches: [ "main" ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -21,26 +25,10 @@ jobs:
       # Ensure that a wheel builder finishes even if another fails
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            python: 39
-            platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
-
-          - os: ubuntu-latest
-            python: 310
-            platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
-
-          - os: ubuntu-latest
-            python: 311
-            platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
-
-          - os: ubuntu-latest
-            python: 312
-            platform_id: manylinux_x86_64
-            manylinux_image: manylinux2014
+        os: [ubuntu-latest]
+        platform_id: [manylinux_x86_64]
+        manylinux_image: [manylinux2014]
+        python: [39, 310, 311, 312]
 
     steps:
       - name: Checkout bipp
@@ -65,13 +53,9 @@ jobs:
           # casacore has no wheel for 3.12
           CIBW_TEST_SKIP: "*cp312*"
           CIBW_BEFORE_ALL_LINUX: >
-            yum install -y openblas-openmp fftw-devel wget &&
             cd ${HOME} &&
-            wget https://github.com/flatironinstitute/finufft/archive/refs/tags/v2.2.0.tar.gz &&
-            tar -xzvf v2.2.0.tar.gz &&
-            cd finufft-2.2.0 && mkdir build && cd build &&
-            cmake .. -DCMAKE_BUILD_TYPE=RELEASE -DFINUFFT_ARCH_FLAGS="" &&
-            make install -j
+            yum install -y openblas-openmp fftw-devel wget &&
+            bash {project}/.github/build_tools/install_finufft.sh &&
 
         run: bash .github/build_tools/build_wheels.sh
 
