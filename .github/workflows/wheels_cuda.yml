@@ -45,7 +45,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11" # update once build dependencies are available
+          python-version: "3.11"
 
       - name: Build and test wheels
         env:
@@ -61,7 +61,6 @@ jobs:
           CIBW_ARCHS: all
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
           CIBW_MANYLINUX_I686_IMAGE: ${{ matrix.manylinux_image }}
-          # CIBW_REPAIR_WHEEL_COMMAND: ${{ matrix.wheel_repair }}
           CIBW_REPAIR_WHEEL_COMMAND: auditwheel repair -w {dest_dir} {wheel} --exclude libcuda.so.1 $(.github/build_tools/repair_exclude_cuda.sh)
           CIBW_BUILD_VERBOSITY: 1
           CIBW_BEFORE_ALL_LINUX: >
@@ -79,10 +78,10 @@ jobs:
       - name: Store artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cibw-cuda-12x-wheels-cp${{ matrix.python }}-${{ matrix.platform_id }}
+          name: cibw-${{ matrix.package_name }}-wheels-cp${{ matrix.python }}-${{ matrix.platform_id }}
           path: wheelhouse/*.whl
 
- # Upload wheels
+ # Upload cuda 12x wheels
   pypi-publish-12x:
     name: Upload release to PyPI
     runs-on: ubuntu-latest
@@ -96,7 +95,31 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: cibw-cuda-12x*
+          pattern: cibw-bipp-cuda12x*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          print-hash: true
+
+ # Upload cuda 11x wheels
+  pypi-publish-11x:
+    name: Upload release to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+    needs: [build_cuda_wheels]
+    permissions:
+      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cibw-bipp-cuda11x*
           path: dist
           merge-multiple: true
 
