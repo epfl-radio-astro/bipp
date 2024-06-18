@@ -55,14 +55,14 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: >
             cd ${HOME} &&
             yum install -y openblas-openmp fftw-devel wget &&
-            bash {project}/.github/build_tools/install_finufft.sh &&
+            bash {project}/.github/build_tools/install_finufft.sh
 
         run: bash .github/build_tools/build_wheels.sh
 
       - name: Store artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-cp${{ matrix.python }}-${{ matrix.platform_id }}
+          name: bipp-cibw-wheels-cp${{ matrix.python }}-${{ matrix.platform_id }}
           path: wheelhouse/*.whl
 
   # Build the source distribution under Linux
@@ -87,7 +87,7 @@ jobs:
       - name: Store artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cibw-sdist
+          name: bipp-cibw-sdist
           path: dist/*.tar.gz
 
  # Upload wheels
@@ -104,7 +104,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: cibw-*
+          pattern: bipp-cibw-*
           path: dist
           merge-multiple: true
 

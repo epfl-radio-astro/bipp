@@ -83,7 +83,7 @@ jobs:
       - name: Store artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cibw-${{ matrix.package.name }}-wheels-cp${{ matrix.python }}-${{ matrix.platform_id }}
+          name: ${{ matrix.package.name }}-cibw-wheels-cp${{ matrix.python }}-${{ matrix.platform_id }}
           path: wheelhouse/*.whl
 
  # Upload cuda 12x wheels
@@ -100,7 +100,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: cibw-bipp-cuda12x*
+          pattern: bipp-cuda12x-cibw*
           path: dist
           merge-multiple: true
 
@@ -124,7 +124,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: cibw-bipp-cuda11x*
+          pattern: bipp-cuda11x-cibw*
           path: dist
           merge-multiple: true
 
