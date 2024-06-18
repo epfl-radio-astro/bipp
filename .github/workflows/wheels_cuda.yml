@@ -30,7 +30,7 @@ jobs:
         platform_id: [manylinux_x86_64]
         manylinux_image: [manylinux2014]
         python: [39, 310, 311, 312]
-        package: [ { test: "abc" } ]
+        package: [ { package_name: bipp-cuda12x, cuda_arch: "60;61;70;75;80;86;89;90", cuda_url: "https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run" } ]
         include:
           - package_name: bipp-cuda12x
             cuda_arch: "60;61;70;75;80;86;89;90"
