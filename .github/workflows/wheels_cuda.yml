@@ -1,16 +1,13 @@
 # Workflow to build and test wheels
 name: Cuda Wheel builder
 
-# on:
-#   release:
-#     types: [published]
-#   # Manual run
-#   workflow_dispatch:
-
 on:
   pull_request:
     branches: [ "main" ]
-
+  push:
+    branches: [ "main" ]
+  release:
+    types: [published]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -89,9 +86,10 @@ jobs:
  # Upload cuda 12x wheels
   pypi-publish-12x:
     name: Upload bipp-cuda12x release to PyPI
+    # if: github.event_name == 'release' && github.event.action == 'created'
     runs-on: ubuntu-latest
     environment:
-      name: testpypi
+      name: pypi
     needs: [build_cuda_wheels]
     permissions:
       id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
@@ -107,15 +105,15 @@ jobs:
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          repository-url: https://test.pypi.org/legacy/
           print-hash: true
 
  # Upload cuda 11x wheels
   pypi-publish-11x:
     name: Upload bipp-cuda11x release to PyPI
+    # if: github.event_name == 'release' && github.event.action == 'created'
     runs-on: ubuntu-latest
     environment:
-      name: testpypi
+      name: pypi
     needs: [build_cuda_wheels]
     permissions:
       id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
@@ -131,6 +129,5 @@ jobs:
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          repository-url: https://test.pypi.org/legacy/
           print-hash: true
 
