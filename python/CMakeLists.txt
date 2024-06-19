@@ -87,6 +87,31 @@ if(BIPP_INSTALL_PYTHON)
 		install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/bipp/${src} DESTINATION ${dir})
 	endforeach()
 
+	if(BIPP_INSTALL_PYTHON_DEPS)
+		# make sure the module can find the library
+		if(APPLE)
+			set(BIPP_PYTHON_RPATH "@loader_path/_libs")
+		else()
+			target_link_options(pybipp PRIVATE "-Wl,--disable-new-dtags")
+			set(BIPP_PYTHON_RPATH "$ORIGIN/_libs")
+		endif()
+		set_target_properties(pybipp PROPERTIES
+				INSTALL_RPATH_USE_LINK_PATH FALSE
+				INSTALL_RPATH ${BIPP_PYTHON_RPATH})
+		foreach(dep IN LISTS FINUFFT_LIBRARIES BLAS_LIBRARIES LAPACK_LIBRARIES FFTW_LIBRARIES FFTW_OMP_LIBRARIES FFTWF_LIBRARIES FFTWF_OMP_LIBRARIES)
+			if(EXISTS ${dep})
+				file(REAL_PATH ${dep} dep_resolved)
+				file(GLOB dep_link "${dep}.[0-9]")
+				if(dep_link)
+					cmake_path(GET dep_link FILENAME dep_link_file)
+					install(FILES ${dep_resolved} DESTINATION ${BIPP_INSTALL_PYTHON_PATH}/bipp/_libs RENAME ${dep_link_file})
+				else()
+					install(FILES ${dep_resolved} DESTINATION ${BIPP_INSTALL_PYTHON_PATH}/bipp/_libs)
+				endif()
+			endif()
+		endforeach()
+	endif()
+
 	# destiantion dir must match module name in setup.py
 	install(TARGETS pybipp DESTINATION ${BIPP_INSTALL_PYTHON_PATH}/bipp)
 endif()
