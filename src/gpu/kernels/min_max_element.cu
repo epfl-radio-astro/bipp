@@ -14,7 +14,7 @@ auto min_element(Queue& q, std::size_t n, const T* x, T* minElement) -> void {
   api::check_status(api::cub::DeviceReduce::Min<const T*, T*>(nullptr, worksize, nullptr, nullptr,
                                                               n, q.stream()));
 
-  auto workBuffer = q.create_device_array<char,1>({worksize});
+  auto workBuffer = q.create_device_array<char,1>(worksize);
 
   api::check_status(api::cub::DeviceReduce::Min<const T*, T*>(workBuffer.data(), worksize, x,
                                                               minElement, n, q.stream()));
@@ -27,7 +27,7 @@ auto max_element(Queue& q, std::size_t n, const T* x, T* maxElement) -> void {
   api::check_status(api::cub::DeviceReduce::Max<const T*, T*>(nullptr, worksize, nullptr, nullptr,
                                                               n, q.stream()));
 
-  auto workBuffer = q.create_device_array<char,1>({worksize});
+  auto workBuffer = q.create_device_array<char,1>(worksize);
 
   api::check_status(api::cub::DeviceReduce::Max<const T*, T*>(workBuffer.data(), worksize, x,
                                                               maxElement, n, q.stream()));

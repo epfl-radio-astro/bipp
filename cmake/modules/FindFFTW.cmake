@@ -47,6 +47,13 @@ find_library(
     PATH_SUFFIXES "lib" "lib64"
     ${_FFTW_DEFAULT_PATH_SWITCH}
 )
+find_library(
+    FFTW_OMP_LIBRARIES
+    NAMES "fftw3_omp"
+    HINTS ${_FFTW_PATHS}
+    PATH_SUFFIXES "lib" "lib64"
+    ${_FFTW_DEFAULT_PATH_SWITCH}
+)
 find_path(FFTW_INCLUDE_DIRS
     NAMES "fftw3.h"
     HINTS ${_FFTW_PATHS} ${_FFTW_INCLUDE_PATHS}

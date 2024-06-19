@@ -61,6 +61,7 @@ option(BIPP_MPI "Use MPI for multi-process parallization" OFF)
 
 option(BIPP_INSTALL_LIB "Install library" ON)
 cmake_dependent_option(BIPP_INSTALL_PYTHON "Install Python module" ON "BIPP_PYTHON" OFF)
+cmake_dependent_option(BIPP_INSTALL_PYTHON_DEPS "Install Python module" OFF "BIPP_PYTHON" OFF)
 set(BIPP_INSTALL_PYTHON_PREFIX "" CACHE STRING "Python install prefix. If not set, CMAKE_INSTALL_PREFIX will be used.")
 set(BIPP_INSTALL_PYTHON_SUFFIX "platlib" CACHE STRING "Python installation suffix. If platlib, python platlib path will be used.")
 
@@ -90,7 +91,8 @@ endif()
 # Python install location
 if(BIPP_PYTHON)
 	set(Python_FIND_FRAMEWORK LAST) # Prefer Brew/Conda to Apple framework python
-	find_package(Python 3.6 COMPONENTS Interpreter Development REQUIRED)
+
+	find_package(Python 3.6 REQUIRED COMPONENTS Interpreter Development.Module OPTIONAL_COMPONENTS Development.Embed)
 
 	if(NOT BIPP_INSTALL_PYTHON_PREFIX)
 	  set(BIPP_INSTALL_PYTHON_PREFIX ${CMAKE_INSTALL_PREFIX})
