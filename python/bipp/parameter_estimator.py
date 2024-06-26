@@ -19,8 +19,6 @@ Subclasses of :py:class:`~bipp.phased_array.bipp.parameter_estimator.ParameterEs
 specifically tailored for such tasks.
 """
 
-import bipp.imot_tools.math.linalg as pylinalg
-import bipp.imot_tools.util.argcheck as chk
 import numpy as np
 import sklearn.cluster as skcl
 
@@ -105,6 +103,7 @@ class ParameterEstimator:
         # Collected data.
         self._intervals = []
         self._d_all = []
+        self._d_all_clipped = []
         self._ctx = ctx
         self._inferred = False
         self._fne = fne
@@ -119,13 +118,15 @@ class ParameterEstimator:
             G : :py:class:`~bipp.phased_array.bipp.gram.GramMatrix`
                 (N_beam, N_beam) gram matrix.
         """
-        D =  bipp.pybipp.eigh(self._ctx, wl,S, W, XYZ)
+        D =  bipp.pybipp.eigh(self._ctx, wl, S, W, XYZ)
         D = D[D > 0.0]
         D = D[np.argsort(D)[::-1]]
+        self._d_all.append(D)
         if self._fne:
             idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
-            D = D[idx]
-        self._d_all.append(D)
+            Dc = D[idx]
+            self._d_all_clipped.append(Dc)
+        
         self._inferred = False
 
     def num_level(self):
@@ -144,15 +145,31 @@ class ParameterEstimator:
         """
         if len(self._d_all) == 0:
             return 0, np.empty((0, 2))
-
-        D_all = np.concatenate(self._d_all)
-        kmeans = skcl.KMeans(n_clusters=self._N_level).fit(np.log(D_all).reshape(-1, 1))
+        
+        D_all = np.sort(np.concatenate(self._d_all))
+        
+        if self._fne:
+            D_all_clipped = np.sort(np.concatenate(self._d_all_clipped))
+            kmeans = skcl.KMeans(n_clusters=self._N_level, random_state=0).fit(np.log(D_all_clipped).reshape(-1, 1))
+        else:
+            kmeans = skcl.KMeans(n_clusters=self._N_level, random_state=0).fit(np.log(D_all).reshape(-1, 1))
 
         cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1]
-
-        self._inferred = True
-
-        min_pos_d = np.min(D_all) if self._fne else 0
+        print("cluster_centroid =", cluster_centroid)
         
+        self._inferred = True
+        
+        if self._fne:
+            min_clipped = np.min(D_all_clipped)
+            idx = int(np.where(D_all == min_clipped)[0])
+            if idx == 0:
+                # safe to use 0 as lowest clipped == global lowest
+                min_pos_d = 0
+            else:
+                # extend first interval to half distance to last excluded d
+                min_pos_d = (D_all[idx] + D_all[idx-1]) / 2
+        else:
+            min_pos_d = 0
+
         self._intervals = centroid_to_intervals(cluster_centroid, min_pos_d, self._fne)
         return self._intervals
