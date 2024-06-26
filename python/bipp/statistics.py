@@ -33,19 +33,33 @@ class VisibilityMatrix(array.LabeledMatrix):
             (N_beam,) index.
     """
 
-    def __init__(self, data, beam_idx):
+    def __init__(self, data, beam_idx, check_hermitian=True, weight_spectrum=None):
         data = np.array(data, copy=False)
+        if weight_spectrum is not None:
+            weight_spectrum = np.array(weight_spectrum, copy=False)
         N_beam = len(beam_idx)
 
         if not chk.has_shape((N_beam, N_beam))(data):
             raise ValueError("Parameters[data, beam_idx] are not consistent.")
 
-        if not np.allclose(data, data.conj().T):
-            raise ValueError("Parameter[data] must be hermitian symmetric.")
+        if weight_spectrum is not None:
+            if not chk.has_shape((N_beam, N_beam))(weight_spectrum):
+                raise ValueError("Parameters[weight_spectrum , beam_idx] are not consistent.")
+
+        if check_hermitian:
+            if not np.allclose(data, data.conj().T):
+                raise ValueError("Parameter[data] must be hermitian symmetric.")
 
         # Always flag autocorrelation visibilities
         np.fill_diagonal(data, 0)
-        
+        if weight_spectrum is not None:
+            np.fill_diagonal(weight_spectrum, 0)
+
+        # Normalize and apply spectrum weights if provided
+        nz_vis = np.count_nonzero(data)
+        if weight_spectrum is not None:
+            data *= weight_spectrum / np.sum(weight_spectrum) * nz_vis
+
         super().__init__(data, beam_idx, beam_idx)
 
 
