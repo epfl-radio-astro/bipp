@@ -50,8 +50,7 @@ auto gram(Queue& q, std::size_t n, const T* x, const T* y, const T* z, T wl, api
   const dim3 block(blockSizeX, blockSizeY, 1);
   const auto grid = kernel_launch_grid(q.device_prop(), {n, n, 1}, block);
 
-  api::launch_kernel(gram_kernel<T>, grid, block, 0, q.stream(), n, x, y, z,
-                     T(2 * 3.14159265358979323846 / wl), g, ldg);
+  api::launch_kernel(gram_kernel<T>, grid, block, 0, q.stream(), n, x, y, z, wl, g, ldg);
 }
 
 template auto gram<float>(Queue& q, std::size_t n, const float* x, const float* y, const float* z,
