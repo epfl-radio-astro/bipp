@@ -59,12 +59,13 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
   HostArray<short, 1> nonZeroIndexFlag(ctx.host_alloc(), nBeam);
   nonZeroIndexFlag.zero();
 
-  // flag working coloumns / rows
+  // flag working columns / rows
   std::size_t nVis = 0;
   for (std::size_t col = 0; col < s.shape(1); ++col) {
     for (std::size_t row = col; row < s.shape(0); ++row) {
       const auto val = s[{row, col}];
-      if (std::norm(val) > std::numeric_limits<T>::epsilon()) {
+      if (std::abs(val.real()) >= std::numeric_limits<T>::epsilon() ||
+          std::abs(val.imag()) >= std::numeric_limits<T>::epsilon()) {
         nonZeroIndexFlag[col] |= 1;
         nonZeroIndexFlag[row] |= 1;
         nVis += 1 + (row != col);
