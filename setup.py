@@ -48,7 +48,6 @@ setup(
         "-DBIPP_INSTALL_LIB=OFF",
         "-DBIPP_INSTALL_PYTHON=ON",
         "-DBIPP_INSTALL_PYTHON_SUFFIX=",
-        #  "-DBIPP_INSTALL_PYTHON_DEPS=ON",
     ]
     + bipp_cmake_args_list,
     install_requires=[
