@@ -8,9 +8,7 @@ def apply_filter(f, D):
     if f == 'lsq':
         return D
     if f == 'std':
-        D[D >= 0] = 1
-        D[D < 0] = -1
-        return D
+        return np.sign(D)
     if f == 'sqrt':
         sign = np.sign(D)
         D = sign * np.sqrt(sign * D)
