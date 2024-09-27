@@ -257,8 +257,8 @@ endif()
 if(BIPP_BUNDLED_SPDLOG)
   FetchContent_Declare(
 	spdlog
-	URL https://github.com/gabime/spdlog/archive/refs/tags/v1.11.0.tar.gz
-	URL_MD5 287c6492c25044fd2da9947ab120b2bd
+	URL https://github.com/gabime/spdlog/archive/refs/tags/v1.14.1.tar.gz
+	URL_MD5 f2c3f15c20e67b261836ff7bfda302cf
   )
   FetchContent_GetProperties(spdlog)
   if(NOT spdlog_POPULATED)

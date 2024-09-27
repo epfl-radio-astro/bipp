@@ -200,6 +200,7 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
       for (std::size_t j = 0; j < nImages_; ++j) {
         auto imgPtr = img_.slice_view(j).data();
         auto virtVisCurrentSlice = virtualVis.slice_view(j).sub_view(inputBegin, inputSize);
+        ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT direct input", virtVisCurrentSlice);
         nuft_sum<T>(queue.device_prop(), nullptr, 1.0, inputSize, virtVisCurrentSlice.data(),
                     uvwXSlice.data(), uvwYSlice.data(), uvwZSlice.data(), img_.shape(0),
                     pixelX.data(), pixelY.data(), pixelZ.data(), imgPtr);
@@ -227,7 +228,9 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
 
         for (std::size_t j = 0; j < nImages_; ++j) {
           auto imgPtr = img_.slice_view(j).data() + imgBegin;
-          transform.execute(virtualVis.slice_view(j).data() + inputBegin, output.data());
+          auto virtVisCurrentSlice = virtualVis.slice_view(j).sub_view(inputBegin, inputSize);
+          ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT input", virtVisCurrentSlice);
+          transform.execute(virtVisCurrentSlice.data(), output.data());
           ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output", imgSize, 1, output.data(),
                                     imgSize);
 
