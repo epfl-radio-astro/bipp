@@ -52,10 +52,13 @@ class VisibilityMatrix(array.LabeledMatrix):
 
         # Always flag autocorrelation visibilities
         np.fill_diagonal(data, 0)
-        if weight_spectrum is not None:
-            np.fill_diagonal(weight_spectrum, 0)
 
-        # Normalize and apply spectrum weights if provided
+        # Prune weights where no visibility. Important for getting the correct
+        # sum of actually used weigths.
+        if weight_spectrum is not None:
+            weight_spectrum[data == 0] = 0
+
+        # Apply normalized spectrum weights if provided
         nz_vis = np.count_nonzero(data)
         if weight_spectrum is not None:
             data *= weight_spectrum / np.sum(weight_spectrum) * nz_vis
