@@ -59,6 +59,22 @@ public:
   }
 };
 
+class BIPP_EXPORT InvalidCallError : public GenericError {
+public:
+  InvalidCallError() : msg_("BIPP: Invalid call error") {}
+
+  // Only to be used with string literals
+  template <std::size_t N>
+  InvalidCallError(const char (&msg)[N]) : msg_(msg) {}
+
+  const char* what() const noexcept override { return msg_; }
+
+  BippError error_code() const noexcept override { return BippError::BIPP_INVALID_CALL_ERROR; }
+
+private:
+  const char* msg_;
+};
+
 class BIPP_EXPORT EigensolverError : public GenericError {
 public:
   const char* what() const noexcept override { return "BIPP: Eigensolver error"; }

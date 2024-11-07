@@ -50,6 +50,7 @@ if(BIPP_CUDA OR BIPP_ROCM)
 		gpu/kernels/nuft_sum.cu
 		gpu/kernels/copy_at_indices.cu
 		gpu/kernels/scale_vector.cu
+		gpu/kernels/init_vector.cu
 		)
 endif()
 

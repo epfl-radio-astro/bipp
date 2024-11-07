@@ -286,6 +286,34 @@ auto Imager<T>::get(T* out, std::size_t ld) -> void {
   }
 }
 
+template <typename T>
+auto Imager<T>::get_psf(T* out) -> void {
+  if (collector_->size()) {
+    synthesis_->process(*collector_);
+    collector_->clear();
+  }
+
+  auto img = synthesis_->image();
+  auto& ctx = *synthesis_->context();
+  auto t =
+      ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, pointer_to_string(this) + " get_psf");
+
+  if (ctx.processing_unit() == BIPP_PU_GPU) {
+#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+    gpu::DeviceGuard deviceGuard(ctx.device_id());
+    auto& queue = ctx.gpu_queue();
+    // Syncronize with default stream.
+    queue.sync_with_stream(nullptr);
+    synthesis_->get_psf(View<T, 1>(out, img.shape(0), 1));
+    queue.sync();
+#else
+    throw GPUSupportError();
+#endif
+  } else {
+    synthesis_->get_psf(View<T, 1>(out, img.shape(0), 1));
+  }
+}
+
 template class Imager<float>;
 template class Imager<double>;
 

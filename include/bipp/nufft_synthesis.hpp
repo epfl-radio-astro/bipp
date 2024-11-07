@@ -81,6 +81,11 @@ struct NufftSynthesisOptions {
   bool normalizeImageNvis = true;
 
   /**
+   * Generate psf image.
+   */
+  bool psf = false;
+
+  /**
    * Set the tolerance.
    *
    * @param[in] tol Tolerance.
@@ -139,6 +144,16 @@ struct NufftSynthesisOptions {
     normalizeImageNvis = normalize;
     return *this;
   }
+
+  /**
+   * Set psf image generation.
+   *
+   * @param[in] psf True or false.
+   */
+  inline auto set_psf(bool p) -> NufftSynthesisOptions& {
+    psf = p;
+    return *this;
+  }
 };
 
 template <typename T>
@@ -189,11 +204,18 @@ public:
   /**
    * Get image.
    *
-   * @param[out] img 2D image array of size (nPixel, nImagers).
+   * @param[out] img 2D image array of size (nPixel, nImages).
    * @param[in] ld Leading dimension of img.
    */
   auto get(T* img, std::size_t ld) -> void;
 
+
+  /**
+   * Get the psf. Only available if the Options enabled psf.
+   *
+   * @param[out] img 1D image array of size (nPixel).
+   */
+  auto get_psf(T* img) -> void;
 private:
   /*! \cond PRIVATE */
   std::unique_ptr<void, std::function<void(void*)>> plan_;
