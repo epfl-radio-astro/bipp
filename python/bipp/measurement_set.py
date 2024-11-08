@@ -436,7 +436,6 @@ class MeasurementSet:
             print("-I- N_time =", N_time)
 
         time_start, time_stop, time_step = time_id.indices(N_time)
-        print(N_time, time_start, time_stop, time_step)
 
         # Only a subset of the MAIN table's columns are needed to extract visibility information.
         # As such, it makes sense to construct a TaQL query that only extracts the columns of
@@ -534,7 +533,9 @@ class MeasurementSet:
                 visibility = vis.VisibilityMatrix(v, beam_idx, weight_spectrum=w)
                 yield t, f[ch_id], visibility
 
-        print(f"-I- Was sorting time requested? {sort_time}; was TIME sorted? {time_sorted}. Empty channels at times =", empty_chan_ep)
+        if log_level > 0:
+            print(f"-I- Was sorting time requested? {sort_time}; was TIME sorted? {time_sorted}. Empty channels at times =", empty_chan_ep)
+
 
 def _series2array(visibility: pd.Series) -> np.ndarray:
     b_idx_0 = visibility.index.get_level_values("B_0").to_series()

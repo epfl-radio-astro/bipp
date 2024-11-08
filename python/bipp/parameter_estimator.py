@@ -155,8 +155,7 @@ class ParameterEstimator:
             kmeans = skcl.KMeans(n_clusters=self._N_level, random_state=0).fit(np.log(D_all).reshape(-1, 1))
 
         cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1]
-        print("cluster_centroid =", cluster_centroid)
-        
+
         self._inferred = True
         
         if self._fne:
