@@ -34,6 +34,8 @@ public:
 
   virtual auto get(View<T, 2> out) -> void = 0;
 
+  virtual auto get_psf(View<T, 1> out) -> void = 0;
+
   virtual auto type() const -> SynthesisType = 0;
 
   virtual auto context() -> const std::shared_ptr<ContextInternal>& = 0;

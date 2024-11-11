@@ -83,6 +83,7 @@ opt.set_tolerance(1e-3)
 # Possible options are "grid", "none" or "auto"
 opt.set_local_image_partition(bipp.Partition.grid([1,1,1]))
 opt.set_local_uvw_partition(bipp.Partition.none())
+opt.set_psf(True)
 precision = "single"
 
 
@@ -175,6 +176,8 @@ ax.set_title(
 )
 
 plt.savefig("nufft_synthesis_std.png")
+
+
 plt.figure()
 titles = ["Strong sources", "Mild sources", "Faint Sources"]
 for i in range(lsq_image.shape[0]):
@@ -192,4 +195,22 @@ for i in range(lsq_image.shape[0]):
 
 plt.suptitle(f"Bipp Eigenmaps")
 plt.savefig("nufft_synthesis_lsq.png")
+
+if opt.psf:
+    psf = imager.get_psf().reshape((N_pix, N_pix))
+    I_psf = s2image.Image(psf, xyz_grid)
+    plt.figure()
+    ax = plt.gca()
+    I_lsq_eq.draw(
+        catalog=sky_model.xyz.T,
+        ax=ax,
+        data_kwargs=dict(cmap="cubehelix"),
+        show_gridlines=False,
+        catalog_kwargs=dict(s=30, linewidths=0.5, alpha=0.5),
+    )
+    ax.set_title(
+        f"Bipp PSF (NUFFT)\n"
+    )
+    plt.savefig("nufft_synthesis_psf.png")
+
 plt.show()

@@ -28,6 +28,10 @@ enum BippError {
    */
   BIPP_INVALID_HANDLE_ERROR,
   /**
+   * Invalid handle error.
+   */
+  BIPP_INVALID_CALL_ERROR,
+  /**
    * Eigensolver error.
    */
   BIPP_EIGENSOLVER_ERROR,

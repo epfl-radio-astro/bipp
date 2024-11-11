@@ -11,6 +11,7 @@
 #include "gpu/eigensolver.hpp"
 #include "gpu/gram_matrix.hpp"
 #include "gpu/kernels/add_vector.hpp"
+#include "gpu/kernels/init_vector.hpp"
 #include "gpu/kernels/min_max_element.hpp"
 #include "gpu/kernels/nuft_sum.hpp"
 #include "gpu/kernels/scale_vector.hpp"
@@ -42,6 +43,11 @@ NufftSynthesis<T>::NufftSynthesis(std::shared_ptr<ContextInternal> ctx, NufftSyn
       totalVisibilityCount_(0) {
   auto& queue = ctx_->gpu_queue();
   api::memset_async(img_.data(), 0, img_.size() * sizeof(T), queue.stream());
+
+  if (opt_.psf) {
+    psf_img_ = queue.create_device_array<T, 1>(nPixel_);
+    api::memset_async(psf_img_.data(), 0, psf_img_.size() * sizeof(T), queue.stream());
+  }
 
   std::visit(
       [&](auto&& arg) -> void {
@@ -176,6 +182,20 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
       },
       opt_.localUVWPartition.method);
 
+  // create psf input if required
+  DeviceArray<api::ComplexType<T>, 1> psf_input;
+  if(psf_img_.size()) {
+    // find maximum input size and generate array filled with 1
+    std::size_t max_input_size = 0;
+    for(const auto& g: inputPartition.groups()) {
+      max_input_size = std::max(max_input_size, g.size);
+    }
+    psf_input = queue.create_device_array<api::ComplexType<T>, 1>(max_input_size);
+
+    init_vector<api::ComplexType<T>>(queue.device_prop(), queue.stream(), psf_input.size(),
+                                     api::ComplexType<T>{1, 0}, psf_input.data());
+  }
+
   for (std::size_t j = 0; j < nImages_; ++j) {
     inputPartition.apply(virtualVis.slice_view(j));
   }
@@ -205,6 +225,12 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
                     uvwXSlice.data(), uvwYSlice.data(), uvwZSlice.data(), img_.shape(0),
                     pixelX.data(), pixelY.data(), pixelZ.data(), imgPtr);
       }
+
+      if(psf_img_.size()) {
+        nuft_sum<T>(queue.device_prop(), nullptr, 1.0, inputSize, psf_input.data(),
+                    uvwXSlice.data(), uvwYSlice.data(), uvwZSlice.data(), img_.shape(0),
+                    pixelX.data(), pixelY.data(), pixelZ.data(), psf_img_.data());
+      }
     } else {
       for (const auto& [imgBegin, imgSize] : imgPartition_.groups()) {
         if (!imgSize) continue;
@@ -229,6 +255,17 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
         for (std::size_t j = 0; j < nImages_; ++j) {
           auto imgPtr = img_.slice_view(j).data() + imgBegin;
           auto virtVisCurrentSlice = virtualVis.slice_view(j).sub_view(inputBegin, inputSize);
+          ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT input", virtVisCurrentSlice);
+          transform.execute(virtVisCurrentSlice.data(), output.data());
+          ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output", imgSize, 1, output.data(),
+                                    imgSize);
+
+          add_vector_real_of_complex<T>(queue.device_prop(), nullptr, imgSize, output.data(),
+                                        imgPtr);
+        }
+        if (psf_img_.size()) {
+          auto imgPtr = psf_img_.data() + imgBegin;
+          auto virtVisCurrentSlice = psf_input.sub_view(inputBegin, inputSize);
           ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT input", virtVisCurrentSlice);
           transform.execute(virtVisCurrentSlice.data(), output.data());
           ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output", imgSize, 1, output.data(),
@@ -276,6 +313,39 @@ auto NufftSynthesis<T>::get(View<T, 2> out) -> void {
     }
     ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image output", levelOut);
   }
+
+  outDevice.copy_back(queue);
+}
+
+template <typename T>
+auto NufftSynthesis<T>::get_psf(View<T, 1> out) -> void {
+  auto& queue = ctx_->gpu_queue();
+
+  if(!opt_.psf) {
+    throw InvalidCallError("BIPP: NufftSynthesis not created with psf option enabled");
+  }
+
+  assert(psf_img_.shape(0) == nPixel_);
+  assert(out.shape(0) == nPixel_);
+
+  DeviceAccessor<T, 1> outDevice(queue, out);
+
+  const T scale =
+      totalCollectCount_ ? static_cast<T>(1.0 / static_cast<double>(totalCollectCount_)) : 0;
+
+  ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
+                     "NufftSynthesis<T>::get_psf totalVisibilityCount_ = {}, totalCollectCount_ = {}, scale = {}",
+                     totalVisibilityCount_, totalCollectCount_, scale);
+
+  auto outDeviceView = outDevice.view();
+
+  ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "psf permuted", psf_img_);
+  imgPartition_.reverse<T>(psf_img_, outDeviceView);
+
+  if (opt_.normalizeImage) {
+    scale_vector<T>(queue.device_prop(), queue.stream(), nPixel_, scale, outDeviceView.data());
+  }
+  ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "psf output", outDeviceView);
 
   outDevice.copy_back(queue);
 }

@@ -33,7 +33,7 @@ else()
   find_package(nlohmann_json CONFIG REQUIRED)
 endif()
 
-list(APPEND BIPP_TEST_LIBRARIES gtest_main nlohmann_json::nlohmann_json)
+list(APPEND BIPP_TEST_LIBRARIES gtest nlohmann_json::nlohmann_json)
 
 # test executables
 add_executable(run_tests

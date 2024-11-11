@@ -61,6 +61,9 @@ DistributedSynthesis<T>::DistributedSynthesis(
     id_ = comm_->send_nufft_synthesis_init<T>(std::get<NufftSynthesisOptions>(opt), nLevel,
                                               pixel.slice_view(0), pixel.slice_view(1),
                                               pixel.slice_view(2), groups);
+    if(std::get<NufftSynthesisOptions>(opt).psf) {
+      psf_img_ = decltype(psf_img_)(ctx_->host_alloc(), pixelX.size());
+    }
   }
 }
 
@@ -98,6 +101,37 @@ auto DistributedSynthesis<T>::get(View<T, 2> out) -> void {
 #endif
   } else {
     copy(img_, HostView<T, 2>(out));
+  }
+}
+
+template <typename T>
+auto DistributedSynthesis<T>::get_psf(View<T, 1> out) -> void {
+  if(!psf_img_.size()) {
+    throw InvalidCallError("BIPP: Synthesis not created with psf option enabled");
+  }
+
+  ConstHostView<PartitionGroup, 1> groups(imgPartition_.groups().data(),
+                                          imgPartition_.groups().size(), 1);
+  comm_->gather_psf<T>(id_, groups, psf_img_);
+
+  HostArray<T, 1> buffer(ctx_->host_alloc(), img_.shape(0));
+  imgPartition_.reverse<T>(psf_img_, buffer);
+
+  T* __restrict__ imgPtr = psf_img_.data();
+  const T* __restrict__ bufferPtr = buffer.data();
+  for (std::size_t i = 0; i < psf_img_.size(); ++i) {
+    imgPtr[i] = bufferPtr[i];
+  }
+
+  if (ctx_->processing_unit() == BIPP_PU_GPU) {
+#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+    auto& queue = ctx_->gpu_queue();
+    copy(queue, psf_img_, out);
+#else
+    throw GPUSupportError();
+#endif
+  } else {
+    copy(psf_img_, HostView<T, 1>(out));
   }
 }
 

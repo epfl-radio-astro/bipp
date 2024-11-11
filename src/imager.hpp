@@ -52,6 +52,8 @@ public:
 
   auto get(T* out, std::size_t ld) -> void;
 
+  auto get_psf(T* out) -> void;
+
   auto context() -> ContextInternal& { return *synthesis_->context(); };
 
 private:

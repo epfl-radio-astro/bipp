@@ -58,6 +58,7 @@ struct SerializedNufftOptions {
   SerializedPartition localUVWPartition;
   bool normalizeImage = true;
   bool normalizeImageNvis = true;
+  bool psf = false;
 
   SerializedNufftOptions() = default;
   SerializedNufftOptions(const NufftSynthesisOptions& opt);
@@ -97,6 +98,10 @@ struct StatusMessage {
     constexpr static std::size_t index = 4;
     std::size_t id;
   } gather;
+  struct GatherPsf {
+    constexpr static std::size_t index = 5;
+    std::size_t id;
+  } gatherPsf;
 
   static auto send_create_standard_synthesis(const MPICommHandle& comm, std::size_t id,
                                              std::size_t nLevel, std::size_t typeSize,
@@ -112,10 +117,12 @@ struct StatusMessage {
   static auto send_gather_image(const MPICommHandle& comm, std::size_t id)
       -> void;
 
+  static auto send_gather_psf(const MPICommHandle& comm, std::size_t id) -> void;
+
   static auto send_root_comm_destroyed(const MPICommHandle& comm) -> void;
 
   static auto recv(const MPICommHandle& comm)
-      -> std::variant<RootCommDestroyed, CreateSynthesis, SynthesisCollect, GatherImage>;
+      -> std::variant<RootCommDestroyed, CreateSynthesis, SynthesisCollect, GatherImage, GatherPsf>;
 };
 
 auto send_message(const MPICommHandle& comm, StatusMessage& m) {
@@ -179,8 +186,16 @@ auto StatusMessage::send_gather_image(const MPICommHandle& comm, std::size_t id)
   send_message(comm, m);
 }
 
+auto StatusMessage::send_gather_psf(const MPICommHandle& comm, std::size_t id) -> void {
+  StatusMessage m;
+  m.messageIndex = StatusMessage::GatherPsf::index;
+  m.gatherPsf.id = id;
+
+  send_message(comm, m);
+}
+
 auto StatusMessage::recv(const MPICommHandle& comm)
-    -> std::variant<RootCommDestroyed, CreateSynthesis, SynthesisCollect, GatherImage> {
+    -> std::variant<RootCommDestroyed, CreateSynthesis, SynthesisCollect, GatherImage, GatherPsf> {
   StatusMessage m;
   mpi_check_status(MPI_Bcast(&m, sizeof(decltype(m)), MPI_BYTE, 0, comm.get()));
 
@@ -195,6 +210,8 @@ auto StatusMessage::recv(const MPICommHandle& comm)
       return m.step;
     case StatusMessage::GatherImage::index:
       return m.gather;
+    case StatusMessage::GatherPsf::index:
+      return m.gatherPsf;
     default:
       throw InternalError("Invalid MPI message index");
   }
@@ -388,6 +405,37 @@ auto send_img_data(const MPICommHandle& comm,const StatusMessage::GatherImage& i
 }
 
 template <typename T>
+auto send_psf_data(const MPICommHandle& comm, const StatusMessage::GatherPsf& info,
+                   SynthesisInterface<T>& syn) -> void {
+  assert(comm.rank() != 0);
+
+  auto& ctx = *syn.context();
+
+  HostArray<T, 1> imgArray;
+
+  auto t1 = ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "synthesis get psf");
+  if (ctx.processing_unit() == BIPP_PU_GPU) {
+#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+    auto& queue = ctx.gpu_queue();
+    imgArray = queue.template create_pinned_array<T, 1>(syn.image().shape(0));
+    syn.get_psf(imgArray);
+    queue.sync();
+#else
+    throw GPUSupportError();
+#endif
+  } else {
+    imgArray = HostArray<T, 1>(ctx.host_alloc(), syn.image().shape(0));
+    syn.get_psf(imgArray);
+  }
+
+  t1.stop();
+  auto t2 = ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "distributed image psf");
+  T dummy;
+  mpi_check_status(MPI_Gatherv(imgArray.data(), imgArray.size(), MPIType<T>::get(), &dummy, nullptr,
+                               nullptr, MPIType<T>::get(), 0, comm.get()));
+}
+
+template <typename T>
 auto recv_img_data(const MPICommHandle& comm, ConstHostView<PartitionGroup, 1> groups,
                    HostView<T, 2> img) -> void {
   assert(comm.rank() == 0);
@@ -405,6 +453,22 @@ auto recv_img_data(const MPICommHandle& comm, ConstHostView<PartitionGroup, 1> g
     mpi_check_status(MPI_Gatherv(&dummy, 0, MPIType<T>::get(), imgSlice.data(), recvCounts.data(),
                                  displs.data(), MPIType<T>::get(), 0, comm.get()));
   }
+}
+template <typename T>
+auto recv_psf_data(const MPICommHandle& comm, ConstHostView<PartitionGroup, 1> groups,
+                   HostView<T, 1> img) -> void {
+  assert(comm.rank() == 0);
+
+  std::vector<int> recvCounts(comm.size(), 0);
+  std::vector<int> displs(comm.size(), 0);
+  for (std::size_t i = 1; i < comm.size(); ++i) {
+    recvCounts[i] = static_cast<int>(groups[i - 1].size);
+    displs[i] = static_cast<int>(groups[i - 1].begin);
+  }
+
+  T dummy;
+  mpi_check_status(MPI_Gatherv(&dummy, 0, MPIType<T>::get(), img.data(), recvCounts.data(),
+                               displs.data(), MPIType<T>::get(), 0, comm.get()));
 }
 
 }  // namespace
@@ -438,6 +502,7 @@ SerializedNufftOptions::SerializedNufftOptions(const NufftSynthesisOptions& opt)
   localUVWPartition = opt.localUVWPartition;
   normalizeImage = opt.normalizeImage;
   normalizeImageNvis = opt.normalizeImageNvis;
+  psf = opt.psf;
 }
 
 auto SerializedNufftOptions::get() const -> NufftSynthesisOptions {
@@ -451,6 +516,7 @@ auto SerializedNufftOptions::get() const -> NufftSynthesisOptions {
   opt.localUVWPartition = localUVWPartition.get();
   opt.normalizeImage = normalizeImage;
   opt.normalizeImageNvis = normalizeImageNvis;
+  opt.psf = psf;
   return opt;
 }
 
@@ -543,6 +609,18 @@ auto CommunicatorInternal::attach_non_root(std::shared_ptr<ContextInternal> ctx)
               } else
                 throw InternalError("MPI Collect step: unknown synthesis id.");
             }
+          } else if constexpr (std::is_same_v<T, StatusMessage::GatherPsf>) {
+            // Gather psf on root
+            auto itFloat = synthesisFloat.find(info.id);
+            if (itFloat != synthesisFloat.end()) {
+              send_psf_data<float>(comm_, info, *(itFloat->second));
+            } else {
+              auto itDouble = synthesisDouble.find(info.id);
+              if (itDouble != synthesisDouble.end()) {
+                send_psf_data<double>(comm_, info, *(itDouble->second));
+              } else
+                throw InternalError("MPI Collect step: unknown synthesis id.");
+            }
           }
         },
         m);
@@ -593,6 +671,13 @@ auto CommunicatorInternal::gather_image(std::size_t id, ConstHostView<PartitionG
   recv_img_data<T>(comm_, groups, img);
 }
 
+template <typename T, typename>
+auto CommunicatorInternal::gather_psf(std::size_t id, ConstHostView<PartitionGroup, 1> groups,
+                  HostView<T, 1> img) -> void {
+  StatusMessage::send_gather_psf(comm_, id);
+  recv_psf_data<T>(comm_, groups, img);
+}
+
 template auto CommunicatorInternal::send_standard_synthesis_init<float>(
     const StandardSynthesisOptions& opt, std::size_t nLevel, ConstView<float, 1> pixelX,
     ConstView<float, 1> pixelY, ConstView<float, 1> pixelZ, ConstHostView<PartitionGroup, 1> groups)
@@ -619,12 +704,19 @@ template auto CommunicatorInternal::send_synthesis_collect<float>(
 template auto CommunicatorInternal::send_synthesis_collect<double>(
     std::size_t id, const CollectorInterface<double>& collector) -> void;
 
-template auto CommunicatorInternal::gather_image<float>(std::size_t id, 
+template auto CommunicatorInternal::gather_image<float>(std::size_t id,
                                                         ConstHostView<PartitionGroup, 1> groups,
                                                         HostView<float, 2> img) -> void;
 template auto CommunicatorInternal::gather_image<double>(std::size_t id,
                                                          ConstHostView<PartitionGroup, 1> groups,
                                                          HostView<double, 2> img) -> void;
+
+template auto CommunicatorInternal::gather_psf<float>(std::size_t id,
+                                                      ConstHostView<PartitionGroup, 1> groups,
+                                                      HostView<float, 1> img) -> void;
+template auto CommunicatorInternal::gather_psf<double>(std::size_t id,
+                                                       ConstHostView<PartitionGroup, 1> groups,
+                                                       HostView<double, 1> img) -> void;
 
 }  // namespace bipp
 #endif

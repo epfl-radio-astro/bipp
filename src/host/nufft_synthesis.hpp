@@ -28,6 +28,8 @@ public:
 
   auto get(View<T, 2> out) -> void override;
 
+  auto get_psf(View<T, 1> out) -> void override;
+
   auto type() const -> SynthesisType override { return SynthesisType::NUFFT; }
 
   auto context() -> const std::shared_ptr<ContextInternal>& override { return ctx_; }
@@ -46,6 +48,7 @@ private:
   std::size_t totalCollectCount_;
   std::size_t totalVisibilityCount_;
   HostArray<T, 2> img_;
+  HostArray<T, 1> psf_img_;
 };
 
 }  // namespace host

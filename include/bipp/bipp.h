@@ -263,6 +263,16 @@ BIPP_EXPORT BippError bipp_ns_options_set_normalize_image_by_nvis(BippNufftSynth
                                                                   bool normalize);
 
 /**
+ * Generate psf image.
+ *
+ * @param[in] opt Options handle.
+ * @param[in] psf True or false.
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_ns_options_set_psf(BippNufftSynthesisOptions opt, bool psf);
+
+
+/**
  * Create a nufft synthesis plan.
  *
  * @param[in] ctx Context handle.
@@ -385,6 +395,24 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_get_f(BippNufftSynthesisF plan, float
  * @return Error code or BIPP_SUCCESS.
  */
 BIPP_EXPORT BippError bipp_nufft_synthesis_get(BippNufftSynthesisF plan, double* img, size_t ld);
+
+/**
+ * Get psf image.
+ *
+ * @param[in] plan Plan handle.
+ * @param[out] img 2D image array of size (nPixel, nImages).
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_nufft_synthesis_get_psf_f(BippNufftSynthesisF plan, float* img);
+
+/**
+ * Get psf image.
+ *
+ * @param[in] plan Plan handle.
+ * @param[out] img 2D image array of size (nPixel, nImages).
+ * @return Error code or BIPP_SUCCESS.
+ */
+BIPP_EXPORT BippError bipp_nufft_synthesis_get_psf(BippNufftSynthesisF plan, double* img);
 
 /**
  * Create a standard synthesis plan.

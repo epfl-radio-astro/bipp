@@ -85,6 +85,22 @@ auto NufftSynthesis<T>::get(T* out, std::size_t ld) -> void {
   }
 }
 
+template <typename T>
+auto NufftSynthesis<T>::get_psf(T* out) -> void {
+  try {
+    reinterpret_cast<Imager<T>*>(plan_.get())->get_psf(out);
+  } catch (const std::exception& e) {
+    try {
+      reinterpret_cast<Imager<T>*>(plan_.get())
+          ->context()
+          .logger()
+          .log(BIPP_LOG_LEVEL_ERROR, "NufftSynthesis.get_psf() error: {}", e.what());
+    } catch (...) {
+    }
+    throw;
+  }
+}
+
 template class BIPP_EXPORT NufftSynthesis<double>;
 
 template class BIPP_EXPORT NufftSynthesis<float>;
@@ -167,6 +183,20 @@ BIPP_EXPORT BippError bipp_ns_options_set_normalize_image_by_nvis(BippNufftSynth
   }
   try {
     reinterpret_cast<NufftSynthesisOptions*>(opt)->set_normalize_image_by_nvis(normalize);
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
+BIPP_EXPORT BippError bipp_ns_options_set_psf(BippNufftSynthesisOptions opt, bool psf) {
+  if (!opt) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<NufftSynthesisOptions*>(opt)->set_psf(psf);
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
@@ -336,6 +366,20 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_get_f(BippNufftSynthesisF plan, float
   return BIPP_SUCCESS;
 }
 
+BIPP_EXPORT BippError bipp_nufft_synthesis_get_psf_f(BippNufftSynthesisF plan, float* img) {
+  if (!plan) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<NufftSynthesis<float>*>(plan)->get_psf(img);
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
 BIPP_EXPORT BippError bipp_nufft_synthesis_create(BippContext ctx, BippNufftSynthesisOptions opt,
                                                  size_t nImages,
                                                   size_t nPixel, const double* lmnX,
@@ -406,6 +450,21 @@ BIPP_EXPORT BippError bipp_nufft_synthesis_get(BippNufftSynthesis plan, double* 
   }
   return BIPP_SUCCESS;
 }
+
+BIPP_EXPORT BippError bipp_nufft_synthesis_get_psf(BippNufftSynthesisF plan, double* img){
+  if (!plan) {
+    return BIPP_INVALID_HANDLE_ERROR;
+  }
+  try {
+    reinterpret_cast<NufftSynthesis<double>*>(plan)->get_psf(img);
+  } catch (const bipp::GenericError& e) {
+    return e.error_code();
+  } catch (...) {
+    return BIPP_UNKNOWN_ERROR;
+  }
+  return BIPP_SUCCESS;
+}
+
 }
 
 }  // namespace bipp

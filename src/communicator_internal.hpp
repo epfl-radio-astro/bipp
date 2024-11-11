@@ -64,6 +64,14 @@ class CommunicatorInternal {
     auto gather_image(std::size_t id, ConstHostView<PartitionGroup, 1> groups, HostView<T, 2> img)
         -> void;
 
+
+    // Must only be called by root
+    template <typename T,
+              typename = std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double>>>
+    auto gather_psf(std::size_t id, ConstHostView<PartitionGroup, 1> groups,
+                    HostView<T, 1> img) -> void;
+
+
     ~CommunicatorInternal();
 
   private:

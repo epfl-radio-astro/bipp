@@ -353,6 +353,26 @@ struct NufftSynthesisDispatcher {
         plan_);
   }
 
+  auto get_psf() -> py::array {
+    return std::visit(
+        [&](auto&& arg) -> pybind11::array {
+          using T = std::decay_t<decltype(arg)>;
+          if constexpr (std::is_same_v<T, NufftSynthesis<double>>) {
+            py::array_t<double> out(nPixel_);
+            std::get<NufftSynthesis<double>>(plan_).get_psf(out.mutable_data(0));
+            return out;
+          } else if constexpr (std::is_same_v<T, NufftSynthesis<float>>) {
+            py::array_t<float> out(nPixel_);
+            std::get<NufftSynthesis<float>>(plan_).get_psf(out.mutable_data(0));
+            return out;
+          } else {
+            throw InternalError();
+            return py::array_t<double, py::array::f_style>();
+          }
+        },
+        plan_);
+  }
+
   std::variant<std::monostate, NufftSynthesis<float>, NufftSynthesis<double>> plan_;
   std::size_t nImages_, nPixel_;
 };
@@ -450,7 +470,9 @@ PYBIND11_MODULE(pybipp, m) {
       .def_readwrite("normalizeImage", &NufftSynthesisOptions::normalizeImage)
       .def("set_normalize_image", &NufftSynthesisOptions::set_normalize_image)
       .def_readwrite("normalizeImageNvis", &NufftSynthesisOptions::normalizeImageNvis)
-      .def("set_normalize_image_by_nvis", &NufftSynthesisOptions::set_normalize_image_by_nvis);
+      .def("set_normalize_image_by_nvis", &NufftSynthesisOptions::set_normalize_image_by_nvis)
+      .def_readwrite("psf", &NufftSynthesisOptions::psf)
+      .def("set_psf", &NufftSynthesisOptions::set_psf);
 
   pybind11::class_<StandardSynthesisOptions>(m, "StandardSynthesisOptions")
       .def(py::init())
@@ -470,7 +492,8 @@ PYBIND11_MODULE(pybipp, m) {
       .def("collect", &NufftSynthesisDispatcher::collect, pybind11::arg("wl"),
            pybind11::arg("mask"), pybind11::arg("s"), pybind11::arg("w"), pybind11::arg("xyz"),
            pybind11::arg("uvw"))
-      .def("get", &NufftSynthesisDispatcher::get);
+      .def("get", &NufftSynthesisDispatcher::get)
+      .def("get_psf", &NufftSynthesisDispatcher::get_psf);
 
   pybind11::class_<StandardSynthesisDispatcher>(m, "StandardSynthesis")
       .def(pybind11::init<Context&, StandardSynthesisOptions, std::size_t, const py::array&,

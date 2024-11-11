@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bipp/config.h"
+#include "bipp/exceptions.hpp"
 #include "bipp/standard_synthesis.hpp"
 #include "context_internal.hpp"
 #include "gpu/util/runtime_api.hpp"
@@ -20,6 +21,8 @@ public:
   auto process(CollectorInterface<T>& collector) -> void override;
 
   auto get(View<T, 2> out) -> void override;
+
+  auto get_psf(View<T, 1> out) -> void override { throw NotImplementedError(); }
 
   auto type() const -> SynthesisType override { return SynthesisType::Standard; }
 
