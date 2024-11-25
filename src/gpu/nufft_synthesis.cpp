@@ -265,7 +265,7 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
         }
         if (psf_img_.size()) {
           auto imgPtr = psf_img_.data() + imgBegin;
-          auto virtVisCurrentSlice = psf_input.sub_view(inputBegin, inputSize);
+          auto virtVisCurrentSlice = psf_input.sub_view(0, inputSize);
           ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT input", virtVisCurrentSlice);
           transform.execute(virtVisCurrentSlice.data(), output.data());
           ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "NUFFT output", imgSize, 1, output.data(),
