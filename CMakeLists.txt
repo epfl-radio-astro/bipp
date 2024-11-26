@@ -230,6 +230,10 @@ if(NOT TARGET LAPACK::LAPACK)
 endif()
 list(APPEND BIPP_EXTERNAL_LIBS LAPACK::LAPACK)
 
+# HDF5
+find_package(HDF5 MODULE REQUIRED COMPONENTS C)
+list(APPEND BIPP_EXTERNAL_LIBS hdf5::hdf5)
+
 find_package(FINUFFT REQUIRED)
 list(APPEND BIPP_EXTERNAL_LIBS FINUFFT::finufft)
 # finufft has fftw in interface headers

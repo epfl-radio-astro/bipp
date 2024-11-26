@@ -58,7 +58,11 @@ enum BippError {
   /**
    * MPI Error
    */
-  BIPP_MPI_ERROR
+  BIPP_MPI_ERROR,
+  /**
+   * HDF5 error.
+   */
+  BIPP_HDF5_ERROR
 };
 
 #ifndef __cplusplus

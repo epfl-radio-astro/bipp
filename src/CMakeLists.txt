@@ -20,6 +20,7 @@ set(BIPP_SOURCE_FILES
 	host/kernels/nuft_sum.cpp
 	host/standard_synthesis.cpp
 	host/collector.cpp
+	io/dataset_writer.cpp
 	)
 
 if(BIPP_MPI)
@@ -82,6 +83,10 @@ target_link_libraries(bipp_objects PRIVATE ${BIPP_EXTERNAL_LIBS})
 target_link_libraries(bipp_objects PRIVATE ${BIPP_EXTERNAL_LIBS_PUBLIC})
 target_include_directories(bipp_objects INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
 
+
+add_executable(test_hdf5 test_hdf5.cpp)
+target_link_libraries(test_hdf5 PRIVATE bipp_objects)
+target_include_directories(test_hdf5 PRIVATE ${BIPP_INCLUDE_DIRS})
 
 #shared library
 add_library(bipp $<TARGET_OBJECTS:bipp_objects>)

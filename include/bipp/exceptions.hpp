@@ -73,6 +73,13 @@ public:
   BippError error_code() const noexcept override { return BippError::BIPP_FINUFFT_ERROR; }
 };
 
+class BIPP_EXPORT HDF5Error : public GenericError {
+public:
+  const char* what() const noexcept override { return "BIPP: HDF5Error error"; }
+
+  BippError error_code() const noexcept override { return BippError::BIPP_HDF5_ERROR; }
+};
+
 class BIPP_EXPORT NotImplementedError : public GenericError {
 public:
   const char* what() const noexcept override { return "BIPP: Not implemented"; }
