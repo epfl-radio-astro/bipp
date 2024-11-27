@@ -11,8 +11,6 @@
 
 namespace bipp {
 
-inline constexpr unsigned int datasetFormatVersion = 1;
-
 class DatasetWriter {
 public:
   using ValueType = float;
