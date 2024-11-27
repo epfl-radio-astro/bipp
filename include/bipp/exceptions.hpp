@@ -124,6 +124,20 @@ public:
   BippError error_code() const noexcept override { return BippError::BIPP_MPI_ERROR; }
 };
 
+class BIPP_EXPORT FileError : public GenericError {
+public:
+  FileError() : msg_("") {}
+
+  FileError(const char* msg) : msg_(msg) {}
+
+  const char* what() const noexcept override { return msg_; }
+
+  BippError error_code() const noexcept override { return BippError::BIPP_GPU_ERROR; }
+
+private:
+  const char* msg_;
+};
+
 /*! \cond PRIVATE */
 }  // namespace bipp
 /*! \endcond */

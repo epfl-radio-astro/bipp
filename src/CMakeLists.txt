@@ -21,6 +21,7 @@ set(BIPP_SOURCE_FILES
 	host/standard_synthesis.cpp
 	host/collector.cpp
 	io/dataset_writer.cpp
+	io/dataset_reader.cpp
 	)
 
 if(BIPP_MPI)

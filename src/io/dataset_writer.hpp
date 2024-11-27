@@ -1,11 +1,11 @@
 #pragma once
 
-#include <string>
 #include <complex>
+#include <cstddef>
 #include <memory>
+#include <string>
 
 #include "bipp/config.h"
-
 #include "memory/array.hpp"
 #include "memory/view.hpp"
 

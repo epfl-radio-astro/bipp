@@ -62,7 +62,11 @@ enum BippError {
   /**
    * HDF5 error.
    */
-  BIPP_HDF5_ERROR
+  BIPP_HDF5_ERROR,
+  /**
+   * File error.
+   */
+  BIPP_FILE_ERROR
 };
 
 #ifndef __cplusplus

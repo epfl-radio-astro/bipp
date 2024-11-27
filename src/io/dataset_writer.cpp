@@ -38,29 +38,29 @@ public:
     // create array types
     {
       std::array<hsize_t, 1> dims = {nBeam};
-      h5EigValType_ = h5::check(H5Tarray_create(h5::get_type_id<float>(), dims.size(), dims.data()));
+      h5EigValType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
     }
     {
       std::array<hsize_t, 2> dims = {nBeam, 2 * nAntenna};
-      h5EigVecType_ = h5::check(H5Tarray_create(h5::get_type_id<float>(), dims.size(), dims.data()));
+      h5EigVecType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
     }
     {
       std::array<hsize_t, 2> dims = {3, nAntenna * nAntenna};
-      h5UVWType_ = h5::check(H5Tarray_create(h5::get_type_id<float>(), dims.size(), dims.data()));
+      h5UVWType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
     }
 
     // TODO: set optimal chunk size individually
     constexpr hsize_t CHUNK_SIZE = 5;
 
     // create data spaces
-    h5Wl_ = h5::create_one_dim_space(h5File_.id(), "wl", h5::get_type_id<float>(), CHUNK_SIZE);
+    h5Wl_ = h5::create_one_dim_space(h5File_.id(), "wl", h5::get_type_id<ValueType>(), CHUNK_SIZE);
     h5NVis_ = h5::create_one_dim_space(h5File_.id(), "nvis", h5::get_type_id<unsigned int>(), CHUNK_SIZE);
-    h5MinU_ = h5::create_one_dim_space(h5File_.id(), "uMin", h5::get_type_id<float>(), CHUNK_SIZE);
-    h5MinV_ = h5::create_one_dim_space(h5File_.id(), "vMin", h5::get_type_id<float>(), CHUNK_SIZE);
-    h5MinW_ = h5::create_one_dim_space(h5File_.id(), "wMin", h5::get_type_id<float>(), CHUNK_SIZE);
-    h5MaxU_ = h5::create_one_dim_space(h5File_.id(), "uMax", h5::get_type_id<float>(), CHUNK_SIZE);
-    h5MaxV_ = h5::create_one_dim_space(h5File_.id(), "vMax", h5::get_type_id<float>(), CHUNK_SIZE);
-    h5MaxW_ = h5::create_one_dim_space(h5File_.id(), "wMax", h5::get_type_id<float>(), CHUNK_SIZE);
+    h5MinU_ = h5::create_one_dim_space(h5File_.id(), "uMin", h5::get_type_id<ValueType>(), CHUNK_SIZE);
+    h5MinV_ = h5::create_one_dim_space(h5File_.id(), "vMin", h5::get_type_id<ValueType>(), CHUNK_SIZE);
+    h5MinW_ = h5::create_one_dim_space(h5File_.id(), "wMin", h5::get_type_id<ValueType>(), CHUNK_SIZE);
+    h5MaxU_ = h5::create_one_dim_space(h5File_.id(), "uMax", h5::get_type_id<ValueType>(), CHUNK_SIZE);
+    h5MaxV_ = h5::create_one_dim_space(h5File_.id(), "vMax", h5::get_type_id<ValueType>(), CHUNK_SIZE);
+    h5MaxW_ = h5::create_one_dim_space(h5File_.id(), "wMax", h5::get_type_id<ValueType>(), CHUNK_SIZE);
 
     h5EigVal_ = h5::create_one_dim_space(h5File_.id(), "eigVal", h5EigValType_.id(), CHUNK_SIZE);
     h5EigVec_ = h5::create_one_dim_space(h5File_.id(), "eigVec", h5EigVecType_.id(), CHUNK_SIZE);
@@ -69,6 +69,13 @@ public:
 
   auto write(ValueType wl, std::size_t nVis, ConstHostView<std::complex<ValueType>, 2> v,
              ConstHostView<ValueType, 1> d, ConstHostView<ValueType, 2> uvw) -> void {
+    if (!v.is_contiguous()) {
+      throw InternalError("DatasetWriter: eigenvector view must be contiguous.");
+    }
+    if (!uvw.is_contiguous()) {
+      throw InternalError("DatasetWriter: uvw view must be contiguous.");
+    }
+
     const auto index = count_;
     const auto newSize = ++count_;
 
@@ -85,18 +92,10 @@ public:
     h5::check(H5Dextend(h5MaxW_.id(), &newSize));
 
     h5::write_single_element(index, h5EigVal_.id(), h5EigValType_.id(), d.data());
-    if (v.is_contiguous()) {
-      h5::write_single_element(index, h5EigVec_.id(), h5EigVecType_.id(), v.data());
-    } else {
-      // TODO
-    }
-    if (uvw.is_contiguous()) {
-      h5::write_single_element(index, h5UVW_.id(), h5UVWType_.id(), uvw.data());
-    } else {
-      // TODO
-    }
+    h5::write_single_element(index, h5EigVec_.id(), h5EigVecType_.id(), v.data());
+    h5::write_single_element(index, h5UVW_.id(), h5UVWType_.id(), uvw.data());
 
-    h5::write_single_element(index, h5Wl_.id(), h5::get_type_id<float>(), &wl);
+    h5::write_single_element(index, h5Wl_.id(), h5::get_type_id<ValueType>(), &wl);
     unsigned int nVisOut = static_cast<unsigned int>(nVis);
     h5::write_single_element(index, h5NVis_.id(), h5::get_type_id<decltype(nVisOut)>(), &nVisOut);
 
@@ -104,14 +103,14 @@ public:
     const auto vMM = std::minmax_element(&uvw[{0, 1}], &uvw[{0, 1}] + uvw.shape(0));
     const auto wMM = std::minmax_element(&uvw[{0, 2}], &uvw[{0, 2}] + uvw.shape(0));
 
-    h5::write_single_element(index, h5MinU_.id(), h5::get_type_id<float>(), uMM.first);
-    h5::write_single_element(index, h5MaxU_.id(), h5::get_type_id<float>(), uMM.second);
+    h5::write_single_element(index, h5MinU_.id(), h5::get_type_id<ValueType>(), uMM.first);
+    h5::write_single_element(index, h5MaxU_.id(), h5::get_type_id<ValueType>(), uMM.second);
 
-    h5::write_single_element(index, h5MinV_.id(), h5::get_type_id<float>(), vMM.first);
-    h5::write_single_element(index, h5MaxV_.id(), h5::get_type_id<float>(), vMM.second);
+    h5::write_single_element(index, h5MinV_.id(), h5::get_type_id<ValueType>(), vMM.first);
+    h5::write_single_element(index, h5MaxV_.id(), h5::get_type_id<ValueType>(), vMM.second);
 
-    h5::write_single_element(index, h5MinW_.id(), h5::get_type_id<float>(), wMM.first);
-    h5::write_single_element(index, h5MaxW_.id(), h5::get_type_id<float>(), wMM.second);
+    h5::write_single_element(index, h5MinW_.id(), h5::get_type_id<ValueType>(), wMM.first);
+    h5::write_single_element(index, h5MaxW_.id(), h5::get_type_id<ValueType>(), wMM.second);
   }
 
 private:
