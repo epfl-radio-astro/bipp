@@ -15,7 +15,7 @@ class DatasetWriter {
 public:
   using ValueType = float;
 
-  DatasetWriter(const std::string& fileName, const std::string& datasetName, std::size_t nAntenna,
+  DatasetWriter(const std::string& fileName, const std::string& description, std::size_t nAntenna,
                 std::size_t nBeam);
 
   auto write(ValueType wl, std::size_t nVis, ConstHostView<std::complex<ValueType>, 2> v,

@@ -18,7 +18,7 @@ public:
 
   explicit DatasetReader(const std::string& fileName);
 
-  auto name() const noexcept -> const std::string&;
+  auto description() const noexcept -> const std::string&;
 
   auto num_samples() const noexcept -> std::size_t;
 

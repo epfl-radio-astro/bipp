@@ -22,7 +22,7 @@ namespace bipp {
 
 class DatasetWriter::DatasetWriterImpl {
 public:
-  DatasetWriterImpl(const std::string& fileName, const std::string& datasetName,
+  DatasetWriterImpl(const std::string& fileName, const std::string& description,
                     std::size_t nAntenna, std::size_t nBeam)
       : nAntenna_(nAntenna), nBeam_(nBeam) {
     h5File_ = h5::check(H5Fcreate(fileName.data(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT));
@@ -32,8 +32,7 @@ public:
     h5::create_size_attr(h5File_.id(), "formatVersionMinor", datasetFormatVersionMinor);
     h5::create_size_attr(h5File_.id(), "nBeam", nBeam);
     h5::create_size_attr(h5File_.id(), "nAntenna", nAntenna);
-    h5::create_string_attr(h5File_.id(), "name", datasetName);
-
+    h5::create_string_attr(h5File_.id(), "description", description);
 
     // create array types
     {
@@ -159,9 +158,9 @@ auto DatasetWriter::DatasetWriterImplDeleter::operator()(DatasetWriterImpl* p) -
   if (p) delete p;
 }
 
-DatasetWriter::DatasetWriter(const std::string& fileName, const std::string& datasetName,
+DatasetWriter::DatasetWriter(const std::string& fileName, const std::string& description,
                              std::size_t nAntenna, std::size_t nBeam)
-    : impl_(new DatasetWriterImpl(fileName, datasetName, nAntenna, nBeam)) {}
+    : impl_(new DatasetWriterImpl(fileName, description, nAntenna, nBeam)) {}
 
 auto DatasetWriter::write(ValueType wl, std::size_t nVis,
                           ConstHostView<std::complex<ValueType>, 2> v,

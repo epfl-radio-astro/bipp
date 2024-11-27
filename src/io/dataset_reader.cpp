@@ -32,7 +32,7 @@ public:
     // attributes
     nBeam_ = h5::read_size_attr(h5File_.id(), "nBeam");
     nAntenna_ = h5::read_size_attr(h5File_.id(), "nAntenna");
-    name_ = h5::read_string_attr(h5File_.id(), "name");
+    description_ = h5::read_string_attr(h5File_.id(), "description");
 
     // create array types
     {
@@ -77,8 +77,8 @@ public:
     //TODO: set cache sizes?
   }
 
-  auto name() const noexcept -> const std::string& {
-    return name_;
+  auto description() const noexcept -> const std::string& {
+    return description_;
   }
 
   auto num_samples() const noexcept -> std::size_t {
@@ -134,7 +134,7 @@ private:
   hsize_t nAntenna_ = 0;
   hsize_t nBeam_ = 0;
   hsize_t nSamples_ = 0;
-  std::string name_;
+  std::string description_;
 
   // file
   h5::File h5File_ = H5I_INVALID_HID;
@@ -167,7 +167,7 @@ auto DatasetReader::DatasetReaderImplDeleter::operator()(DatasetReaderImpl* p) -
 DatasetReader::DatasetReader(const std::string& fileName)
     : impl_(new DatasetReaderImpl(fileName)) {}
 
-auto DatasetReader::name() const noexcept -> const std::string& { return impl_->name(); }
+auto DatasetReader::description() const noexcept -> const std::string& { return impl_->description(); }
 
 auto DatasetReader::num_samples() const noexcept -> std::size_t { return impl_->num_samples(); }
 
