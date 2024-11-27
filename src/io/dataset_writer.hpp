@@ -19,7 +19,8 @@ public:
                 std::size_t nBeam);
 
   auto write(ValueType wl, std::size_t nVis, ConstHostView<std::complex<ValueType>, 2> v,
-             ConstHostView<ValueType, 1> d, ConstHostView<ValueType, 2> uvw) -> void;
+             ConstHostView<ValueType, 1> d, ConstHostView<ValueType, 2> uvw,
+             ConstHostView<ValueType, 2> xyz) -> void;
 
 private:
   class DatasetWriterImpl;

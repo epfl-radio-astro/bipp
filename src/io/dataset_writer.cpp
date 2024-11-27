@@ -49,6 +49,11 @@ public:
       h5UVWType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
     }
 
+    {
+      std::array<hsize_t, 2> dims = {3, nAntenna};
+      h5XYZType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
+    }
+
     // TODO: set optimal chunk size individually
     constexpr hsize_t CHUNK_SIZE = 5;
 
@@ -65,15 +70,20 @@ public:
     h5EigVal_ = h5::create_one_dim_space(h5File_.id(), "eigVal", h5EigValType_.id(), CHUNK_SIZE);
     h5EigVec_ = h5::create_one_dim_space(h5File_.id(), "eigVec", h5EigVecType_.id(), CHUNK_SIZE);
     h5UVW_ = h5::create_one_dim_space(h5File_.id(), "uvw", h5UVWType_.id(), CHUNK_SIZE);
+    h5XYZ_ = h5::create_one_dim_space(h5File_.id(), "xyz", h5XYZType_.id(), CHUNK_SIZE);
   }
 
   auto write(ValueType wl, std::size_t nVis, ConstHostView<std::complex<ValueType>, 2> v,
-             ConstHostView<ValueType, 1> d, ConstHostView<ValueType, 2> uvw) -> void {
+             ConstHostView<ValueType, 1> d, ConstHostView<ValueType, 2> uvw,
+             ConstHostView<ValueType, 2> xyz) -> void {
     if (!v.is_contiguous()) {
       throw InternalError("DatasetWriter: eigenvector view must be contiguous.");
     }
     if (!uvw.is_contiguous()) {
       throw InternalError("DatasetWriter: uvw view must be contiguous.");
+    }
+    if (!xyz.is_contiguous()) {
+      throw InternalError("DatasetWriter: xyz view must be contiguous.");
     }
 
     const auto index = count_;
@@ -82,6 +92,7 @@ public:
     h5::check(H5Dextend(h5EigVal_.id(), &newSize));
     h5::check(H5Dextend(h5EigVec_.id(), &newSize));
     h5::check(H5Dextend(h5UVW_.id(), &newSize));
+    h5::check(H5Dextend(h5XYZ_.id(), &newSize));
     h5::check(H5Dextend(h5Wl_.id(), &newSize));
     h5::check(H5Dextend(h5NVis_.id(), &newSize));
     h5::check(H5Dextend(h5MinU_.id(), &newSize));
@@ -94,6 +105,7 @@ public:
     h5::write_single_element(index, h5EigVal_.id(), h5EigValType_.id(), d.data());
     h5::write_single_element(index, h5EigVec_.id(), h5EigVecType_.id(), v.data());
     h5::write_single_element(index, h5UVW_.id(), h5UVWType_.id(), uvw.data());
+    h5::write_single_element(index, h5XYZ_.id(), h5XYZType_.id(), xyz.data());
 
     h5::write_single_element(index, h5Wl_.id(), h5::get_type_id<ValueType>(), &wl);
     unsigned int nVisOut = static_cast<unsigned int>(nVis);
@@ -126,11 +138,13 @@ private:
   h5::DataType h5EigValType_ = H5I_INVALID_HID;
   h5::DataType h5EigVecType_ = H5I_INVALID_HID;
   h5::DataType h5UVWType_ = H5I_INVALID_HID;
+  h5::DataType h5XYZType_ = H5I_INVALID_HID;
 
   // datasets
   h5::DataSet h5EigVal_;
   h5::DataSet h5EigVec_;
   h5::DataSet h5UVW_;
+  h5::DataSet h5XYZ_;
   h5::DataSet h5Wl_;
   h5::DataSet h5NVis_;
   h5::DataSet h5MinU_;
@@ -151,8 +165,9 @@ DatasetWriter::DatasetWriter(const std::string& fileName, const std::string& dat
 
 auto DatasetWriter::write(ValueType wl, std::size_t nVis,
                           ConstHostView<std::complex<ValueType>, 2> v,
-                          ConstHostView<ValueType, 1> d, ConstHostView<ValueType, 2> uvw) -> void {
-  impl_->write(wl, nVis, v, d, uvw);
+                          ConstHostView<ValueType, 1> d, ConstHostView<ValueType, 2> uvw,
+                          ConstHostView<ValueType, 2> xyz) -> void {
+  impl_->write(wl, nVis, v, d, uvw, xyz);
 }
 
 }  // namespace bipp

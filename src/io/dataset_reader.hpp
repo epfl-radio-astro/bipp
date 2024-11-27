@@ -32,6 +32,8 @@ public:
 
   auto read_uvw(std::size_t index, HostView<ValueType, 2> uvw) -> void;
 
+  auto read_xyz(std::size_t index, HostView<ValueType, 2> xyz) -> void;
+
   auto read_wl(std::size_t index) -> ValueType;
 
   auto read_n_vis(std::size_t index) -> std::size_t;

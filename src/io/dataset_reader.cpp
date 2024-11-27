@@ -47,10 +47,15 @@ public:
       std::array<hsize_t, 2> dims = {3, nAntenna_ * nAntenna_};
       h5UVWType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
     }
+    {
+      std::array<hsize_t, 2> dims = {3, nAntenna_};
+      h5XYZType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
+    }
 
     h5EigVal_ = h5::check(H5Dopen(h5File_.id(), "eigVal", H5P_DEFAULT));
     h5EigVec_ = h5::check(H5Dopen(h5File_.id(), "eigVec", H5P_DEFAULT));
     h5UVW_ = h5::check(H5Dopen(h5File_.id(), "uvw", H5P_DEFAULT));
+    h5XYZ_ = h5::check(H5Dopen(h5File_.id(), "xyz", H5P_DEFAULT));
     h5Wl_ = h5::check(H5Dopen(h5File_.id(), "wl", H5P_DEFAULT));
     h5NVis_ = h5::check(H5Dopen(h5File_.id(), "nvis", H5P_DEFAULT));
     h5MinU_ = h5::check(H5Dopen(h5File_.id(), "uMin", H5P_DEFAULT));
@@ -106,6 +111,13 @@ public:
     h5::read_single_element(index, h5UVW_.id(), h5UVWType_.id(), uvw.data());
   }
 
+  auto read_xyz(std::size_t index, HostView<ValueType, 2> xyz) -> void {
+    if(!xyz.is_contiguous()){
+      throw InternalError("DatasetReader: xyz view must be contiguous.");
+    }
+    h5::read_single_element(index, h5XYZ_.id(), h5XYZType_.id(), xyz.data());
+  }
+
   auto read_wl(std::size_t index) -> ValueType {
     ValueType value = 0;
     h5::read_single_element(index, h5Wl_.id(), h5::get_type_id<ValueType>(), &value);
@@ -131,11 +143,13 @@ private:
   h5::DataType h5EigValType_ = H5I_INVALID_HID;
   h5::DataType h5EigVecType_ = H5I_INVALID_HID;
   h5::DataType h5UVWType_ = H5I_INVALID_HID;
+  h5::DataType h5XYZType_ = H5I_INVALID_HID;
 
   // datasets
   h5::DataSet h5EigVal_;
   h5::DataSet h5EigVec_;
   h5::DataSet h5UVW_;
+  h5::DataSet h5XYZ_;
   h5::DataSet h5Wl_;
   h5::DataSet h5NVis_;
   h5::DataSet h5MinU_;
@@ -172,6 +186,10 @@ auto DatasetReader::read_eig_val(std::size_t index, HostView<ValueType, 1> d) ->
 
 auto DatasetReader::read_uvw(std::size_t index, HostView<ValueType, 2> uvw) -> void {
   impl_->read_uvw(index, uvw);
+}
+
+auto DatasetReader::read_xyz(std::size_t index, HostView<ValueType, 2> xyz) -> void {
+  impl_->read_xyz(index, xyz);
 }
 
 auto DatasetReader::read_wl(std::size_t index) -> ValueType { return impl_->read_wl(index); }
