@@ -247,6 +247,48 @@ struct StandardSynthesisDispatcher {
   std::size_t nImages_, nPixel_;
 };
 
+struct DatasetCreatorDispatcher {
+  DatasetCreatorDispatcher(const std::string& fileName, const std::string& description,
+                           std::size_t nAntenna, std::size_t nBeam)
+      : creator_(fileName, description, nAntenna, nBeam) {}
+  auto process_and_write(const std::string& precision, double wl,
+               pybind11::array s, pybind11::array w, pybind11::array xyz, pybind11::array uvw) -> void{
+    if (precision == "single" || precision == "SINGLE") {
+      process_and_write_t<float>(wl, s, w, xyz, uvw);
+    } else if (precision == "double" || precision == "DOUBLE") {
+      process_and_write_t<double>(wl, s, w, xyz, uvw);
+    } else {
+      throw InvalidParameterError();
+    }
+  }
+
+  template <typename T>
+  auto process_and_write_t(double wl, pybind11::array s, pybind11::array w, pybind11::array xyz,
+                           pybind11::array uvw) -> void{
+            py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast> wArray(w);
+            check_2d_array(wArray);
+            long nAntenna = creator_.num_antenna();
+            long nBeam = creator_.num_beam();
+            py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(xyz);
+            check_2d_array(xyzArray, {nAntenna, 3});
+            py::array_t<T, py::array::f_style | py::array::forcecast> uvwArray(uvw);
+            check_2d_array(uvwArray, {nAntenna * nAntenna, 3});
+
+            auto sArray =
+                py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast>(s);
+            check_2d_array(sArray, {nBeam, nBeam});
+
+            creator_.process_and_write(
+                wl, sArray.data(0), safe_cast<std::size_t>(sArray.strides(1) / sArray.itemsize()),
+                wArray.data(0), safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()),
+                xyzArray.data(0), safe_cast<std::size_t>(xyzArray.strides(1) / xyzArray.itemsize()),
+                uvwArray.data(0),
+                safe_cast<std::size_t>(uvwArray.strides(1) / uvwArray.itemsize()));
+  }
+
+  DatasetCreator creator_;
+};
+
 struct NufftSynthesisDispatcher {
   NufftSynthesisDispatcher(Context& ctx, NufftSynthesisOptions opt, std::size_t nImages,
                            const py::array& lmnX, const py::array& lmnY, const py::array& lmnZ,
@@ -481,6 +523,14 @@ PYBIND11_MODULE(pybipp, m) {
       .def("collect", &StandardSynthesisDispatcher::collect, pybind11::arg("wl"),
            pybind11::arg("mask"), pybind11::arg("s"), pybind11::arg("w"), pybind11::arg("xyz"))
       .def("get", &StandardSynthesisDispatcher::get);
+
+  pybind11::class_<DatasetCreatorDispatcher>(m, "DatasetCreator")
+      .def(pybind11::init<const std::string&, const std::string&, std::size_t, std::size_t>(),
+           pybind11::arg("file_name"), pybind11::arg("description"), pybind11::arg("n_antenna"),
+           pybind11::arg("n_beam"))
+      .def("process_and_write", &DatasetCreatorDispatcher::process_and_write,
+           pybind11::arg("precision"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),
+           pybind11::arg("xyz"), pybind11::arg("uvw"));
 
   m.def(
        "gram_matrix",

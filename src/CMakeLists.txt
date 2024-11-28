@@ -22,6 +22,7 @@ set(BIPP_SOURCE_FILES
 	host/collector.cpp
 	io/dataset_writer.cpp
 	io/dataset_reader.cpp
+	dataset_creator.cpp
 	)
 
 if(BIPP_MPI)

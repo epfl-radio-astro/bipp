@@ -1,10 +1,11 @@
 #pragma once
 
 #include <bipp/config.h>
-
 #include <bipp/enums.h>
-#include <bipp/context.hpp>
+
 #include <bipp/communicator.hpp>
+#include <bipp/context.hpp>
+#include <bipp/dataset_creator.hpp>
 #include <bipp/exceptions.hpp>
 #include <bipp/nufft_synthesis.hpp>
 #include <bipp/standard_synthesis.hpp>
