@@ -247,53 +247,6 @@ struct StandardSynthesisDispatcher {
   std::size_t nImages_, nPixel_;
 };
 
-struct DatasetCreatorDispatcher {
-  DatasetCreatorDispatcher(const std::string& fileName, const std::string& description,
-                           std::size_t nAntenna, std::size_t nBeam)
-      : creator_(fileName, description, nAntenna, nBeam) {}
-  auto process_and_write(const std::string& precision, double wl,
-               pybind11::array s, pybind11::array w, pybind11::array xyz, pybind11::array uvw) -> void{
-    if (precision == "single" || precision == "SINGLE") {
-      process_and_write_t<float>(wl, s, w, xyz, uvw);
-    } else if (precision == "double" || precision == "DOUBLE") {
-      process_and_write_t<double>(wl, s, w, xyz, uvw);
-    } else {
-      throw InvalidParameterError();
-    }
-  }
-
-  template <typename T>
-  auto process_and_write_t(double wl, pybind11::array s, pybind11::array w, pybind11::array xyz,
-                           pybind11::array uvw) -> void{
-            py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast> wArray(w);
-            check_2d_array(wArray);
-            long nAntenna = creator_.num_antenna();
-            long nBeam = creator_.num_beam();
-            py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(xyz);
-            check_2d_array(xyzArray, {nAntenna, 3});
-            py::array_t<T, py::array::f_style | py::array::forcecast> uvwArray(uvw);
-            check_2d_array(uvwArray, {nAntenna * nAntenna, 3});
-
-            auto sArray =
-                py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast>(s);
-            check_2d_array(sArray, {nBeam, nBeam});
-
-            creator_.process_and_write(
-                wl, sArray.data(0), safe_cast<std::size_t>(sArray.strides(1) / sArray.itemsize()),
-                wArray.data(0), safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()),
-                xyzArray.data(0), safe_cast<std::size_t>(xyzArray.strides(1) / xyzArray.itemsize()),
-                uvwArray.data(0),
-                safe_cast<std::size_t>(uvwArray.strides(1) / uvwArray.itemsize()));
-  }
-
-
-  auto close() -> void {
-    creator_.close();
-  }
-
-  DatasetCreator creator_;
-};
-
 struct NufftSynthesisDispatcher {
   NufftSynthesisDispatcher(Context& ctx, NufftSynthesisOptions opt, std::size_t nImages,
                            const py::array& lmnX, const py::array& lmnY, const py::array& lmnZ,
@@ -403,6 +356,110 @@ struct NufftSynthesisDispatcher {
   std::variant<std::monostate, NufftSynthesis<float>, NufftSynthesis<double>> plan_;
   std::size_t nImages_, nPixel_;
 };
+
+struct DatasetCreatorDispatcher {
+  DatasetCreatorDispatcher(const std::string& fileName, const std::string& description,
+                           std::size_t nAntenna, std::size_t nBeam)
+      : creator_(fileName, description, nAntenna, nBeam) {}
+  auto process_and_write(const std::string& precision, double wl,
+               pybind11::array s, pybind11::array w, pybind11::array xyz, pybind11::array uvw) -> void{
+    if (precision == "single" || precision == "SINGLE") {
+      process_and_write_t<float>(wl, s, w, xyz, uvw);
+    } else if (precision == "double" || precision == "DOUBLE") {
+      process_and_write_t<double>(wl, s, w, xyz, uvw);
+    } else {
+      throw InvalidParameterError();
+    }
+  }
+
+  template <typename T>
+  auto process_and_write_t(double wl, pybind11::array s, pybind11::array w, pybind11::array xyz,
+                           pybind11::array uvw) -> void{
+            py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast> wArray(w);
+            check_2d_array(wArray);
+            long nAntenna = creator_.num_antenna();
+            long nBeam = creator_.num_beam();
+            py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(xyz);
+            check_2d_array(xyzArray, {nAntenna, 3});
+            py::array_t<T, py::array::f_style | py::array::forcecast> uvwArray(uvw);
+            check_2d_array(uvwArray, {nAntenna * nAntenna, 3});
+
+            auto sArray =
+                py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast>(s);
+            check_2d_array(sArray, {nBeam, nBeam});
+
+            creator_.process_and_write(
+                wl, sArray.data(0), safe_cast<std::size_t>(sArray.strides(1) / sArray.itemsize()),
+                wArray.data(0), safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()),
+                xyzArray.data(0), safe_cast<std::size_t>(xyzArray.strides(1) / xyzArray.itemsize()),
+                uvwArray.data(0),
+                safe_cast<std::size_t>(uvwArray.strides(1) / uvwArray.itemsize()));
+  }
+
+
+  auto close() -> void {
+    creator_.close();
+  }
+
+  auto is_open() -> bool {
+    return creator_.is_open();
+  }
+
+  DatasetCreator creator_;
+};
+
+struct DatasetReaderDispatcher {
+  explicit DatasetReaderDispatcher(const std::string& fileName) : reader_(fileName) {}
+
+  const std::string& description() const { return reader_.description(); }
+
+  std::size_t num_samples() const {return reader_.num_samples();}
+
+  std::size_t num_antenna() const { return reader_.num_antenna(); }
+
+  std::size_t num_beam() const { return reader_.num_beam(); }
+
+  py::array read_eig_vec(std::size_t index) {
+    py::array_t<std::complex<float>, py::array::f_style> out(
+        {reader_.num_antenna(), reader_.num_beam()});
+
+    reader_.read_eig_vec(index, out.mutable_data(0), out.strides(1) / out.itemsize());
+    return out;
+  }
+
+  py::array read_eig_val(std::size_t index) {
+    py::array_t<float> out(reader_.num_beam());
+
+    reader_.read_eig_val(index, out.mutable_data(0));
+    return out;
+  }
+
+  py::array read_uvw(std::size_t index) {
+    py::array_t<float, py::array::f_style> out(
+        {reader_.num_antenna() * reader_.num_antenna(), std::size_t(3)});
+
+    reader_.read_uvw(index, out.mutable_data(0), out.strides(1) / out.itemsize());
+    return out;
+  }
+
+  py::array read_xyz(std::size_t index) {
+    py::array_t<float, py::array::f_style> out({reader_.num_antenna(), std::size_t(3)});
+
+    reader_.read_xyz(index, out.mutable_data(0), out.strides(1) / out.itemsize());
+    return out;
+  }
+
+  float read_wl(std::size_t index) { return reader_.read_wl(index); }
+
+  std::size_t read_n_vis(std::size_t index) { return reader_.read_n_vis(index); }
+
+  void close() { reader_.close(); }
+
+  bool is_open() const noexcept { return reader_.is_open(); }
+
+  DatasetReader reader_;
+};
+
 
 struct CompileConfig {
 #ifdef BIPP_CUDA
@@ -537,10 +594,32 @@ PYBIND11_MODULE(pybipp, m) {
            pybind11::arg("precision"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),
            pybind11::arg("xyz"), pybind11::arg("uvw"))
       .def("close", &DatasetCreatorDispatcher::close)
+      .def("is_open", &DatasetCreatorDispatcher::is_open)
       .def("__enter__", [](DatasetCreatorDispatcher& d) -> DatasetCreatorDispatcher& { return d; })
       .def(
           "__exit__",
           [](DatasetCreatorDispatcher& d, const std::optional<pybind11::type>&,
+             const std::optional<pybind11::object>&,
+             const std::optional<pybind11::object>&) { d.close(); },
+          "Close dataset file");
+
+  pybind11::class_<DatasetReaderDispatcher>(m, "DatasetReader")
+      .def(pybind11::init<const std::string&>(), pybind11::arg("file_name"))
+      .def("close", &DatasetReaderDispatcher::close)
+      .def("is_open", &DatasetReaderDispatcher::is_open)
+      .def("num_samples", &DatasetReaderDispatcher::num_samples)
+      .def("num_beam", &DatasetReaderDispatcher::num_beam)
+      .def("num_antenna", &DatasetReaderDispatcher::num_antenna)
+      .def("read_eig_vec", &DatasetReaderDispatcher::read_eig_vec, pybind11::arg("index"))
+      .def("read_eig_val", &DatasetReaderDispatcher::read_eig_val, pybind11::arg("index"))
+      .def("read_uvw", &DatasetReaderDispatcher::read_uvw, pybind11::arg("index"))
+      .def("read_xyz", &DatasetReaderDispatcher::read_xyz, pybind11::arg("index"))
+      .def("read_wl", &DatasetReaderDispatcher::read_wl, pybind11::arg("index"))
+      .def("read_n_vis", &DatasetReaderDispatcher::read_n_vis, pybind11::arg("index"))
+      .def("__enter__", [](DatasetReaderDispatcher& d) -> DatasetReaderDispatcher& { return d; })
+      .def(
+          "__exit__",
+          [](DatasetReaderDispatcher& d, const std::optional<pybind11::type>&,
              const std::optional<pybind11::object>&,
              const std::optional<pybind11::object>&) { d.close(); },
           "Close dataset file");
