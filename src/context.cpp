@@ -39,7 +39,7 @@ BIPP_EXPORT BippError bipp_ctx_create(BippProcessingUnit pu, BippContext* ctx) {
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -51,7 +51,7 @@ BIPP_EXPORT BippError bipp_ctx_create_distributed(BippProcessingUnit pu, BippCom
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -66,7 +66,7 @@ BIPP_EXPORT BippError bipp_ctx_attach_non_root(BippContext ctx, bool* attached) 
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -81,7 +81,7 @@ BIPP_EXPORT BippError bipp_ctx_destroy(BippContext* ctx) {
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }

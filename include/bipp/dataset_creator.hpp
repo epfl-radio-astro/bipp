@@ -29,6 +29,9 @@ public:
              const float* d, const float* xyz, std::size_t ldxyz, const float* uvw,
              std::size_t lduvw);
 
+  void close();
+
+  bool is_open() const;
 
   std::size_t num_antenna() const;
 

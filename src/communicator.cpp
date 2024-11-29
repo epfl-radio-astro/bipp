@@ -57,7 +57,7 @@ BIPP_EXPORT BippError bipp_comm_create_custom(BippCommunicator* comm, MPI_Comm m
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -69,7 +69,7 @@ BIPP_EXPORT BippError bipp_comm_create_world(BippCommunicator* comm) {
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -80,7 +80,7 @@ BIPP_EXPORT BippError bipp_comm_create_local(BippCommunicator* comm) {
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -95,7 +95,7 @@ BIPP_EXPORT BippError bipp_comm_is_root(BippCommunicator comm, bool* root) {
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -110,7 +110,7 @@ BIPP_EXPORT BippError bipp_comm_destroy(BippCommunicator* comm) {
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }

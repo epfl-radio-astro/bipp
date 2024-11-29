@@ -82,7 +82,7 @@ BIPP_EXPORT BippError bipp_eigh_f(BippContext ctx, float wl, size_t nAntenna, si
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -103,7 +103,7 @@ BIPP_EXPORT BippError bipp_eigh(BippContext ctx, double wl, size_t nAntenna, siz
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }

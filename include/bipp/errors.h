@@ -8,9 +8,9 @@ enum BippError {
    */
   BIPP_SUCCESS,
   /**
-   * Unknown error.
+   * Generic error.
    */
-  BIPP_UNKNOWN_ERROR,
+  BIPP_GENERIC_ERROR,
   /**
    * Internal error.
    */

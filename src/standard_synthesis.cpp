@@ -106,7 +106,7 @@ BIPP_EXPORT BippError bipp_standard_synthesis_create_f(BippContext ctx,
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -121,7 +121,7 @@ BIPP_EXPORT BippError bipp_standard_synthesis_destroy_f(BippStandardSynthesisF* 
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -142,7 +142,7 @@ BIPP_EXPORT BippError bipp_standard_synthesis_collect_f(BippStandardSynthesisF p
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -157,7 +157,7 @@ BIPP_EXPORT BippError bipp_standard_synthesis_get_f(BippStandardSynthesisF plan,
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -176,7 +176,7 @@ BIPP_EXPORT BippError bipp_standard_synthesis_create(BippContext ctx, BippStanda
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -191,7 +191,7 @@ BIPP_EXPORT BippError bipp_standard_synthesis_destroy(BippStandardSynthesis* pla
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -211,7 +211,7 @@ BIPP_EXPORT BippError bipp_standard_synthesis_collect(BippStandardSynthesis plan
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -226,7 +226,7 @@ BIPP_EXPORT BippError bipp_standard_synthesis_get(BippStandardSynthesis plan, do
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -237,7 +237,7 @@ BIPP_EXPORT BippError bipp_ss_options_create(BippStandardSynthesisOptions* opt) 
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -252,7 +252,7 @@ BIPP_EXPORT BippError bipp_ss_options_destroy(BippStandardSynthesisOptions* opt)
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -267,7 +267,7 @@ BIPP_EXPORT BippError bipp_ss_options_set_collect_group_size(BippStandardSynthes
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -282,7 +282,7 @@ BIPP_EXPORT BippError bipp_ss_options_set_normalize_image(BippStandardSynthesisO
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -297,7 +297,7 @@ BIPP_EXPORT BippError bipp_ss_options_set_normalize_image_by_nvis(BippStandardSy
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }

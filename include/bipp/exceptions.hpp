@@ -15,20 +15,26 @@ namespace bipp {
  */
 class BIPP_EXPORT GenericError : public std::exception {
 public:
-  const char* what() const noexcept override { return "BIPP: Generic error"; }
+  GenericError() : msg_("BIPP: Generic error") {}
 
-  virtual BippError error_code() const noexcept { return BippError::BIPP_UNKNOWN_ERROR; }
+  // Only to be used with string literals
+  template <std::size_t N>
+  GenericError(const char (&msg)[N]) : msg_(msg) {}
+
+  const char* what() const noexcept override { return msg_; }
+
+  virtual BippError error_code() const noexcept { return BippError::BIPP_GENERIC_ERROR; }
+
+private:
+  const char* msg_;
 };
 
 class BIPP_EXPORT InternalError : public GenericError {
 public:
-  InternalError() : msg_("BIPP: Internal error") {}
+  InternalError() : GenericError("BIPP: Internal error") {}
 
-  // Only to be used with string literals
   template <std::size_t N>
-  InternalError(const char (&msg)[N]) : msg_(msg) {}
-
-  const char* what() const noexcept override { return msg_; }
+  InternalError(const char (&msg)[N]) : GenericError(msg) {}
 
   BippError error_code() const noexcept override { return BippError::BIPP_INTERNAL_ERROR; }
 
@@ -89,7 +95,7 @@ public:
 
 class BIPP_EXPORT GPUError : public GenericError {
 public:
-  GPUError() : msg_("") {}
+  GPUError() : msg_("BIPP: GPU Error") {}
 
   GPUError(const char* msg) : msg_(msg) {}
 

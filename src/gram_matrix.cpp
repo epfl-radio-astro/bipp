@@ -77,7 +77,7 @@ BIPP_EXPORT BippError bipp_gram_matrix_f(BippContext ctx, size_t nAntenna, size_
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }
@@ -95,7 +95,7 @@ BIPP_EXPORT BippError bipp_gram_matrix(BippContext ctx, size_t nAntenna, size_t 
   } catch (const bipp::GenericError& e) {
     return e.error_code();
   } catch (...) {
-    return BIPP_UNKNOWN_ERROR;
+    return BIPP_GENERIC_ERROR;
   }
   return BIPP_SUCCESS;
 }

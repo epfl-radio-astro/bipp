@@ -286,6 +286,11 @@ struct DatasetCreatorDispatcher {
                 safe_cast<std::size_t>(uvwArray.strides(1) / uvwArray.itemsize()));
   }
 
+
+  auto close() -> void {
+    creator_.close();
+  }
+
   DatasetCreator creator_;
 };
 
@@ -530,7 +535,15 @@ PYBIND11_MODULE(pybipp, m) {
            pybind11::arg("n_beam"))
       .def("process_and_write", &DatasetCreatorDispatcher::process_and_write,
            pybind11::arg("precision"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),
-           pybind11::arg("xyz"), pybind11::arg("uvw"));
+           pybind11::arg("xyz"), pybind11::arg("uvw"))
+      .def("close", &DatasetCreatorDispatcher::close)
+      .def("__enter__", [](DatasetCreatorDispatcher& d) -> DatasetCreatorDispatcher& { return d; })
+      .def(
+          "__exit__",
+          [](DatasetCreatorDispatcher& d, const std::optional<pybind11::type>&,
+             const std::optional<pybind11::object>&,
+             const std::optional<pybind11::object>&) { d.close(); },
+          "Close dataset file");
 
   m.def(
        "gram_matrix",
