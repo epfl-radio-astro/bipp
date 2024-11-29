@@ -23,6 +23,7 @@ set(BIPP_SOURCE_FILES
 	io/dataset_file_writer.cpp
 	io/dataset_file_reader.cpp
 	dataset_creator.cpp
+	dataset_reader.cpp
 	)
 
 if(BIPP_MPI)
