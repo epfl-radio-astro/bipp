@@ -1,4 +1,4 @@
-#include "io/dataset_reader.hpp"
+#include "io/dataset_file_reader.hpp"
 
 #include <hdf5.h>
 
@@ -15,17 +15,17 @@
 
 namespace bipp {
 
-class DatasetReader::DatasetReaderImpl {
+class DatasetFileReader::DatasetFileReaderImpl {
 public:
-  explicit DatasetReaderImpl(const std::string& fileName) {
+  explicit DatasetFileReaderImpl(const std::string& fileName) {
     h5File_ = h5::check(H5Fopen(fileName.data(), H5F_ACC_RDONLY, H5P_DEFAULT));
 
     // check format version
-    if(h5::read_size_attr(h5File_.id(), "formatVersionMajor" ) != datasetFormatVersionMajor) {
+    if (h5::read_size_attr(h5File_.id(), "formatVersionMajor") != datasetFormatVersionMajor) {
       throw FileError("Dataset format major version mismatch.");
     }
 
-    if(h5::read_size_attr(h5File_.id(), "formatVersionMinor" ) > datasetFormatVersionMinor) {
+    if (h5::read_size_attr(h5File_.id(), "formatVersionMinor") > datasetFormatVersionMinor) {
       throw FileError("Dataset format minor version mismatch.");
     }
 
@@ -37,19 +37,23 @@ public:
     // create array types
     {
       std::array<hsize_t, 1> dims = {nBeam_};
-      h5EigValType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
+      h5EigValType_ =
+          h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
     }
     {
       std::array<hsize_t, 2> dims = {nBeam_, 2 * nAntenna_};
-      h5EigVecType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
+      h5EigVecType_ =
+          h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
     }
     {
       std::array<hsize_t, 2> dims = {3, nAntenna_ * nAntenna_};
-      h5UVWType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
+      h5UVWType_ =
+          h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
     }
     {
       std::array<hsize_t, 2> dims = {3, nAntenna_};
-      h5XYZType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
+      h5XYZType_ =
+          h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
     }
 
     h5EigVal_ = h5::check(H5Dopen(h5File_.id(), "eigVal", H5P_DEFAULT));
@@ -73,29 +77,20 @@ public:
 
     nSamples_ = dim;
 
-
-    //TODO: set cache sizes?
+    // TODO: set cache sizes?
   }
 
-  auto description() const noexcept -> const std::string& {
-    return description_;
-  }
+  auto description() const noexcept -> const std::string& { return description_; }
 
-  auto num_samples() const noexcept -> std::size_t {
-    return nSamples_;
-  }
+  auto num_samples() const noexcept -> std::size_t { return nSamples_; }
 
-  auto num_antenna() const noexcept -> std::size_t {
-    return nAntenna_;
-  }
+  auto num_antenna() const noexcept -> std::size_t { return nAntenna_; }
 
-  auto num_beam() const noexcept -> std::size_t {
-    return nBeam_;
-  }
+  auto num_beam() const noexcept -> std::size_t { return nBeam_; }
 
   auto read_eig_vec(std::size_t index, HostView<std::complex<ValueType>, 2> v) -> void {
-    if(!v.is_contiguous()){
-      throw InternalError("DatasetReader: eigenvector view must be contiguous.");
+    if (!v.is_contiguous()) {
+      throw InternalError("DatasetFileReader: eigenvector view must be contiguous.");
     }
     h5::read_single_element(index, h5EigVec_.id(), h5EigVecType_.id(), v.data());
   };
@@ -105,15 +100,15 @@ public:
   }
 
   auto read_uvw(std::size_t index, HostView<ValueType, 2> uvw) -> void {
-    if(!uvw.is_contiguous()){
-      throw InternalError("DatasetReader: uvw view must be contiguous.");
+    if (!uvw.is_contiguous()) {
+      throw InternalError("DatasetFileReader: uvw view must be contiguous.");
     }
     h5::read_single_element(index, h5UVW_.id(), h5UVWType_.id(), uvw.data());
   }
 
   auto read_xyz(std::size_t index, HostView<ValueType, 2> xyz) -> void {
-    if(!xyz.is_contiguous()){
-      throw InternalError("DatasetReader: xyz view must be contiguous.");
+    if (!xyz.is_contiguous()) {
+      throw InternalError("DatasetFileReader: xyz view must be contiguous.");
     }
     h5::read_single_element(index, h5XYZ_.id(), h5XYZType_.id(), xyz.data());
   }
@@ -160,41 +155,43 @@ private:
   h5::DataSet h5MaxW_;
 };
 
-auto DatasetReader::DatasetReaderImplDeleter::operator()(DatasetReaderImpl* p) -> void {
+auto DatasetFileReader::DatasetFileReaderImplDeleter::operator()(DatasetFileReaderImpl* p) -> void {
   if (p) delete p;
 }
 
-DatasetReader::DatasetReader(const std::string& fileName)
-    : impl_(new DatasetReaderImpl(fileName)) {}
+DatasetFileReader::DatasetFileReader(const std::string& fileName)
+    : impl_(new DatasetFileReaderImpl(fileName)) {}
 
-auto DatasetReader::description() const noexcept -> const std::string& { return impl_->description(); }
+auto DatasetFileReader::description() const noexcept -> const std::string& {
+  return impl_->description();
+}
 
-auto DatasetReader::num_samples() const noexcept -> std::size_t { return impl_->num_samples(); }
+auto DatasetFileReader::num_samples() const noexcept -> std::size_t { return impl_->num_samples(); }
 
-auto DatasetReader::num_antenna() const noexcept -> std::size_t { return impl_->num_antenna(); }
+auto DatasetFileReader::num_antenna() const noexcept -> std::size_t { return impl_->num_antenna(); }
 
-auto DatasetReader::num_beam() const noexcept -> std::size_t { return impl_->num_beam(); }
+auto DatasetFileReader::num_beam() const noexcept -> std::size_t { return impl_->num_beam(); }
 
-auto DatasetReader::read_eig_vec(std::size_t index,
-                                 HostView<std::complex<ValueType>, 2> v) -> void {
+auto DatasetFileReader::read_eig_vec(std::size_t index,
+                                     HostView<std::complex<ValueType>, 2> v) -> void {
   impl_->read_eig_vec(index, v);
 };
 
-auto DatasetReader::read_eig_val(std::size_t index, HostView<ValueType, 1> d) -> void {
+auto DatasetFileReader::read_eig_val(std::size_t index, HostView<ValueType, 1> d) -> void {
   impl_->read_eig_val(index, d);
 }
 
-auto DatasetReader::read_uvw(std::size_t index, HostView<ValueType, 2> uvw) -> void {
+auto DatasetFileReader::read_uvw(std::size_t index, HostView<ValueType, 2> uvw) -> void {
   impl_->read_uvw(index, uvw);
 }
 
-auto DatasetReader::read_xyz(std::size_t index, HostView<ValueType, 2> xyz) -> void {
+auto DatasetFileReader::read_xyz(std::size_t index, HostView<ValueType, 2> xyz) -> void {
   impl_->read_xyz(index, xyz);
 }
 
-auto DatasetReader::read_wl(std::size_t index) -> ValueType { return impl_->read_wl(index); }
+auto DatasetFileReader::read_wl(std::size_t index) -> ValueType { return impl_->read_wl(index); }
 
-auto DatasetReader::read_n_vis(std::size_t index) -> std::size_t {
+auto DatasetFileReader::read_n_vis(std::size_t index) -> std::size_t {
   return impl_->read_n_vis(index);
 }
 

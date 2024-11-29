@@ -20,8 +20,8 @@ set(BIPP_SOURCE_FILES
 	host/kernels/nuft_sum.cpp
 	host/standard_synthesis.cpp
 	host/collector.cpp
-	io/dataset_writer.cpp
-	io/dataset_reader.cpp
+	io/dataset_file_writer.cpp
+	io/dataset_file_reader.cpp
 	dataset_creator.cpp
 	)
 

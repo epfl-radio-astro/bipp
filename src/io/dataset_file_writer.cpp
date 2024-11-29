@@ -1,4 +1,4 @@
-#include "io/dataset_writer.hpp"
+#include "io/dataset_file_writer.hpp"
 
 #include <hdf5.h>
 
@@ -18,12 +18,10 @@
 #include "io/dataset_spec.hpp"
 
 namespace bipp {
-
-
-class DatasetWriter::DatasetWriterImpl {
+class DatasetFileWriter::DatasetFileWriterImpl {
 public:
-  DatasetWriterImpl(const std::string& fileName, const std::string& description,
-                    std::size_t nAntenna, std::size_t nBeam)
+  DatasetFileWriterImpl(const std::string& fileName, const std::string& description,
+                        std::size_t nAntenna, std::size_t nBeam)
       : nAntenna_(nAntenna), nBeam_(nBeam) {
     h5File_ = h5::check(H5Fcreate(fileName.data(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT));
 
@@ -37,20 +35,24 @@ public:
     // create array types
     {
       std::array<hsize_t, 1> dims = {nBeam};
-      h5EigValType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
+      h5EigValType_ =
+          h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
     }
     {
       std::array<hsize_t, 2> dims = {nBeam, 2 * nAntenna};
-      h5EigVecType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
+      h5EigVecType_ =
+          h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
     }
     {
       std::array<hsize_t, 2> dims = {3, nAntenna * nAntenna};
-      h5UVWType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
+      h5UVWType_ =
+          h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
     }
 
     {
       std::array<hsize_t, 2> dims = {3, nAntenna};
-      h5XYZType_ = h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
+      h5XYZType_ =
+          h5::check(H5Tarray_create(h5::get_type_id<ValueType>(), dims.size(), dims.data()));
     }
 
     // TODO: set optimal chunk size individually
@@ -58,13 +60,20 @@ public:
 
     // create data spaces
     h5Wl_ = h5::create_one_dim_space(h5File_.id(), "wl", h5::get_type_id<ValueType>(), CHUNK_SIZE);
-    h5NVis_ = h5::create_one_dim_space(h5File_.id(), "nvis", h5::get_type_id<unsigned int>(), CHUNK_SIZE);
-    h5MinU_ = h5::create_one_dim_space(h5File_.id(), "uMin", h5::get_type_id<ValueType>(), CHUNK_SIZE);
-    h5MinV_ = h5::create_one_dim_space(h5File_.id(), "vMin", h5::get_type_id<ValueType>(), CHUNK_SIZE);
-    h5MinW_ = h5::create_one_dim_space(h5File_.id(), "wMin", h5::get_type_id<ValueType>(), CHUNK_SIZE);
-    h5MaxU_ = h5::create_one_dim_space(h5File_.id(), "uMax", h5::get_type_id<ValueType>(), CHUNK_SIZE);
-    h5MaxV_ = h5::create_one_dim_space(h5File_.id(), "vMax", h5::get_type_id<ValueType>(), CHUNK_SIZE);
-    h5MaxW_ = h5::create_one_dim_space(h5File_.id(), "wMax", h5::get_type_id<ValueType>(), CHUNK_SIZE);
+    h5NVis_ =
+        h5::create_one_dim_space(h5File_.id(), "nvis", h5::get_type_id<unsigned int>(), CHUNK_SIZE);
+    h5MinU_ =
+        h5::create_one_dim_space(h5File_.id(), "uMin", h5::get_type_id<ValueType>(), CHUNK_SIZE);
+    h5MinV_ =
+        h5::create_one_dim_space(h5File_.id(), "vMin", h5::get_type_id<ValueType>(), CHUNK_SIZE);
+    h5MinW_ =
+        h5::create_one_dim_space(h5File_.id(), "wMin", h5::get_type_id<ValueType>(), CHUNK_SIZE);
+    h5MaxU_ =
+        h5::create_one_dim_space(h5File_.id(), "uMax", h5::get_type_id<ValueType>(), CHUNK_SIZE);
+    h5MaxV_ =
+        h5::create_one_dim_space(h5File_.id(), "vMax", h5::get_type_id<ValueType>(), CHUNK_SIZE);
+    h5MaxW_ =
+        h5::create_one_dim_space(h5File_.id(), "wMax", h5::get_type_id<ValueType>(), CHUNK_SIZE);
 
     h5EigVal_ = h5::create_one_dim_space(h5File_.id(), "eigVal", h5EigValType_.id(), CHUNK_SIZE);
     h5EigVec_ = h5::create_one_dim_space(h5File_.id(), "eigVec", h5EigVecType_.id(), CHUNK_SIZE);
@@ -76,13 +85,13 @@ public:
              ConstHostView<ValueType, 1> d, ConstHostView<ValueType, 2> uvw,
              ConstHostView<ValueType, 2> xyz) -> void {
     if (!v.is_contiguous()) {
-      throw InternalError("DatasetWriter: eigenvector view must be contiguous.");
+      throw InternalError("DatasetFileWriter: eigenvector view must be contiguous.");
     }
     if (!uvw.is_contiguous()) {
-      throw InternalError("DatasetWriter: uvw view must be contiguous.");
+      throw InternalError("DatasetFileWriter: uvw view must be contiguous.");
     }
     if (!xyz.is_contiguous()) {
-      throw InternalError("DatasetWriter: xyz view must be contiguous.");
+      throw InternalError("DatasetFileWriter: xyz view must be contiguous.");
     }
 
     const auto index = count_;
@@ -154,18 +163,18 @@ private:
   h5::DataSet h5MaxW_;
 };
 
-auto DatasetWriter::DatasetWriterImplDeleter::operator()(DatasetWriterImpl* p) -> void {
+auto DatasetFileWriter::DatasetFileWriterImplDeleter::operator()(DatasetFileWriterImpl* p) -> void {
   if (p) delete p;
 }
 
-DatasetWriter::DatasetWriter(const std::string& fileName, const std::string& description,
-                             std::size_t nAntenna, std::size_t nBeam)
-    : impl_(new DatasetWriterImpl(fileName, description, nAntenna, nBeam)) {}
+DatasetFileWriter::DatasetFileWriter(const std::string& fileName, const std::string& description,
+                                     std::size_t nAntenna, std::size_t nBeam)
+    : impl_(new DatasetFileWriterImpl(fileName, description, nAntenna, nBeam)) {}
 
-auto DatasetWriter::write(ValueType wl, std::size_t nVis,
-                          ConstHostView<std::complex<ValueType>, 2> v,
-                          ConstHostView<ValueType, 1> d, ConstHostView<ValueType, 2> uvw,
-                          ConstHostView<ValueType, 2> xyz) -> void {
+auto DatasetFileWriter::write(ValueType wl, std::size_t nVis,
+                              ConstHostView<std::complex<ValueType>, 2> v,
+                              ConstHostView<ValueType, 1> d, ConstHostView<ValueType, 2> uvw,
+                              ConstHostView<ValueType, 2> xyz) -> void {
   impl_->write(wl, nVis, v, d, uvw, xyz);
 }
 

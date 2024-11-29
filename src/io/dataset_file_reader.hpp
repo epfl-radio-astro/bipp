@@ -12,11 +12,11 @@
 
 namespace bipp {
 
-class DatasetReader {
+class DatasetFileReader {
 public:
   using ValueType = float;
 
-  explicit DatasetReader(const std::string& fileName);
+  explicit DatasetFileReader(const std::string& fileName);
 
   auto description() const noexcept -> const std::string&;
 
@@ -39,12 +39,12 @@ public:
   auto read_n_vis(std::size_t index) -> std::size_t;
 
 private:
-  class DatasetReaderImpl;
-  struct DatasetReaderImplDeleter {
-    auto operator()(DatasetReaderImpl* p) -> void;
+  class DatasetFileReaderImpl;
+  struct DatasetFileReaderImplDeleter {
+    auto operator()(DatasetFileReaderImpl* p) -> void;
   };
 
-  std::unique_ptr<DatasetReaderImpl, DatasetReaderImplDeleter> impl_;
+  std::unique_ptr<DatasetFileReaderImpl, DatasetFileReaderImplDeleter> impl_;
 };
 
 }  // namespace bipp

@@ -2,8 +2,8 @@
 #include <iostream>
 
 #include "context_internal.hpp"
-#include "io/dataset_writer.hpp"
-#include "io/dataset_reader.hpp"
+#include "io/dataset_file_writer.hpp"
+#include "io/dataset_file_reader.hpp"
 #include "memory/array.hpp"
 
 using namespace bipp;
@@ -15,7 +15,7 @@ int main() {
 
   // write
   {
-    DatasetWriter writer("data.h5", "this_file", nAntenna, nBeam);
+    DatasetFileWriter writer("data.h5", "this_file", nAntenna, nBeam);
 
     ContextInternal ctx(BIPP_PU_CPU);
 
@@ -48,7 +48,7 @@ int main() {
 
   // read
   {
-    DatasetReader reader("data.h5");
+    DatasetFileReader reader("data.h5");
 
     ContextInternal ctx(BIPP_PU_CPU);
 
