@@ -44,21 +44,24 @@ private:
 
 class BIPP_EXPORT InvalidParameterError : public GenericError {
 public:
-  const char* what() const noexcept override { return "BIPP: Invalid parameter error"; }
+  InvalidParameterError() : GenericError("BIPP: InvalidParameterError error") {}
+
+  template <std::size_t N>
+  InvalidParameterError(const char (&msg)[N]) : GenericError(msg) {}
 
   BippError error_code() const noexcept override { return BippError::BIPP_INVALID_PARAMETER_ERROR; }
 };
 
 class BIPP_EXPORT InvalidPointerError : public GenericError {
 public:
-  const char* what() const noexcept override { return "BIPP: Invalid pointer error"; }
+  InvalidPointerError() : GenericError("BIPP: InvalidPointerError error") {}
 
   BippError error_code() const noexcept override { return BippError::BIPP_INVALID_POINTER_ERROR; }
 };
 
 class BIPP_EXPORT InvalidAllocatorFunctionError : public GenericError {
 public:
-  const char* what() const noexcept override { return "BIPP: Invalid allocator function error"; }
+  InvalidAllocatorFunctionError() : GenericError("BIPP: InvalidAllocatorFunctionError error") {}
 
   BippError error_code() const noexcept override {
     return BippError::BIPP_INVALID_ALLOCATOR_FUNCTION;
@@ -67,28 +70,28 @@ public:
 
 class BIPP_EXPORT EigensolverError : public GenericError {
 public:
-  const char* what() const noexcept override { return "BIPP: Eigensolver error"; }
+  EigensolverError() : GenericError("BIPP: EigensolverError error") {}
 
   BippError error_code() const noexcept override { return BippError::BIPP_EIGENSOLVER_ERROR; }
 };
 
 class BIPP_EXPORT FiNUFFTError : public GenericError {
 public:
-  const char* what() const noexcept override { return "BIPP: fiNUFFT error"; }
+  FiNUFFTError() : GenericError("BIPP: FiNUFFTError error") {}
 
   BippError error_code() const noexcept override { return BippError::BIPP_FINUFFT_ERROR; }
 };
 
 class BIPP_EXPORT HDF5Error : public GenericError {
 public:
-  const char* what() const noexcept override { return "BIPP: HDF5Error error"; }
+  HDF5Error() : GenericError("BIPP: HDF5Error error") {}
 
   BippError error_code() const noexcept override { return BippError::BIPP_HDF5_ERROR; }
 };
 
 class BIPP_EXPORT NotImplementedError : public GenericError {
 public:
-  const char* what() const noexcept override { return "BIPP: Not implemented"; }
+  NotImplementedError() : GenericError("BIPP: NotImplementedError error") {}
 
   BippError error_code() const noexcept override { return BippError::BIPP_NOT_IMPLEMENTED_ERROR; }
 };
@@ -132,16 +135,12 @@ public:
 
 class BIPP_EXPORT FileError : public GenericError {
 public:
-  FileError() : msg_("") {}
+  FileError() : GenericError("BIPP: FileError") {}
 
-  FileError(const char* msg) : msg_(msg) {}
+  template <std::size_t N>
+  FileError(const char (&msg)[N]) : GenericError(msg) {}
 
-  const char* what() const noexcept override { return msg_; }
-
-  BippError error_code() const noexcept override { return BippError::BIPP_GPU_ERROR; }
-
-private:
-  const char* msg_;
+  BippError error_code() const noexcept override { return BippError::BIPP_FILE_ERROR; }
 };
 
 /*! \cond PRIVATE */

@@ -38,6 +38,15 @@ public:
 
   auto read_n_vis(std::size_t index) -> std::size_t;
 
+  auto read_u_min(std::size_t index) -> float;
+  auto read_u_max(std::size_t index) -> float;
+
+  auto read_v_min(std::size_t index) -> float;
+  auto read_v_max(std::size_t index) -> float;
+
+  auto read_w_min(std::size_t index) -> float;
+  auto read_w_max(std::size_t index) -> float;
+
 private:
   class DatasetFileReaderImpl;
   struct DatasetFileReaderImplDeleter {

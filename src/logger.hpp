@@ -4,11 +4,11 @@
 #include <complex>
 #include <cstddef>
 #include <memory>
-#include <string>
 #include <sstream>
+#include <string>
 
-#include "bipp/bipp.h"
 #include "bipp/config.h"
+#include "bipp/enums.h"
 #include "memory/view.hpp"
 #include "rt_graph.hpp"
 

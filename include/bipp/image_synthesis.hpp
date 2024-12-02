@@ -2,20 +2,16 @@
 
 #include <bipp/config.h>
 #include <bipp/enums.h>
-#ifdef BIPP_MPI
-#include <bipp/communicator.hpp>
-#endif
 
 #include <array>
-#include <bipp/context.hpp>
-#include <complex>
+#include <bipp/communicator.hpp>
 #include <cstddef>
-#include <functional>
-#include <memory>
 #include <optional>
-#include <type_traits>
+#include <string>
+#include <unordered_map>
 #include <utility>
 #include <variant>
+#include <vector>
 
 /*! \cond PRIVATE */
 namespace bipp {
@@ -46,6 +42,11 @@ struct Partition {
 };
 
 struct NufftSynthesisOptions {
+  /**
+   * Floating point pricision to use internally.
+   */
+  BippPrecision precision = BIPP_PRECISION_SINGLE;
+
   /**
    * The tolerance used when computing the NUFFT. Smaller value will increase accuracy but requires
    * more operations.
@@ -139,66 +140,88 @@ struct NufftSynthesisOptions {
     normalizeImageNvis = normalize;
     return *this;
   }
+
+  /**
+   * Set floating point precision.
+   *
+   * @param[in] prec Precision.
+   */
+  inline auto set_precision(BippPrecision prec) -> NufftSynthesisOptions& {
+    precision = prec;
+    return *this;
+  }
 };
 
-template <typename T>
-class BIPP_EXPORT NufftSynthesis {
-public:
-  static_assert(std::is_same_v<T, double> || std::is_same_v<T, float>);
-  using valueType = T;
+struct StandardSynthesisOptions {
+  /**
+   * Floating point pricision to use internally.
+   */
+  BippPrecision precision = BIPP_PRECISION_SINGLE;
 
   /**
-   * Create a nufft synthesis plan.
-   *
-   * @param[in] ctx Context handle.
-   * @param[in] opt Options.
-   * @param[in] nImagers Number of images.
-   * @param[in] nPixel Number of image pixels.
-   * @param[in] lmnX Array of image x coordinates of size nPixel.
-   * @param[in] lmnY Array of image y coordinates of size nPixel.
-   * @param[in] lmnZ Array of image z coordinates of size nPixel.
+   * The maximum number of collected datasets processed together. Only benefits distributed image
+   * synthesis.
    */
-  NufftSynthesis(Context& ctx, NufftSynthesisOptions opt, std::size_t nImagers,
-                 std::size_t nPixel, const T* lmnX,
-                 const T* lmnY, const T* lmnZ);
-
+  std::optional<std::size_t> collectGroupSize = std::nullopt;
 
   /**
-   * Collect radio data.
-   *
-   * @param[in] nAntenna Number of antenna.
-   * @param[in] nBeam Number of beam.
-   * @param[in] wl The wavelength.
-   * @param[in] eigMaskFunc Function, that allows mutable access to the computed eigenvalues. Will
-   * be called with the level index, number of eigenvalues and a pointer to the eigenvalue array.
-   * @param[in] s Optional complex 2D sensitivity array of size (nBeam, nBeam). May be null.
-   * @param[in] lds Leading dimension of s.
-   * @param[in] w 2D complex beamforming array of size (nAntenna, nBeam).
-   * @param[in] ldw Leading dimension of w.
-   * @param[in] xyz 2D antenna position array of size (nAntenna, 3).
-   * @param[in] ldxyz Leading dimension of xyz.
-   * @param[in] uvw UVW coordinates expressed in the local UVW frame of size (nAntenna * nAntenna,
-   * 3).
-   * @param[in] lduvw Leading dimension of uvw.
+   * Normalize image by the number of collect steps.
    */
-  auto collect(std::size_t nAntenna, std::size_t nBeam, T wl,
-               const std::function<void(std::size_t, std::size_t, T*)>& eigMaskFunc,
-               const std::complex<T>* s, std::size_t lds, const std::complex<T>* w, std::size_t ldw,
-               const T* xyz, std::size_t ldxyz, const T* uvw, std::size_t lduvw) -> void;
+  bool normalizeImage = true;
 
   /**
-   * Get image.
-   *
-   * @param[out] img 2D image array of size (nPixel, nImagers).
-   * @param[in] ld Leading dimension of img.
+   * Normalize image by the number of non-zero visibilities.
    */
-  auto get(T* img, std::size_t ld) -> void;
+  bool normalizeImageNvis = true;
 
-private:
-  /*! \cond PRIVATE */
-  std::unique_ptr<void, std::function<void(void*)>> plan_;
-  /*! \endcond */
+  /**
+   * Set the collection group size.
+   *
+   * @param[in] size Collection group size.
+   */
+  inline auto set_collect_group_size(std::optional<std::size_t> size) -> StandardSynthesisOptions& {
+    collectGroupSize = size;
+    return *this;
+  }
+
+  /**
+   * Set normalization of image.
+   *
+   * @param[in] normalize True or false.
+   */
+  inline auto set_normalize_image(bool normalize) -> StandardSynthesisOptions& {
+    normalizeImage = normalize;
+    return *this;
+  }
+
+  /**
+   * Set normalization of image by number of non-zero visibilities.
+   *
+   * @param[in] normalize True or false.
+   */
+  inline auto set_normalize_image_by_nvis(bool normalize) -> StandardSynthesisOptions& {
+    normalizeImageNvis = normalize;
+    return *this;
+  }
+
+  /**
+   * Set floating point precision.
+   *
+   * @param[in] prec Precision.
+   */
+  inline auto set_precision(BippPrecision prec) -> StandardSynthesisOptions& {
+    precision = prec;
+    return *this;
+  }
 };
+
+void image_synthesis(
+    Communicator& comm, BippProcessingUnit pu,
+    const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt,
+    const std::string& datasetFileName,
+    std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection,
+    std::size_t numPixel, const float* pixelX, const float* pixelY, const float* pixelZ,
+    const std::string& outputFileName);
 
 /*! \cond PRIVATE */
 }  // namespace bipp

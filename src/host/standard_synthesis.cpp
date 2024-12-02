@@ -5,7 +5,6 @@
 #include <limits>
 #include <cassert>
 
-#include "bipp/bipp.h"
 #include "bipp/config.h"
 #include "context_internal.hpp"
 #include "host/blas_api.hpp"
@@ -19,6 +18,7 @@
 namespace bipp {
 namespace host {
 
+/*
 template <typename T>
 StandardSynthesis<T>::StandardSynthesis(std::shared_ptr<ContextInternal> ctx,
                                         StandardSynthesisOptions opt, std::size_t nImages,
@@ -164,5 +164,6 @@ template class StandardSynthesis<double>;
 
 template class StandardSynthesis<float>;
 
+*/
 }  // namespace host
 }  // namespace bipp

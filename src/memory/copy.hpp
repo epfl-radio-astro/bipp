@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <type_traits>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
@@ -14,14 +15,22 @@
 
 namespace bipp {
 
-template <typename T, std::size_t DIM>
-inline auto copy(const ConstHostView<T, DIM>& source, HostView<T, DIM> dest) {
+template <typename T, std::size_t DIM, typename F>
+inline auto copy(const ConstHostView<T, DIM>& source, HostView<F, DIM> dest) {
+  static_assert(std::is_convertible_v<T, F>);
+
   if (source.shape() != dest.shape()) throw InternalError("Host view copy: shapes do not match.");
 
   if (source.size() == 0) return;
 
   if constexpr (DIM == 1) {
-    std::memcpy(dest.data(), source.data(), source.shape() * sizeof(T));
+    if constexpr (std::is_same_v<T, F> && std::is_trivially_copyable_v<T>) {
+      std::memcpy(dest.data(), source.data(), source.shape() * sizeof(T));
+    } else {
+      for (std::size_t i = 0; i < source.size(); ++i) {
+        dest[i] = F(source[i]);
+      }
+    }
   } else {
     for (std::size_t i = 0; i < source.shape()[DIM - 1]; ++i) {
       copy<T, DIM - 1>(source.slice_view(i), dest.slice_view(i));
@@ -29,8 +38,8 @@ inline auto copy(const ConstHostView<T, DIM>& source, HostView<T, DIM> dest) {
   }
 }
 
-template <typename T, std::size_t DIM>
-inline auto copy(const HostView<T, DIM>& source, HostView<T, DIM> dest) {
+template <typename T, std::size_t DIM, typename F>
+inline auto copy(const HostView<T, DIM>& source, HostView<F, DIM> dest) {
   copy(ConstHostView<T, DIM>(source), std::move(dest));
 }
 

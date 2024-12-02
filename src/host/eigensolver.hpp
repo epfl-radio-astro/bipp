@@ -3,7 +3,6 @@
 #include <complex>
 #include <cstddef>
 
-#include "bipp/bipp.h"
 #include "bipp/config.h"
 #include "context_internal.hpp"
 #include "memory/view.hpp"

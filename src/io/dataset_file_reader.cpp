@@ -125,6 +125,42 @@ public:
     return value;
   }
 
+  auto read_u_min(std::size_t index) -> float {
+    float value = 0;
+    h5::read_single_element(index, h5MinU_.id(), h5::get_type_id<decltype(value)>(), &value);
+    return value;
+  }
+
+  auto read_u_max(std::size_t index) -> float {
+    float value = 0;
+    h5::read_single_element(index, h5MaxU_.id(), h5::get_type_id<decltype(value)>(), &value);
+    return value;
+  }
+
+  auto read_v_min(std::size_t index) -> float {
+    float value = 0;
+    h5::read_single_element(index, h5MinV_.id(), h5::get_type_id<decltype(value)>(), &value);
+    return value;
+  }
+
+  auto read_v_max(std::size_t index) -> float {
+    float value = 0;
+    h5::read_single_element(index, h5MaxV_.id(), h5::get_type_id<decltype(value)>(), &value);
+    return value;
+  }
+
+  auto read_w_min(std::size_t index) -> float {
+    float value = 0;
+    h5::read_single_element(index, h5MinW_.id(), h5::get_type_id<decltype(value)>(), &value);
+    return value;
+  }
+
+  auto read_w_max(std::size_t index) -> float {
+    float value = 0;
+    h5::read_single_element(index, h5MaxW_.id(), h5::get_type_id<decltype(value)>(), &value);
+    return value;
+  }
+
 private:
   hsize_t nAntenna_ = 0;
   hsize_t nBeam_ = 0;
@@ -194,5 +230,17 @@ auto DatasetFileReader::read_wl(std::size_t index) -> ValueType { return impl_->
 auto DatasetFileReader::read_n_vis(std::size_t index) -> std::size_t {
   return impl_->read_n_vis(index);
 }
+
+auto DatasetFileReader::read_u_min(std::size_t index) -> float { return impl_->read_u_min(index); }
+
+auto DatasetFileReader::read_u_max(std::size_t index) -> float { return impl_->read_u_max(index); }
+
+auto DatasetFileReader::read_v_min(std::size_t index) -> float { return impl_->read_v_min(index); }
+
+auto DatasetFileReader::read_v_max(std::size_t index) -> float { return impl_->read_v_max(index); }
+
+auto DatasetFileReader::read_w_min(std::size_t index) -> float { return impl_->read_w_min(index); }
+
+auto DatasetFileReader::read_w_max(std::size_t index) -> float { return impl_->read_w_max(index); }
 
 }  // namespace bipp

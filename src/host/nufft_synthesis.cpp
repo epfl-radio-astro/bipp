@@ -9,7 +9,10 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <type_traits>
 #include <vector>
+#include <limits>
+#include <neonufft/plan.hpp>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
@@ -17,14 +20,225 @@
 #include "host/eigensolver.hpp"
 #include "host/gram_matrix.hpp"
 #include "host/kernels/nuft_sum.hpp"
-#include "host/nufft_3d3.hpp"
 #include "host/virtual_vis.hpp"
 #include "memory/copy.hpp"
+#include "memory/array.hpp"
 #include "nufft_util.hpp"
 
 namespace bipp {
 namespace host {
 
+namespace {
+  template<typename T, std::size_t DIM>
+  class DatasetReadArray;
+
+  template <std::size_t DIM>
+  class DatasetReadArray<float, DIM> {
+  public:
+    using ValueType = float;
+    DatasetReadArray(std::shared_ptr<Allocator> alloc,
+                 const typename HostArray<ValueType, DIM>::IndexType& shape)
+        : array_(std::move(alloc), shape) {}
+
+    auto read_view() -> HostView<float, DIM> { return array_; }
+
+    auto process_view() -> HostView<ValueType, DIM> { return array_; }
+
+  private:
+    HostArray<ValueType, DIM> array_;
+  };
+
+  template <std::size_t DIM>
+  class DatasetReadArray<double, DIM> {
+  public:
+    using ValueType = double;
+    DatasetReadArray(std::shared_ptr<Allocator> alloc,
+                 const typename HostArray<ValueType, DIM>::IndexType& shape)
+        : readArray_(alloc, shape), array_(std::move(alloc), shape) {}
+
+    auto read_view() -> HostView<float, DIM> { return readArray_; }
+
+    auto process_view() -> HostView<ValueType, DIM> {
+      copy(readArray_, array_);
+      return array_;
+    }
+
+  private:
+    HostArray<float, DIM> readArray_;
+    HostArray<ValueType, DIM> array_;
+  };
+
+  template <std::size_t DIM>
+  class DatasetReadArray<std::complex<float>, DIM> {
+  public:
+    using ValueType = std::complex<float>;
+    DatasetReadArray(std::shared_ptr<Allocator> alloc,
+                 const typename HostArray<ValueType, DIM>::IndexType& shape)
+        : array_(std::move(alloc), shape) {}
+
+    auto read_view() -> HostView<std::complex<float>, DIM> { return array_; }
+
+    auto process_view() -> HostView<ValueType, DIM> { return array_; }
+
+  private:
+    HostArray<ValueType, DIM> array_;
+  };
+
+  template <std::size_t DIM>
+  class DatasetReadArray<std::complex<double>, DIM> {
+  public:
+    using ValueType = std::complex<double>;
+    DatasetReadArray(std::shared_ptr<Allocator> alloc,
+                 const typename HostArray<ValueType, DIM>::IndexType& shape)
+        : readArray_(alloc, shape), array_(std::move(alloc), shape) {}
+
+    auto read_view() -> HostView<std::complex<float>, DIM> { return readArray_; }
+
+    auto process_view() -> HostView<ValueType, DIM> {
+      copy(readArray_, array_);
+      return array_;
+    }
+
+  private:
+    HostArray<std::complex<float>, DIM> readArray_;
+    HostArray<ValueType, DIM> array_;
+  };
+}
+
+template <typename T>
+void nufft_synthesis(const Communicator& comm, ContextInternal& ctx,
+                     const NufftSynthesisOptions& opt, DatasetFileReader& datasetReader,
+                     ConstHostView<std::pair<std::size_t, const float*>, 1> samples,
+                     ConstHostView<float, 1> pixelX, ConstHostView<float, 1> pixelY,
+                     ConstHostView<float, 1> pixelZ, const std::string& imageTag,
+                     ImageFileWriter& imageWriter) {
+  const auto numPixel = pixelX.size();
+  assert(pixelY.size() == numPixel);
+  assert(pixelZ.size() == numPixel);
+
+  std::array<std::array<T, 2>, 3> input_min_max;
+  std::array<std::array<T, 2>, 3> output_min_max;
+
+  auto outMM = std::minmax_element(pixelX.data(), pixelX.data() + pixelX.size());
+  output_min_max[0][0] = *(outMM.first);
+  output_min_max[0][1] = *(outMM.second);
+
+  outMM = std::minmax_element(pixelY.data(), pixelY.data() + pixelY.size());
+  output_min_max[1][0] = *(outMM.first);
+  output_min_max[1][1] = *(outMM.second);
+
+  outMM = std::minmax_element(pixelZ.data(), pixelZ.data() + pixelZ.size());
+  output_min_max[2][0] = *(outMM.first);
+  output_min_max[2][1] = *(outMM.second);
+
+  for(std::size_t dim = 0; dim < 3; ++dim) {
+    input_min_max[dim][0] = std::numeric_limits<T>::max();
+    input_min_max[dim][1] = std::numeric_limits<T>::lowest();
+  }
+
+  for (std::size_t i = 0; i < samples.size(); ++i) {
+      const auto id = samples[i].first;
+      input_min_max[0][0] = std::min<T>(input_min_max[0][0], datasetReader.read_u_min(id));
+      input_min_max[0][1] = std::max<T>(input_min_max[0][1], datasetReader.read_u_max(id));
+
+      input_min_max[1][0] = std::min<T>(input_min_max[1][0], datasetReader.read_v_min(id));
+      input_min_max[1][1] = std::max<T>(input_min_max[1][1], datasetReader.read_v_max(id));
+
+      input_min_max[2][0] = std::min<T>(input_min_max[2][0], datasetReader.read_w_min(id));
+      input_min_max[2][1] = std::max<T>(input_min_max[2][1], datasetReader.read_w_max(id));
+  }
+
+
+  const auto nBeam = datasetReader.num_beam();
+  const auto nAntenna = datasetReader.num_antenna();
+
+  neonufft::PlanT3<T, 3> plan(neonufft::Options(), 1, input_min_max, output_min_max);
+  if constexpr (std::is_same_v<T, float>) {
+    plan.set_output_points(numPixel, {pixelX.data(), pixelY.data(), pixelZ.data()});
+  } else {
+    HostArray<T, 1> pixelXDouble(ctx.host_alloc(), pixelX.size());
+    HostArray<T, 1> pixelYDouble(ctx.host_alloc(), pixelY.size());
+    HostArray<T, 1> pixelZDouble(ctx.host_alloc(), pixelZ.size());
+    copy(pixelX, pixelXDouble);
+    copy(pixelY, pixelYDouble);
+    copy(pixelZ, pixelZDouble);
+    plan.set_output_points(numPixel,
+                           {pixelXDouble.data(), pixelYDouble.data(), pixelZDouble.data()});
+  }
+
+  {
+    DatasetReadArray<T, 2> uvwArray(ctx.host_alloc(), {nAntenna * nAntenna, 3});
+    HostArray<std::complex<T>, 1> virtualVisArray(ctx.host_alloc(), nAntenna * nAntenna);
+    DatasetReadArray<std::complex<T>, 2> vArray(ctx.host_alloc(), {nAntenna, nBeam});
+
+    HostArray<T, 1> dScaledArray(ctx.host_alloc(), nBeam);
+
+
+    for (std::size_t i = 0; i < samples.size(); ++i) {
+      const auto id = samples[i].first;
+
+      ConstHostView<float, 1> d(samples[i].second, nBeam, 1);
+
+      if (opt.normalizeImageNvis) {
+        const auto nVis = datasetReader.read_n_vis(id);
+        const T scale = nVis ? 1 / T(nVis) : 0;
+        for (std::size_t j = 0; j < nBeam; ++j) {
+          dScaledArray[j] = scale * d[j];
+        }
+      } else {
+        copy(d, dScaledArray);
+      }
+
+      datasetReader.read_uvw(id, uvwArray.read_view());
+      auto uvw = uvwArray.process_view();
+
+      datasetReader.read_eig_vec(id, vArray.read_view());
+      auto v = vArray.process_view();
+
+      virtual_vis<T>(ctx, dScaledArray, v, virtualVisArray);
+
+      // TODO add samples
+      plan.set_input_points(uvw.shape(0), {&uvw[{0, 0}], &uvw[{0, 1}], &uvw[{0, 2}]});
+      plan.add_input(virtualVisArray.data());
+    }
+  }
+
+  // TODO: write image
+  HostArray<std::complex<T>, 1> image(ctx.host_alloc(), numPixel);
+  plan.transform(image.data());
+
+  HostArray<float, 1> imageReal(ctx.host_alloc(), numPixel);
+
+  if(opt.normalizeImage) {
+    const T scale = T(1) / T(datasetReader.num_samples());
+    for (std::size_t j = 0; j < numPixel; ++j) {
+      imageReal[j] = scale* image[j].real();
+    }
+  } else {
+    for (std::size_t j = 0; j < numPixel; ++j) {
+      imageReal[j] = image[j].real();
+    }
+  }
+
+  imageWriter.write(imageTag, imageReal);
+}
+
+template void nufft_synthesis<float>(const Communicator& comm, ContextInternal& ctx,
+                                     const NufftSynthesisOptions& opt,
+                                     DatasetFileReader& datasetReader,
+                                     ConstHostView<std::pair<std::size_t, const float*>, 1> samples,
+                                     ConstHostView<float, 1> pixelX, ConstHostView<float, 1> pixelY,
+                                     ConstHostView<float, 1> pixelZ, const std::string& imageTag,
+                                     ImageFileWriter& imageWriter);
+
+template void nufft_synthesis<double>(
+    const Communicator& comm, ContextInternal& ctx, const NufftSynthesisOptions& opt,
+    DatasetFileReader& datasetReader,
+    ConstHostView<std::pair<std::size_t, const float*>, 1> samples, ConstHostView<float, 1> pixelX,
+    ConstHostView<float, 1> pixelY, ConstHostView<float, 1> pixelZ, const std::string& imageTag,
+    ImageFileWriter& imageWriter);
+
+/*
 static auto system_memory() -> unsigned long long {
   unsigned long long pages = sysconf(_SC_PHYS_PAGES);
   unsigned long long pageSize = sysconf(_SC_PAGE_SIZE);
@@ -94,8 +308,8 @@ auto NufftSynthesis<T>::process(CollectorInterface<T>& collector) -> void {
       const auto nAntenna = s.v.shape(0);
       auto virtVisCurrent =
           virtualVis.sub_view({currentCount, 0}, {nAntenna * nAntenna, virtualVis.shape(1)});
-      virtual_vis<T>(*ctx_, s.nVis, s.dMasked, ConstHostView<std::complex<T>, 2>(s.v), virtVisCurrent);
-      currentCount += s.xyzUvw.shape(0);
+      virtual_vis<T>(*ctx_, s.nVis, s.dMasked, ConstHostView<std::complex<T>, 2>(s.v),
+virtVisCurrent); currentCount += s.xyzUvw.shape(0);
     }
   }
 
@@ -241,8 +455,8 @@ auto NufftSynthesis<T>::get(View<T, 2> out) -> void {
       totalCollectCount_ ? static_cast<T>(1.0 / static_cast<double>(totalCollectCount_)) : 0;
 
   ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG,
-                     "NufftSynthesis<T>::get totalVisibilityCount_ = {}, totalCollectCount_ = {}, scale = {}",
-                     totalVisibilityCount_, totalCollectCount_, scale);
+                     "NufftSynthesis<T>::get totalVisibilityCount_ = {}, totalCollectCount_ = {},
+scale = {}", totalVisibilityCount_, totalCollectCount_, scale);
 
   for (std::size_t i = 0; i < nImages_; ++i) {
     auto currentImg = img_.slice_view(i);
@@ -264,5 +478,6 @@ auto NufftSynthesis<T>::get(View<T, 2> out) -> void {
 template class NufftSynthesis<float>;
 template class NufftSynthesis<double>;
 
+*/
 }  // namespace host
 }  // namespace bipp

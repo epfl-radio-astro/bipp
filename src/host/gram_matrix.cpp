@@ -10,7 +10,6 @@
 #include <utility>
 #include <cassert>
 
-#include "bipp/bipp.h"
 #include "bipp/config.h"
 #include "context_internal.hpp"
 #include "host/blas_api.hpp"

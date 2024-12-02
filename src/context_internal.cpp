@@ -6,7 +6,7 @@
 #include <string>
 #include <utility>
 
-#include "bipp/bipp.h"
+#include "bipp/enums.h"
 
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/util/blas_api.hpp"

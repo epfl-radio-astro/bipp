@@ -198,6 +198,15 @@ inline auto read_size_attr(hid_t hid, const std::string& name) -> unsigned int {
   return size;
 }
 
+inline auto create_fixed_one_dim_space(hid_t fd, const std::string& name, hid_t type, hsize_t size) -> hid_t {
+  DataSpace dataspace = check(H5Screate_simple(1, &size, &size));
+
+  auto arr = check(
+      H5Dcreate(fd, name.data(), type, dataspace.id(), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT));
+
+  return arr;
+}
+
 inline auto create_one_dim_space(hid_t fd, const std::string& name, hid_t type,
                           hsize_t chunkSize) -> hid_t {
   std::array<hsize_t, 1> chunks = {chunkSize};

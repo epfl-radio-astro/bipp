@@ -1,37 +1,31 @@
 set(BIPP_SOURCE_FILES
 	context_internal.cpp
 	communicator.cpp
-	eigensolver.cpp
-	gram_matrix.cpp
-	standard_synthesis.cpp
 	context.cpp
-	nufft_synthesis.cpp
 	logger.cpp
-	imager.cpp
-	synthesis_factory.cpp
 	rt_graph.cpp
 	memory/allocator_factory.cpp
 	host/eigensolver.cpp
 	host/gram_matrix.cpp
 	host/nufft_synthesis.cpp
-	host/nufft_3d3.cpp
 	host/virtual_vis.cpp
 	host/kernels/gemmexp.cpp
 	host/kernels/nuft_sum.cpp
 	host/standard_synthesis.cpp
-	host/collector.cpp
 	io/dataset_file_writer.cpp
 	io/dataset_file_reader.cpp
+	io/image_file_writer.cpp
 	dataset_creator.cpp
 	dataset_reader.cpp
+	image_synthesis.cpp
 	)
 
-if(BIPP_MPI)
-	list(APPEND BIPP_SOURCE_FILES
-		communicator_internal.cpp
-		distributed_synthesis.cpp
-	        )
-endif()
+# if(BIPP_MPI)
+#         list(APPEND BIPP_SOURCE_FILES
+#                 communicator_internal.cpp
+#                 distributed_synthesis.cpp
+#                 )
+# endif()
 
 
 if(BIPP_CUDA OR BIPP_ROCM)

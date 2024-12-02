@@ -1,9 +1,9 @@
 #pragma once
 
-#include <bipp/bipp.h>
 #include <bipp/config.h>
-#include <bipp/communicator.hpp>
+#include <bipp/enums.h>
 
+#include <bipp/communicator.hpp>
 #include <memory>
 
 /*! \cond PRIVATE */

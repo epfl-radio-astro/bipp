@@ -16,6 +16,9 @@
 #include <functional>
 #include <cstring>
 
+#include <unordered_map>
+#include <map>
+
 #include "bipp/bipp.hpp"
 
 using namespace bipp;
@@ -77,285 +80,36 @@ auto processing_unit_to_string(BippProcessingUnit pu) -> std::string {
   throw InvalidParameterError();
 }
 
-void center_array(py::array_t<double> input_array) {
-  py::buffer_info buf_info = input_array.request();
-  double *ptr = static_cast<double *>(buf_info.ptr);
-  const auto N = buf_info.shape[0];
-  const auto M = buf_info.shape[1];
-  for (auto j=0; j<M; j++) {
-    double mean = 0.0;
-    for (auto i=j*N; i<(j+1)*N; i++) {
-      mean += ptr[i];
-    }
-    mean /= N;
-    for (auto i=j*N; i<(j+1)*N; i++) {
-      ptr[i] = ptr[i] - mean;
-    }
-  }
+auto precision_to_string(BippPrecision prec) -> std::string {
+  if (prec == BIPP_PRECISION_SINGLE) return "single";
+  if (prec == BIPP_PRECISION_DOUBLE) return "double";
+
+  throw InvalidParameterError();
 }
 
-auto create_context(const std::string& pu) -> Context {
-  return Context(string_to_processing_unit(pu));
+auto string_to_precision(const std::string& prec) -> BippPrecision {
+  if (prec == "SINGLE" || prec == "single") return BIPP_PRECISION_SINGLE;
+  if (prec == "DOUBLE" || prec == "double") return BIPP_PRECISION_DOUBLE;
+
+  throw InvalidParameterError();
 }
 
-auto create_distributed_context(const std::string& pu, Communicator comm) -> Context {
-  return Context(string_to_processing_unit(pu), std::move(comm));
-}
-
-template <typename T>
-auto call_gram_matrix(Context& ctx, const py::array_t<T, py::array::f_style>& xyz,
-                      const py::array_t<std::complex<T>, py::array::f_style>& w, T wl) {
-  check_2d_array(w);
-  check_2d_array(xyz, {w.shape(0), 3});
-
-  auto g = py::array_t<std::complex<T>, py::array::f_style>({w.shape(1), w.shape(1)});
-
-  gram_matrix(ctx, safe_cast<std::size_t>(w.shape(0)), safe_cast<std::size_t>(w.shape(1)),
-              w.data(0), safe_cast<std::size_t>(w.strides(1) / w.itemsize()), xyz.data(0),
-              safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()), wl, g.mutable_data(0),
-              safe_cast<std::size_t>(g.strides(1) / g.itemsize()));
-
-  return g;
-}
-
-template <typename T>
-auto call_eigh(Context& ctx, T wl, const py::array_t<std::complex<T>, py::array::f_style>& s,
-               const py::array_t<std::complex<T>, py::array::f_style>& w,
-               const py::array_t<T, py::array::f_style>& xyz) {
-  check_2d_array(w);
-  auto nAntenna = w.shape(0);
-  auto nBeam = w.shape(1);
-  check_2d_array(xyz, {nAntenna, 3});
-  check_2d_array(s, {nBeam, nBeam});
-
-  auto d = py::array_t<T, py::array::f_style>({py::ssize_t(nBeam)});
-  std::pair<std::size_t, std::size_t> pev{0, 0};
-  pev = eigh<T>(ctx, wl, nAntenna, nBeam, s.data(0),
-                    safe_cast<std::size_t>(s.strides(1) / s.itemsize()), w.data(0),
-                    safe_cast<std::size_t>(w.strides(1) / w.itemsize()), xyz.data(0),
-                    safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()), d.mutable_data(0));
-  d.resize({pev.first});
-
-  return d;
-}
-
-struct StandardSynthesisDispatcher {
-  StandardSynthesisDispatcher(Context& ctx, StandardSynthesisOptions opt, std::size_t nImages,
-                              const py::array& pixelX, const py::array& pixelY,
-                              const py::array& pixelZ, const std::string& precision)
-      : nImages_(nImages), nPixel_(pixelX.shape(0)) {
-    if (precision == "single" || precision == "SINGLE") {
-      py::array_t<float, pybind11::array::f_style | py::array::forcecast> pixelXArray(pixelX);
-      py::array_t<float, pybind11::array::f_style | py::array::forcecast> pixelYArray(pixelY);
-      py::array_t<float, pybind11::array::f_style | py::array::forcecast> pixelZArray(pixelZ);
-      check_1d_array(pixelXArray);
-      check_1d_array(pixelYArray, pixelXArray.shape(0));
-      check_1d_array(pixelZArray, pixelXArray.shape(0));
-      plan_ = StandardSynthesis<float>(ctx, opt, nImages, pixelXArray.shape(0), pixelXArray.data(0),
-                                       pixelYArray.data(0), pixelZArray.data(0));
-    } else if (precision == "double" || precision == "DOUBLE") {
-      py::array_t<double, pybind11::array::f_style | py::array::forcecast> pixelXArray(pixelX);
-      py::array_t<double, pybind11::array::f_style | py::array::forcecast> pixelYArray(pixelY);
-      py::array_t<double, pybind11::array::f_style | py::array::forcecast> pixelZArray(pixelZ);
-      check_1d_array(pixelXArray);
-      check_1d_array(pixelYArray, pixelXArray.shape(0));
-      check_1d_array(pixelZArray, pixelXArray.shape(0));
-      plan_ =
-          StandardSynthesis<double>(ctx, opt, nImages, pixelXArray.shape(0), pixelXArray.data(0),
-                                    pixelYArray.data(0), pixelZArray.data(0));
-    } else {
-      throw InvalidParameterError();
-    }
-  }
-
-  StandardSynthesisDispatcher(StandardSynthesisDispatcher&&) = default;
-
-  StandardSynthesisDispatcher(const StandardSynthesisDispatcher&) = delete;
-
-  StandardSynthesisDispatcher& operator=(StandardSynthesisDispatcher&&) = default;
-
-  StandardSynthesisDispatcher& operator=(const StandardSynthesisDispatcher&) = delete;
-
-  auto collect(double wl,
-               const std::function<pybind11::array(std::size_t, pybind11::array)>& eigMaskFunc,
-               pybind11::array s, pybind11::array w, pybind11::array xyz) -> void {
-    std::visit(
-        [&](auto&& arg) -> void {
-          using variantType = std::decay_t<decltype(arg)>;
-          if constexpr (std::is_same_v<variantType, StandardSynthesis<float>> ||
-                        std::is_same_v<variantType, StandardSynthesis<double>>) {
-            using T = typename variantType::valueType;
-            py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast> wArray(w);
-            check_2d_array(wArray);
-            auto nAntenna = wArray.shape(0);
-            auto nBeam = wArray.shape(1);
-            // Always center xyz array in double precision
-            // TODO: unify this and the C interface
-            center_array(xyz);
-            py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(xyz);
-            check_2d_array(xyzArray, {nAntenna, 3});
-            py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast> sArray(s);
-            check_2d_array(sArray, {nBeam, nBeam});
-
-            auto eigMaskFuncLambda = [&](std::size_t idxBin, std::size_t nEig, T* d) {
-              py::array_t<T> dArray(nEig);
-              std::memcpy(dArray.mutable_data(0), d, nEig * sizeof(T));
-
-              py::array_t<T, py::array::f_style | py::array::forcecast> dNew(
-                  eigMaskFunc(idxBin, dArray));
-              check_1d_array(dNew, nEig);
-
-              std::memcpy(d, dNew.data(0), nEig * sizeof(T));
-            };
-
-            std::get<StandardSynthesis<T>>(plan_).collect(
-                nAntenna, nBeam, wl, eigMaskFuncLambda, sArray.data(0),
-                safe_cast<std::size_t>(sArray.strides(1) / sArray.itemsize()), wArray.data(0),
-                safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()), xyzArray.data(0),
-                safe_cast<std::size_t>(xyzArray.strides(1) / xyzArray.itemsize()));
-
-          } else {
-            throw InternalError();
-          }
-        },
-        plan_);
-  }
-
-  auto get() -> py::array {
-    return std::visit(
-        [&](auto&& arg) -> pybind11::array {
-          using T = std::decay_t<decltype(arg)>;
-          if constexpr (std::is_same_v<T, StandardSynthesis<double>>) {
-            py::array_t<double> out({nImages_, nPixel_});
-            std::get<StandardSynthesis<double>>(plan_).get(
-                out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
-            return out;
-          } else if constexpr (std::is_same_v<T, StandardSynthesis<float>>) {
-            py::array_t<float> out({nImages_, nPixel_});
-            std::get<StandardSynthesis<float>>(plan_).get(
-                out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
-            return out;
-          } else {
-            throw InternalError();
-            return py::array_t<double, py::array::f_style>();
-          }
-        },
-        plan_);
-  }
-
-  std::variant<std::monostate, StandardSynthesis<float>, StandardSynthesis<double>> plan_;
-  std::size_t nImages_, nPixel_;
-};
-
-struct NufftSynthesisDispatcher {
-  NufftSynthesisDispatcher(Context& ctx, NufftSynthesisOptions opt, std::size_t nImages,
-                           const py::array& lmnX, const py::array& lmnY, const py::array& lmnZ,
-                           const std::string& precision)
-      : nImages_(nImages), nPixel_(lmnX.shape(0)) {
-    if (precision == "single" || precision == "SINGLE") {
-      py::array_t<float, pybind11::array::f_style | py::array::forcecast> lmnXArray(lmnX);
-      py::array_t<float, pybind11::array::f_style | py::array::forcecast> lmnYArray(lmnY);
-      py::array_t<float, pybind11::array::f_style | py::array::forcecast> lmnZArray(lmnZ);
-      check_1d_array(lmnXArray);
-      check_1d_array(lmnYArray, lmnXArray.shape(0));
-      check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = NufftSynthesis<float>(ctx, std::move(opt), nImages, lmnXArray.shape(0),
-                                    lmnXArray.data(0), lmnYArray.data(0), lmnZArray.data(0));
-    } else if (precision == "double" || precision == "DOUBLE") {
-      py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnXArray(lmnX);
-      py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnYArray(lmnY);
-      py::array_t<double, pybind11::array::f_style | py::array::forcecast> lmnZArray(lmnZ);
-      check_1d_array(lmnXArray);
-      check_1d_array(lmnYArray, lmnXArray.shape(0));
-      check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = NufftSynthesis<double>(ctx, std::move(opt), nImages, lmnXArray.shape(0),
-                                     lmnXArray.data(0), lmnYArray.data(0), lmnZArray.data(0));
-    } else {
-      throw InvalidParameterError();
-    }
-  }
-
-  NufftSynthesisDispatcher(NufftSynthesisDispatcher&&) = default;
-
-  NufftSynthesisDispatcher(const NufftSynthesisDispatcher&) = delete;
-
-  NufftSynthesisDispatcher& operator=(NufftSynthesisDispatcher&&) = default;
-
-  NufftSynthesisDispatcher& operator=(const NufftSynthesisDispatcher&) = delete;
-
-  auto collect(double wl,
-               const std::function<pybind11::array(std::size_t, pybind11::array)>& eigMaskFunc,
-               pybind11::array s, pybind11::array w, pybind11::array xyz, pybind11::array uvw)
-      -> void {
-    std::visit(
-        [&](auto&& arg) -> void {
-          using variantType = std::decay_t<decltype(arg)>;
-          if constexpr (std::is_same_v<variantType, NufftSynthesis<float>> ||
-                        std::is_same_v<variantType, NufftSynthesis<double>>) {
-            using T = typename variantType::valueType;
-            py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast> wArray(w);
-            check_2d_array(wArray);
-            auto nAntenna = wArray.shape(0);
-            auto nBeam = wArray.shape(1);
-            py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(xyz);
-            check_2d_array(xyzArray, {nAntenna, 3});
-            py::array_t<T, py::array::f_style | py::array::forcecast> uvwArray(uvw);
-            check_2d_array(uvwArray, {nAntenna * nAntenna, 3});
-
-            auto sArray =
-                py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast>(s);
-            check_2d_array(sArray, {nBeam, nBeam});
-
-            auto eigMaskFuncLambda = [&](std::size_t idxBin, std::size_t nEig, T* d) {
-              py::array_t<T> dArray(nEig);
-              std::memcpy(dArray.mutable_data(0), d, nEig * sizeof(T));
-
-              py::array_t<T, py::array::f_style | py::array::forcecast> dNew(
-                  eigMaskFunc(idxBin, dArray));
-              check_1d_array(dNew, nEig);
-
-              std::memcpy(d, dNew.data(0), nEig * sizeof(T));
-            };
-
-            std::get<NufftSynthesis<T>>(plan_).collect(
-                nAntenna, nBeam, wl, eigMaskFuncLambda, sArray.data(0),
-                safe_cast<std::size_t>(sArray.strides(1) / sArray.itemsize()), wArray.data(0),
-                safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()), xyzArray.data(0),
-                safe_cast<std::size_t>(xyzArray.strides(1) / xyzArray.itemsize()), uvwArray.data(0),
-                safe_cast<std::size_t>(uvwArray.strides(1) / uvwArray.itemsize()));
-
-          } else {
-            throw InternalError();
-          }
-        },
-        plan_);
-  }
-
-  auto get() -> py::array {
-    return std::visit(
-        [&](auto&& arg) -> pybind11::array {
-          using T = std::decay_t<decltype(arg)>;
-          if constexpr (std::is_same_v<T, NufftSynthesis<double>>) {
-            py::array_t<double> out({nImages_, nPixel_});
-            std::get<NufftSynthesis<double>>(plan_).get(
-                out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
-            return out;
-          } else if constexpr (std::is_same_v<T, NufftSynthesis<float>>) {
-            py::array_t<float> out({nImages_, nPixel_});
-            std::get<NufftSynthesis<float>>(plan_).get(
-                out.mutable_data(0), safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
-            return out;
-          } else {
-            throw InternalError();
-            return py::array_t<double, py::array::f_style>();
-          }
-        },
-        plan_);
-  }
-
-  std::variant<std::monostate, NufftSynthesis<float>, NufftSynthesis<double>> plan_;
-  std::size_t nImages_, nPixel_;
-};
+// void center_array(py::array_t<double> input_array) {
+//   py::buffer_info buf_info = input_array.request();
+//   double *ptr = static_cast<double *>(buf_info.ptr);
+//   const auto N = buf_info.shape[0];
+//   const auto M = buf_info.shape[1];
+//   for (auto j=0; j<M; j++) {
+//     double mean = 0.0;
+//     for (auto i=j*N; i<(j+1)*N; i++) {
+//       mean += ptr[i];
+//     }
+//     mean /= N;
+//     for (auto i=j*N; i<(j+1)*N; i++) {
+//       ptr[i] = ptr[i] - mean;
+//     }
+//   }
+// }
 
 struct DatasetCreatorDispatcher {
   DatasetCreatorDispatcher(const std::string& fileName, const std::string& description,
@@ -460,6 +214,34 @@ struct DatasetReaderDispatcher {
   DatasetReader reader_;
 };
 
+void image_synthesis_dispatch(
+    Communicator& comm, BippProcessingUnit pu,
+    const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt,
+    const std::string& datasetFileName,
+    std::unordered_map<std::string, std::unordered_map<std::size_t, std::vector<float>>>
+        pySelection,
+    const std::vector<float> pixelX, const std::vector<float> pixelY, const std::vector<float> pixelZ,
+    const std::string& outputFileName) {
+  // check selection sizes and convert
+  std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection;
+  {
+    DatasetReader reader(datasetFileName);
+    const auto nBeam = reader.num_beam();
+    for(const auto& [tag, sel] : pySelection) {
+      auto& list = selection[tag];
+      for(const auto&[id, eigVals] : sel) {
+        if (eigVals.size() != nBeam)
+          throw InvalidParameterError(
+              "Number of eigenvalues in selection does not match number of beams.");
+
+        list.emplace_back(id, eigVals.data());
+      }
+    }
+
+    image_synthesis(comm, pu, opt, datasetFileName, selection, pixelX.size(), pixelX.data(),
+                    pixelY.data(), pixelZ.data(), outputFileName);
+  }
+}
 
 struct CompileConfig {
 #ifdef BIPP_CUDA
@@ -516,17 +298,9 @@ PYBIND11_MODULE(pybipp, m) {
 
   m.attr("config") = CompileConfig();
 
-  pybind11::class_<Context>(m, "Context")
-      .def(py::init(&create_context), pybind11::arg("pu"))
-      .def(py::init(&create_distributed_context), pybind11::arg("pu"), pybind11::arg("comm"))
-      .def_property_readonly("processing_unit",
-           [](const Context& ctx) { return processing_unit_to_string(ctx.processing_unit()); })
-      .def("attach_non_root", &Context::attach_non_root);
-
   pybind11::class_<Communicator>(m, "communicator")
       .def_static("world", &Communicator::world)
       .def_static("local", &Communicator::local)
-      .def_property_readonly("is_root", &Communicator::is_root)
       .def_property_readonly("size", &Communicator::size)
       .def_property_readonly("rank", &Communicator::rank);
 
@@ -564,27 +338,6 @@ PYBIND11_MODULE(pybipp, m) {
       .def("set_normalize_image", &StandardSynthesisOptions::set_normalize_image)
       .def_readwrite("normalizeImageNvis", &StandardSynthesisOptions::normalizeImageNvis)
       .def("set_normalize_image_by_nvis", &StandardSynthesisOptions::set_normalize_image_by_nvis);
-
-  pybind11::class_<NufftSynthesisDispatcher>(m, "NufftSynthesis")
-      .def(pybind11::init<Context&, NufftSynthesisOptions, std::size_t, const py::array&,
-                          const py::array&, const py::array&, const std::string&>(),
-           pybind11::arg("ctx"), pybind11::arg("opt"), pybind11::arg("n_level"),
-           pybind11::arg("lmn_x"), pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
-           pybind11::arg("precision"))
-      .def("collect", &NufftSynthesisDispatcher::collect, pybind11::arg("wl"),
-           pybind11::arg("mask"), pybind11::arg("s"), pybind11::arg("w"), pybind11::arg("xyz"),
-           pybind11::arg("uvw"))
-      .def("get", &NufftSynthesisDispatcher::get);
-
-  pybind11::class_<StandardSynthesisDispatcher>(m, "StandardSynthesis")
-      .def(pybind11::init<Context&, StandardSynthesisOptions, std::size_t, const py::array&,
-                          const py::array&, const py::array&, const std::string&>(),
-           pybind11::arg("ctx"), pybind11::arg("opt"), pybind11::arg("n_level"),
-           pybind11::arg("lmn_x"), pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
-           pybind11::arg("precision"))
-      .def("collect", &StandardSynthesisDispatcher::collect, pybind11::arg("wl"),
-           pybind11::arg("mask"), pybind11::arg("s"), pybind11::arg("w"), pybind11::arg("xyz"))
-      .def("get", &StandardSynthesisDispatcher::get);
 
   pybind11::class_<DatasetCreatorDispatcher>(m, "DatasetCreator")
       .def(pybind11::init<const std::string&, const std::string&, std::size_t, std::size_t>(),
@@ -624,36 +377,5 @@ PYBIND11_MODULE(pybipp, m) {
              const std::optional<pybind11::object>&) { d.close(); },
           "Close dataset file");
 
-  m.def(
-       "gram_matrix",
-       [](Context& ctx, const py::array_t<float, pybind11::array::f_style>& xyz,
-          const py::array_t<std::complex<float>, pybind11::array::f_style>& w,
-          float wl) { return call_gram_matrix(ctx, xyz, w, wl); },
-       pybind11::arg("ctx"), pybind11::arg("XYZ"), pybind11::arg("W"), pybind11::arg("wl"))
-      .def(
-          "gram_matrix",
-          [](Context& ctx, const py::array_t<double, pybind11::array::f_style>& xyz,
-             const py::array_t<std::complex<double>, pybind11::array::f_style>& w,
-             double wl) { return call_gram_matrix(ctx, xyz, w, wl); },
-          pybind11::arg("ctx"), pybind11::arg("XYZ"), pybind11::arg("W"), pybind11::arg("wl"));
-
-  m.def(
-       "eigh",
-       [](Context& ctx, float wl, const py::array_t<std::complex<float>, py::array::f_style>& s,
-          const py::array_t<std::complex<float>, py::array::f_style>& w,
-          const py::array_t<float, py::array::f_style>& xyz) {
-         return call_eigh(ctx, wl, s, w, xyz);
-       },
-       pybind11::arg("ctx"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),
-       pybind11::arg("xyz"))
-      .def(
-          "eigh",
-          [](Context& ctx, double wl,
-             const py::array_t<std::complex<double>, py::array::f_style>& s,
-             const py::array_t<std::complex<double>, py::array::f_style>& w,
-             const py::array_t<double, py::array::f_style>& xyz) {
-            return call_eigh(ctx, wl, s, w, xyz);
-          },
-          pybind11::arg("ctx"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),
-          pybind11::arg("xyz"));
+  m.def("image_synthesis", &image_synthesis_dispatch);
 }

@@ -3,7 +3,6 @@
 #include <complex>
 #include <cassert>
 
-#include "bipp/bipp.h"
 #include "bipp/config.h"
 #include "memory/view.hpp"
 

@@ -234,8 +234,8 @@ list(APPEND BIPP_EXTERNAL_LIBS LAPACK::LAPACK)
 find_package(HDF5 MODULE REQUIRED COMPONENTS C)
 list(APPEND BIPP_EXTERNAL_LIBS hdf5::hdf5)
 
-find_package(FINUFFT REQUIRED)
-list(APPEND BIPP_EXTERNAL_LIBS FINUFFT::finufft)
+find_package(neonufft CONFIG REQUIRED)
+list(APPEND BIPP_EXTERNAL_LIBS neonufft::neonufft)
 # finufft has fftw in interface headers
 find_package(FFTW REQUIRED)
 find_package(FFTWF REQUIRED)
