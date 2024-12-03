@@ -87,11 +87,9 @@ class ParameterEstimator:
             Number of clustered energy levels to output.
         sigma : float
             Normalized energy ratio for fPCA decomposition.
-        ctx: :py:class:`~bipp.Context`
-            Bipp context. If provided, will use bipp module for computation.
     """
 
-    def __init__(self, N_level, sigma, ctx, fne: bool=True):
+    def __init__(self, N_level, sigma, fne: bool=True):
         super().__init__()
 
         if N_level <= 0:
@@ -105,11 +103,10 @@ class ParameterEstimator:
         # Collected data.
         self._intervals = []
         self._d_all = []
-        self._ctx = ctx
         self._inferred = False
         self._fne = fne
 
-    def collect(self, wl, S, W, XYZ):
+    def collect(self, D):
         """
         Ingest data to internal queue for inference.
 
@@ -119,7 +116,6 @@ class ParameterEstimator:
             G : :py:class:`~bipp.phased_array.bipp.gram.GramMatrix`
                 (N_beam, N_beam) gram matrix.
         """
-        D =  bipp.pybipp.eigh(self._ctx, wl,S, W, XYZ)
         D = D[D > 0.0]
         D = D[np.argsort(D)[::-1]]
         if self._fne:

@@ -215,13 +215,15 @@ struct DatasetReaderDispatcher {
 };
 
 void image_synthesis_dispatch(
-    Communicator& comm, BippProcessingUnit pu,
+    Communicator& comm, const std::string& puName,
     const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt,
     const std::string& datasetFileName,
     std::unordered_map<std::string, std::unordered_map<std::size_t, std::vector<float>>>
         pySelection,
     const std::vector<float> pixelX, const std::vector<float> pixelY, const std::vector<float> pixelZ,
     const std::string& outputFileName) {
+
+  const auto pu = string_to_processing_unit(puName);
   // check selection sizes and convert
   std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection;
   {

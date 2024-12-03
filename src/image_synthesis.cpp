@@ -77,10 +77,10 @@ void image_synthesis(
     throw GPUSupportError();
 #endif
   } else {
-    if(std::holds_alternative<NufftSynthesisOptions>(opt)) {
+    if (std::holds_alternative<NufftSynthesisOptions>(opt)) {
       auto nufftOpt = std::get<NufftSynthesisOptions>(opt);
       for (const auto& [tag, samples] : selection) {
-        if(nufftOpt.precision == BIPP_PRECISION_SINGLE) {
+        if (nufftOpt.precision == BIPP_PRECISION_SINGLE) {
           host::nufft_synthesis<float>(comm, ctx, nufftOpt, dataset,
                                        ConstHostView<std::pair<std::size_t, const float*>, 1>(
                                            samples.data(), samples.size(), 1),
@@ -96,7 +96,6 @@ void image_synthesis(
     } else {
       throw NotImplementedError();
     }
-
   }
 }
 
