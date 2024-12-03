@@ -61,6 +61,32 @@ public:
      return rt_graph::ScopedTiming();
    }
 
+   template <std::size_t N>
+   auto start_timing(BippLogLevel level, const char (&tag)[N]) -> void {
+     if (level <= level_) {
+       timer_.start(tag);
+     }
+   }
+
+   auto start_timing(BippLogLevel level, std::string tag) -> void {
+     if (level <= level_) {
+       timer_.start(tag);
+     }
+   }
+
+   template <std::size_t N>
+   auto stop_timing(BippLogLevel level, const char (&tag)[N]) -> void {
+     if (level <= level_) {
+       timer_.stop(tag);
+     }
+   }
+
+   auto stop_timing(BippLogLevel level, std::string tag) -> void {
+     if (level <= level_) {
+       timer_.stop(tag);
+     }
+   }
+
    auto log_timings(BippLogLevel level) -> void;
 
    // log 2D arrays
