@@ -379,5 +379,31 @@ PYBIND11_MODULE(pybipp, m) {
              const std::optional<pybind11::object>&) { d.close(); },
           "Close dataset file");
 
+  pybind11::class_<ImageReader>(m, "ImageReader")
+      .def(pybind11::init<const std::string&>(), pybind11::arg("file_name"))
+      .def("close", &ImageReader::close)
+      .def("is_open", &ImageReader::is_open)
+      .def("num_tags", &ImageReader::num_tags)
+      .def("tags", &ImageReader::tags)
+      .def("dataset_file_name", &ImageReader::dataset_file_name)
+      .def("dataset_description", &ImageReader::dataset_description)
+      .def("num_pixel", &ImageReader::num_pixel)
+      .def(
+          "read",
+          [](ImageReader& reader, const std::string& tag) {
+            py::array_t<float> image(reader.num_pixel());
+            reader.read(tag, image.mutable_data(0));
+            return image;
+          },
+          pybind11::arg("tag"))
+      .def("__enter__", [](ImageReader& d) -> ImageReader& { return d; })
+      .def(
+          "__exit__",
+          [](ImageReader& d, const std::optional<pybind11::type>&,
+             const std::optional<pybind11::object>&,
+             const std::optional<pybind11::object>&) { d.close(); },
+          "Close dataset file");
+
+  // TODO: describe args
   m.def("image_synthesis", &image_synthesis_dispatch);
 }

@@ -15,7 +15,7 @@ class IdWrapper {
 public:
   IdWrapper(hid_t identifier, herr_t (*close)(hid_t)) noexcept : id_(identifier), close_(close) {}
 
-  IdWrapper() noexcept : id_(H5I_INVALID_HID), close_(nullptr) {}
+  IdWrapper() noexcept = default;
 
   IdWrapper(const IdWrapper&) = delete;
   IdWrapper(IdWrapper&& s) noexcept { *this = std::move(s); }
@@ -42,8 +42,8 @@ public:
   inline auto id() noexcept -> hid_t { return id_; }
 
 private:
-  hid_t id_;
-  herr_t (*close_)(hid_t);
+  hid_t id_ = H5I_INVALID_HID;
+  herr_t (*close_)(hid_t) = nullptr;
 };
 
 class DataSet {

@@ -8,6 +8,7 @@
 #include <bipp/dataset_creator.hpp>
 #include <bipp/dataset_reader.hpp>
 #include <bipp/exceptions.hpp>
+#include <bipp/image_reader.hpp>
 #include <bipp/image_synthesis.hpp>
 
 #ifdef BIPP_MPI
