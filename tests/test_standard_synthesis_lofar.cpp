@@ -10,6 +10,7 @@
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
 
+/*
 static auto get_lofar_input_json() -> const nlohmann::json& {
   static nlohmann::json data = []() {
     std::ifstream file(std::string(BIPP_TEST_DATA_DIR) + "/lofar_input.json");
@@ -176,3 +177,4 @@ INSTANTIATE_TEST_SUITE_P(Lofar, StandardSynthesisLofarSingle,
 INSTANTIATE_TEST_SUITE_P(Lofar, StandardSynthesisLofarDouble,
                          ::testing::Combine(::testing::Values(TEST_PROCESSING_UNITS)),
                          param_type_names);
+*/

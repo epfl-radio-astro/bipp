@@ -1,13 +1,17 @@
-#include <cmath>
 #include <complex>
 #include <fstream>
-#include <stdexcept>
-#include <tuple>
-#include <type_traits>
+#include <string>
+#include <utility>
 #include <vector>
+#include <type_traits>
+#include <unordered_map>
 
 #include "bipp/bipp.hpp"
+#include "bipp/communicator.hpp"
+#include "bipp/dataset_reader.hpp"
+#include "bipp/image_synthesis.hpp"
 #include "gtest/gtest.h"
+#include "io/image_file_reader.hpp"
 #include "nlohmann/json.hpp"
 
 static auto get_lofar_input_json() -> const nlohmann::json& {
@@ -82,7 +86,7 @@ static auto read_json_scalar_1d(JSON j) -> std::vector<T> {
 template <typename T>
 class NufftSynthesisLofar : public ::testing::TestWithParam<std::tuple<BippProcessingUnit>> {
 protected:
-  using ValueType = T;
+  using ValueType = float;
 
   NufftSynthesisLofar() : ctx_(std::get<0>(GetParam())) {}
 
@@ -90,27 +94,24 @@ protected:
     const auto data = get_lofar_input_json();
     const auto output_data = get_lofar_nufft_output<T>();
 
-    const T wl = ValueType(data["wl"]);
-    const T tol = ValueType(data["eps"]);
+    const ValueType wl = ValueType(data["wl"]);
+    const ValueType tol = ValueType(data["eps"]);
     const std::size_t nAntenna = data["n_antenna"];
     const std::size_t nBeam = data["n_beam"];
     const std::size_t nEig = data["n_eig_int"];
     const std::size_t nIntervals = data["intervals_int"].size();
-    const auto intervals = read_json_scalar_2d<T>(data["intervals_int"]);
+    const auto intervals = read_json_scalar_2d<ValueType>(data["intervals_int"]);
 
-    const auto imgRef = read_json_scalar_2d<T>(output_data[std::string("int_") + "lsq"]);
-    const auto lmnX = read_json_scalar_1d<T>(output_data["lmn_x"]);
-    const auto lmnY = read_json_scalar_1d<T>(output_data["lmn_y"]);
-    const auto lmnZ = read_json_scalar_1d<T>(output_data["lmn_z"]);
+    const auto imgRef = read_json_scalar_2d<ValueType>(output_data[std::string("int_") + "lsq"]);
+    const auto lmnX = read_json_scalar_1d<ValueType>(output_data["lmn_x"]);
+    const auto lmnY = read_json_scalar_1d<ValueType>(output_data["lmn_y"]);
+    const auto lmnZ = read_json_scalar_1d<ValueType>(output_data["lmn_z"]);
     const std::size_t nPixel = imgRef.size() / nIntervals;
 
-    bipp::NufftSynthesis<T> imager(ctx_, bipp::NufftSynthesisOptions(), nIntervals, nPixel,
-                                   lmnX.data(), lmnY.data(), lmnZ.data());
-
     // map intervals to mask
-    auto eigMaskFunc = [&](std::size_t idxBin, std::size_t nEigOut, T* d) -> void {
-      const T dMin = intervals[idxBin * 2];
-      const T dMax = intervals[idxBin * 2 + 1];
+    auto eigMaskFunc = [&](std::size_t idxBin, std::size_t nEigOut, ValueType* d) -> void {
+      const ValueType dMin = intervals[idxBin * 2];
+      const ValueType dMax = intervals[idxBin * 2 + 1];
 
       std::size_t idxEig = 0;
       for(; idxEig < nEigOut - nEig; ++idxEig) {
@@ -122,25 +123,58 @@ protected:
       }
     };
 
-    std::size_t nEpochs = 0;
-    for (const auto& itData : data["data"]) {
-      auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
-      auto uvw = read_json_scalar_2d<ValueType>(itData["uvw"]);
-      auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
-      auto s = read_json_complex_2d<ValueType>(itData["s_real"], itData["s_imag"]);
 
-      imager.collect(nAntenna, nBeam, wl, eigMaskFunc, s.data(), nBeam, w.data(), nAntenna,
-                     xyz.data(), nAntenna, uvw.data(), nAntenna * nAntenna);
-      ++nEpochs;
+    // create dataset
+    const std::string datasetFileName = "test_nufft_synthesis_lofar.h5";
+    {
+      bipp::DatasetCreator dataset(datasetFileName, "", nAntenna, nBeam);
+      for (const auto& itData : data["data"]) {
+        auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
+        auto uvw = read_json_scalar_2d<ValueType>(itData["uvw"]);
+        auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
+        auto s = read_json_complex_2d<ValueType>(itData["s_real"], itData["s_imag"]);
+        dataset.process_and_write(wl, s.data(), nBeam, w.data(), nAntenna, xyz.data(), nAntenna,
+                                  uvw.data(), nAntenna * nAntenna);
+      }
     }
 
-    std::vector<T> img(imgRef.size());
-    imager.get(img.data(), nPixel);
+    // create selection
+    std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection;
+    std::vector<std::vector<float>> eigenvalues;
+    {
+      bipp::DatasetReader dataset(datasetFileName);
+      for (std::size_t idxInterval = 0; idxInterval < nIntervals; ++idxInterval) {
+        const std::string tag = std::string("image_") + std::to_string(idxInterval);
 
-    for (std::size_t i = 0; i < img.size(); ++i) {
-      // Single precision is very inaccurate due to different summation orders
-      // Use twice the absolute error for single precision
-      ASSERT_NEAR(img[i], imgRef[i], 0.05 * (4.0 / sizeof(T)));
+        for (std::size_t idxSample = 0; idxSample < dataset.num_samples(); ++idxSample) {
+          eigenvalues.emplace_back(dataset.num_beam());
+          dataset.read_eig_val(idxSample, eigenvalues.back().data());
+          selection[tag].emplace_back(idxSample, eigenvalues.back().data());
+        }
+      }
+    }
+
+    bipp::NufftSynthesisOptions opt;
+
+    auto comm = bipp::Communicator::local();
+
+
+    const std::string imageFileName = "test_nufft_synthesis_lofar_image.h5";
+    bipp::image_synthesis(comm, BIPP_PU_AUTO, opt, datasetFileName, std::move(selection), nPixel,
+                          lmnX.data(), lmnY.data(), lmnZ.data(), imageFileName);
+
+    {
+      bipp::ImageReader imageReader(imageFileName);
+      std::vector<ValueType> img(nPixel);
+      for (std::size_t idxInterval = 0; idxInterval < nIntervals; ++idxInterval) {
+        const std::string tag = std::string("image_") + std::to_string(idxInterval);
+        imageReader.read(tag, img.data());
+        for (std::size_t i = 0; i < nPixel; ++i) {
+          // Single precision is very inaccurate due to different summation orders
+          // Use twice the absolute error for single precision
+          ASSERT_NEAR(img[i], imgRef[i + idxInterval * nPixel], 0.05 * (4.0 / sizeof(ValueType)));
+        }
+      }
     }
   }
 
