@@ -54,21 +54,22 @@ with bipp.DatasetReader("test.h5") as reader:
 intervals = I_est.infer_parameters()
 
 selection = {}
+filters = ["lsq", "std"]
 
 with bipp.DatasetReader("test.h5") as reader:
-    filter_name = "lsq"
-    for level in range(intervals.shape[0]):
-        fi = bipp.filter.Filter(filter_name, intervals[level, 0], intervals[level,1])
-        tag = f"{filter_name}_level_{level}"
-        level_selection = {}
-        for idx in range(0, reader.num_samples(), time_slice):
-            level_selection[idx] = fi(reader.read_eig_val(idx))
-        selection[tag] = level_selection
+    for filter_name in filters:
+        for level in range(intervals.shape[0]):
+            fi = bipp.filter.Filter(filter_name, intervals[level, 0], intervals[level,1])
+            tag = f"{filter_name}_level_{level}"
+            level_selection = {}
+            for idx in range(0, reader.num_samples(), time_slice):
+                level_selection[idx] = fi(reader.read_eig_val(idx))
+            selection[tag] = level_selection
 
 
 #  bipp.image_synthesis(mapping)
 
-N_pix = 1024
+N_pix = 350
 #  N_pix = 10000
 FoV = np.deg2rad(10)
 field_center = coord.SkyCoord(ra=218 * u.deg, dec=34.5 * u.deg, frame="icrs")
