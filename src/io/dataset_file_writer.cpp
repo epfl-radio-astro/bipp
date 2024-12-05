@@ -30,7 +30,8 @@ public:
     h5::create_size_attr(h5File_.id(), "formatVersionMinor", datasetFormatVersionMinor);
     h5::create_size_attr(h5File_.id(), "nBeam", nBeam);
     h5::create_size_attr(h5File_.id(), "nAntenna", nAntenna);
-    h5::create_string_attr(h5File_.id(), "description", description);
+    h5::create_string_attr(h5File_.id(), "description",
+                           description.size() ? description : fileName);
 
     // create array types
     {

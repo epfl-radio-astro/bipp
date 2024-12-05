@@ -121,7 +121,7 @@ public:
 
   auto read_n_vis(std::size_t index) -> std::size_t {
     unsigned int value = 0;
-    h5::read_single_element(index, h5Wl_.id(), h5::get_type_id<decltype(value)>(), &value);
+    h5::read_single_element(index, h5NVis_.id(), h5::get_type_id<decltype(value)>(), &value);
     return value;
   }
 
