@@ -2,20 +2,14 @@
 
 #include <hdf5.h>
 
-#include <algorithm>
 #include <array>
-#include <complex>
-#include <cstdint>
 #include <memory>
 #include <string>
-#include <type_traits>
 #include <unordered_map>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
-#include "io/dataset_spec.hpp"
 #include "io/h5_util.hpp"
-#include "memory/array.hpp"
 #include "memory/view.hpp"
 
 namespace bipp {
@@ -71,7 +65,18 @@ public:
   }
 
   auto read(const std::string& tag, HostView<float, 1> image) -> void {
+    auto it = datasets_.find(tag);
+    if(it == datasets_.end()){ 
+        throw InvalidParameterError("Invalid image tag");
+    }
 
+    hsize_t size = image.size();
+
+    h5::DataSpace dspace = h5::check(H5Dget_space(it->second.id()));
+    h5::DataSpace mspace = h5::check(H5Screate_simple(1, &size, &size));
+
+    h5::check(H5Dread(it->second.id(), h5::get_type_id<float>(), mspace.id(), dspace.id(), H5P_DEFAULT,
+                  image.data()));
   }
 
   auto num_pixel() const -> std::size_t{
