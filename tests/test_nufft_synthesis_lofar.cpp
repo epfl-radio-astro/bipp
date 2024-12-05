@@ -114,12 +114,12 @@ protected:
       const ValueType dMax = intervals[idxBin * 2 + 1];
 
       std::size_t idxEig = 0;
-      for(; idxEig < nEigOut - nEig; ++idxEig) {
-        d[idxEig] = 0;
-      }
-      for(; idxEig < nEigOut; ++idxEig) {
+      for(; idxEig < nEig; ++idxEig) {
         const auto val = d[idxEig];
         d[idxEig] *= (val >= dMin && val <= dMax);
+      }
+      for(; idxEig < nEigOut ; ++idxEig) {
+        d[idxEig] = 0;
       }
     };
 
@@ -149,15 +149,16 @@ protected:
         for (std::size_t idxSample = 0; idxSample < dataset.num_samples(); ++idxSample) {
           eigenvalues.emplace_back(dataset.num_beam());
           dataset.read_eig_val(idxSample, eigenvalues.back().data());
+          eigMaskFunc(idxInterval, eigenvalues.back().size(), eigenvalues.back().data());
           selection[tag].emplace_back(idxSample, eigenvalues.back().data());
         }
       }
     }
 
     bipp::NufftSynthesisOptions opt;
+    opt.set_precision(std::is_same_v<T, float> ? BIPP_PRECISION_SINGLE : BIPP_PRECISION_DOUBLE);
 
     auto comm = bipp::Communicator::local();
-
 
     const std::string imageFileName = "test_nufft_synthesis_lofar_image.h5";
     bipp::image_synthesis(comm, BIPP_PU_AUTO, opt, datasetFileName, std::move(selection), nPixel,

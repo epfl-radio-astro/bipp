@@ -43,6 +43,9 @@ auto virtual_vis(ContextInternal& ctx, ConstHostView<T, 1> dMasked,
   auto vScaled = vScaledArray.sub_view({0, 0}, {vArray.shape(0), nEig});
   auto d = dArray.sub_view(0, nEig);
 
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues selection", d);
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors selection", v);
+
   if (nEig) {
     for (std::size_t idxEig = 0; idxEig < nEig; ++idxEig) {
       const auto dVal = d[idxEig];

@@ -210,9 +210,18 @@ void nufft_synthesis(const Communicator& comm, ContextInternal& ctx,
       auto v = vArray.process_view();
       ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "read dataset");
 
+      ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", d);
+      ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "scaled eigenvalues", dScaledArray);
+      ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", v);
+      ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "u", uvw.slice_view(0));
+      ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "v", uvw.slice_view(1));
+      ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "w", uvw.slice_view(2));
+
       ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "compute virtual vis");
       virtual_vis<T>(ctx, dScaledArray, v, virtualVisArray);
       ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "compute virtual vis");
+
+      ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "virutal vis", virtualVisArray);
 
       ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft: set input points");
       plan.set_input_points(uvw.shape(0), {&uvw[{0, 0}], &uvw[{0, 1}], &uvw[{0, 2}]});
@@ -228,6 +237,7 @@ void nufft_synthesis(const Communicator& comm, ContextInternal& ctx,
   HostArray<std::complex<T>, 1> image(ctx.host_alloc(), numPixel);
   plan.transform(image.data());
   ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft: transform");
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft output", image);
 
   HostArray<float, 1> imageReal(ctx.host_alloc(), numPixel);
 
@@ -243,6 +253,8 @@ void nufft_synthesis(const Communicator& comm, ContextInternal& ctx,
     }
   }
   ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "extract image");
+
+  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "scaled image", imageReal);
 
   ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "write image");
   imageWriter.write(imageTag, imageReal);
