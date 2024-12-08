@@ -5,8 +5,8 @@
 
 #include <bipp/communicator.hpp>
 #include <bipp/context.hpp>
-#include <bipp/dataset_creator.hpp>
-#include <bipp/dataset_reader.hpp>
+#include <bipp/dataset.hpp>
+#include <bipp/dataset_file.hpp>
 #include <bipp/exceptions.hpp>
 #include <bipp/image_reader.hpp>
 #include <bipp/image_synthesis.hpp>
@@ -61,13 +61,15 @@ namespace bipp {
  * @param[in] xyz 2D antenna position array of size (nAntenna, 3).
  * @param[in] ldxyz Leading dimension of xyz.
  * @param[out] d Eigenvalues. Size nBeam. Zero padded if number of computed eigenvalues < nBeam.
+ * @param[out] v Eigenvectors. Size (nAntenna, nBeam). Zero padded if number of computed eigenvalues < nBeam.
  * @return A pair consisting of the number of computed eigenvalues and the number of (non-zero) processed visibilities.
  */
-// template <typename T,
-//           typename = std::enable_if_t<std::is_same_v<T, double> || std::is_same_v<T, float>>>
-// BIPP_EXPORT auto eigh(Context& ctx, T wl, std::size_t nAntenna, std::size_t nBeam,
-//                       const std::complex<T>* s, std::size_t lds, const std::complex<T>* w,
-//                       std::size_t ldw, const T* xyz, std::size_t ldxyz, T* d) -> std::pair<std::size_t, std::size_t>;
+template <typename T,
+          typename = std::enable_if_t<std::is_same_v<T, double> || std::is_same_v<T, float>>>
+BIPP_EXPORT auto eigh(Context& ctx, T wl, std::size_t nAntenna, std::size_t nBeam,
+                      const std::complex<T>* s, std::size_t lds, const std::complex<T>* w,
+                      std::size_t ldw, const T* xyz, std::size_t ldxyz, T* d, std::complex<T>* v,
+                      std::size_t ldv) -> std::pair<std::size_t, std::size_t>;
 
 /*! \cond PRIVATE */
 }  // namespace bipp

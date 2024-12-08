@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "bipp/config.h"
+#include "bipp/context.hpp"
 #include "bipp/enums.h"
 #include "bipp/exceptions.hpp"
 #include "logger.hpp"
@@ -53,5 +54,10 @@ private:
 #endif
 };
 
+struct InternalContextAccessor {
+  static auto get(const Context& ctx) -> const std::shared_ptr<ContextInternal>& {
+    return ctx.ctx_;
+  }
+};
 
 }  // namespace bipp

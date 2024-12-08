@@ -15,6 +15,7 @@
 #include <chrono>
 #include <functional>
 #include <cstring>
+#include <string>
 
 #include <unordered_map>
 #include <map>
@@ -111,124 +112,147 @@ auto string_to_precision(const std::string& prec) -> BippPrecision {
 //   }
 // }
 
-struct DatasetCreatorDispatcher {
-  DatasetCreatorDispatcher(const std::string& fileName, const std::string& description,
-                           std::size_t nAntenna, std::size_t nBeam)
-      : creator_(fileName, description, nAntenna, nBeam) {}
-  auto process_and_write(const std::string& precision, double wl,
-               pybind11::array s, pybind11::array w, pybind11::array xyz, pybind11::array uvw) -> void{
-    if (precision == "single" || precision == "SINGLE") {
-      process_and_write_t<float>(wl, s, w, xyz, uvw);
-    } else if (precision == "double" || precision == "DOUBLE") {
-      process_and_write_t<double>(wl, s, w, xyz, uvw);
-    } else {
-      throw InvalidParameterError();
-    }
+// struct DatasetCreatorDispatcher {
+//   DatasetCreatorDispatcher(const std::string& fileName, const std::string& description,
+//                            std::size_t nAntenna, std::size_t nBeam)
+//       : creator_(fileName, description, nAntenna, nBeam) {}
+//   auto process_and_write(const std::string& precision, double wl,
+//                pybind11::array s, pybind11::array w, pybind11::array xyz, pybind11::array uvw) -> void{
+//     if (precision == "single" || precision == "SINGLE") {
+//       process_and_write_t<float>(wl, s, w, xyz, uvw);
+//     } else if (precision == "double" || precision == "DOUBLE") {
+//       process_and_write_t<double>(wl, s, w, xyz, uvw);
+//     } else {
+//       throw InvalidParameterError();
+//     }
+//   }
+
+//   template <typename T>
+//   auto process_and_write_t(double wl, pybind11::array s, pybind11::array w, pybind11::array xyz,
+//                            pybind11::array uvw) -> void{
+//             py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast> wArray(w);
+//             check_2d_array(wArray);
+//             long nAntenna = creator_.num_antenna();
+//             long nBeam = creator_.num_beam();
+//             py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(xyz);
+//             check_2d_array(xyzArray, {nAntenna, 3});
+//             py::array_t<T, py::array::f_style | py::array::forcecast> uvwArray(uvw);
+//             check_2d_array(uvwArray, {nAntenna * nAntenna, 3});
+
+//             auto sArray =
+//                 py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast>(s);
+//             check_2d_array(sArray, {nBeam, nBeam});
+
+//             creator_.process_and_write(
+//                 wl, sArray.data(0), safe_cast<std::size_t>(sArray.strides(1) / sArray.itemsize()),
+//                 wArray.data(0), safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()),
+//                 xyzArray.data(0), safe_cast<std::size_t>(xyzArray.strides(1) / xyzArray.itemsize()),
+//                 uvwArray.data(0),
+//                 safe_cast<std::size_t>(uvwArray.strides(1) / uvwArray.itemsize()));
+//   }
+
+
+//   auto close() -> void {
+//     creator_.close();
+//   }
+
+//   auto is_open() -> bool {
+//     return creator_.is_open();
+//   }
+
+//   DatasetCreator creator_;
+// };
+
+struct DatasetFileDispatcher {
+  DatasetFileDispatcher(DatasetFile file) : file_(std::move(file)) {}
+
+  static DatasetFileDispatcher open(const std::string& fileName) {
+    return DatasetFileDispatcher(DatasetFile::open(fileName));
   }
 
-  template <typename T>
-  auto process_and_write_t(double wl, pybind11::array s, pybind11::array w, pybind11::array xyz,
-                           pybind11::array uvw) -> void{
-            py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast> wArray(w);
-            check_2d_array(wArray);
-            long nAntenna = creator_.num_antenna();
-            long nBeam = creator_.num_beam();
-            py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(xyz);
-            check_2d_array(xyzArray, {nAntenna, 3});
-            py::array_t<T, py::array::f_style | py::array::forcecast> uvwArray(uvw);
-            check_2d_array(uvwArray, {nAntenna * nAntenna, 3});
-
-            auto sArray =
-                py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast>(s);
-            check_2d_array(sArray, {nBeam, nBeam});
-
-            creator_.process_and_write(
-                wl, sArray.data(0), safe_cast<std::size_t>(sArray.strides(1) / sArray.itemsize()),
-                wArray.data(0), safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()),
-                xyzArray.data(0), safe_cast<std::size_t>(xyzArray.strides(1) / xyzArray.itemsize()),
-                uvwArray.data(0),
-                safe_cast<std::size_t>(uvwArray.strides(1) / uvwArray.itemsize()));
+  static DatasetFileDispatcher create(const std::string& fileName, const std::string& description,
+                        std::size_t nAntenna, std::size_t nBeam) {
+    return DatasetFileDispatcher(DatasetFile::create(fileName, description, nAntenna, nBeam));
   }
 
+  const std::string& description() const { return file_.description(); }
 
-  auto close() -> void {
-    creator_.close();
-  }
+  std::size_t num_samples() const {return file_.num_samples();}
 
-  auto is_open() -> bool {
-    return creator_.is_open();
-  }
+  std::size_t num_antenna() const { return file_.num_antenna(); }
 
-  DatasetCreator creator_;
-};
+  std::size_t num_beam() const { return file_.num_beam(); }
 
-struct DatasetReaderDispatcher {
-  explicit DatasetReaderDispatcher(const std::string& fileName) : reader_(fileName) {}
+  py::array eig_vec(std::size_t index) {
+    py::array_t<std::complex<float>, py::array::f_style | py::array::forcecast> out(
+        {file_.num_antenna(), file_.num_beam()});
 
-  const std::string& description() const { return reader_.description(); }
-
-  std::size_t num_samples() const {return reader_.num_samples();}
-
-  std::size_t num_antenna() const { return reader_.num_antenna(); }
-
-  std::size_t num_beam() const { return reader_.num_beam(); }
-
-  py::array read_eig_vec(std::size_t index) {
-    py::array_t<std::complex<float>, py::array::f_style> out(
-        {reader_.num_antenna(), reader_.num_beam()});
-
-    reader_.read_eig_vec(index, out.mutable_data(0), out.strides(1) / out.itemsize());
+    file_.eig_vec(index, out.mutable_data(0), out.strides(1) / out.itemsize());
     return out;
   }
 
-  py::array read_eig_val(std::size_t index) {
-    py::array_t<float> out(reader_.num_beam());
+  py::array eig_val(std::size_t index) {
+    py::array_t<float> out(file_.num_beam());
 
-    reader_.read_eig_val(index, out.mutable_data(0));
+    file_.eig_val(index, out.mutable_data(0));
     return out;
   }
 
-  py::array read_uvw(std::size_t index) {
-    py::array_t<float, py::array::f_style> out(
-        {reader_.num_antenna() * reader_.num_antenna(), std::size_t(3)});
+  py::array uvw(std::size_t index) {
+    py::array_t<float, py::array::f_style | py::array::forcecast> out(
+        {file_.num_antenna() * file_.num_antenna(), std::size_t(3)});
 
-    reader_.read_uvw(index, out.mutable_data(0), out.strides(1) / out.itemsize());
+    file_.uvw(index, out.mutable_data(0), out.strides(1) / out.itemsize());
     return out;
   }
 
-  py::array read_xyz(std::size_t index) {
-    py::array_t<float, py::array::f_style> out({reader_.num_antenna(), std::size_t(3)});
+  py::array xyz(std::size_t index) {
+    py::array_t<float, py::array::f_style | py::array::forcecast> out(
+        {file_.num_antenna(), std::size_t(3)});
 
-    reader_.read_xyz(index, out.mutable_data(0), out.strides(1) / out.itemsize());
+    file_.xyz(index, out.mutable_data(0), out.strides(1) / out.itemsize());
     return out;
   }
 
-  float read_wl(std::size_t index) { return reader_.read_wl(index); }
+  float wl(std::size_t index) { return file_.wl(index); }
 
-  std::size_t read_n_vis(std::size_t index) { return reader_.read_n_vis(index); }
+  std::size_t n_vis(std::size_t index) { return file_.n_vis(index); }
 
-  void close() { reader_.close(); }
+  void close() { file_.close(); }
 
-  bool is_open() const noexcept { return reader_.is_open(); }
+  bool is_open() const noexcept { return file_.is_open(); }
 
-  DatasetReader reader_;
+  auto write(float wl, std::size_t nVis,
+             const py::array_t<std::complex<float>, py::array::f_style | py::array::forcecast>& v,
+             const py::array_t<float, py::array::f_style | py::array::forcecast>& d,
+             const py::array_t<float, py::array::f_style | py::array::forcecast>& xyz,
+             const py::array_t<float, py::array::f_style | py::array::forcecast>& uvw) -> void {
+    long nAntenna = file_.num_antenna();
+    long nBeam = file_.num_beam();
+    check_2d_array(v, {nAntenna, nBeam});
+    check_2d_array(xyz, {nAntenna, 3});
+    check_2d_array(uvw, {nAntenna * nAntenna, 3});
+    check_1d_array(d, nBeam);
+
+    file_.write(wl, nVis, v.data(0), safe_cast<std::size_t>(v.strides(1) / v.itemsize()), d.data(0),
+                xyz.data(0), safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()), uvw.data(0),
+                safe_cast<std::size_t>(uvw.strides(1) / uvw.itemsize()));
+  }
+
+  DatasetFile file_;
 };
 
 void image_synthesis_dispatch(
-    Communicator& comm, const std::string& puName,
-    const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt,
-    const std::string& datasetFileName,
+    Context& ctx, const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt,
+    Dataset& dataset,
     std::unordered_map<std::string, std::unordered_map<std::size_t, std::vector<float>>>
         pySelection,
-    const std::vector<float> pixelX, const std::vector<float> pixelY, const std::vector<float> pixelZ,
-    const std::string& outputFileName) {
-
-  const auto pu = string_to_processing_unit(puName);
+    const std::vector<float>& pixelX, const std::vector<float>& pixelY,
+    const std::vector<float>& pixelZ, const std::string& outputFileName) {
   // check selection sizes and convert
   std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection;
   {
-    DatasetReader reader(datasetFileName);
-    const auto nBeam = reader.num_beam();
+    const auto nBeam = dataset.num_beam();
     for(const auto& [tag, sel] : pySelection) {
       auto& list = selection[tag];
       for(const auto&[id, eigVals] : sel) {
@@ -240,8 +264,8 @@ void image_synthesis_dispatch(
       }
     }
 
-    image_synthesis(comm, pu, opt, datasetFileName, selection, pixelX.size(), pixelX.data(),
-                    pixelY.data(), pixelZ.data(), outputFileName);
+    image_synthesis(ctx, opt, dataset, selection, pixelX.size(), pixelX.data(), pixelY.data(),
+                    pixelZ.data(), outputFileName);
   }
 }
 
@@ -272,6 +296,38 @@ struct CompileConfig {
   const bool mpi = false;
 #endif
 };
+
+auto create_context(const std::string& pu) -> Context {
+  return Context(string_to_processing_unit(pu));
+}
+
+auto create_distributed_context(const std::string& pu, Communicator comm) -> Context {
+  return Context(string_to_processing_unit(pu), std::move(comm));
+}
+
+template <typename T>
+auto call_eigh(Context& ctx, T wl, const py::array_t<std::complex<T>, py::array::f_style>& s,
+               const py::array_t<std::complex<T>, py::array::f_style>& w,
+               const py::array_t<T, py::array::f_style>& xyz)
+    -> std::tuple<py::array_t<std::complex<T>, py::array::f_style>,
+                  py::array_t<T, py::array::f_style>, std::size_t> {
+  check_2d_array(w);
+  auto nAntenna = w.shape(0);
+  auto nBeam = w.shape(1);
+  check_2d_array(xyz, {nAntenna, 3});
+  check_2d_array(s, {nBeam, nBeam});
+
+  auto d = py::array_t<T, py::array::f_style>({py::ssize_t(nBeam)});
+  auto v = py::array_t<std::complex<T>, py::array::f_style>({py::ssize_t(nAntenna), py::ssize_t(nBeam)});
+  std::pair<std::size_t, std::size_t> pev{0, 0};
+  pev = eigh<T>(ctx, wl, nAntenna, nBeam, s.data(0),
+                safe_cast<std::size_t>(s.strides(1) / s.itemsize()), w.data(0),
+                safe_cast<std::size_t>(w.strides(1) / w.itemsize()), xyz.data(0),
+                safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()), d.mutable_data(0),
+                v.mutable_data(0), safe_cast<std::size_t>(v.strides(1) / v.itemsize()));
+
+  return {std::move(v), std::move(d), pev.second};
+}
 
 }  // namespace
 
@@ -305,6 +361,13 @@ PYBIND11_MODULE(pybipp, m) {
       .def_static("local", &Communicator::local)
       .def_property_readonly("size", &Communicator::size)
       .def_property_readonly("rank", &Communicator::rank);
+
+  pybind11::class_<Context>(m, "Context")
+      .def(py::init(&create_context), pybind11::arg("pu"))
+      .def(py::init(&create_distributed_context), pybind11::arg("pu"), pybind11::arg("comm"))
+      .def_property_readonly("processing_unit", [](const Context& ctx) {
+        return processing_unit_to_string(ctx.processing_unit());
+      });
 
   pybind11::class_<Partition>(m, "Partition")
       .def(py::init())
@@ -341,40 +404,27 @@ PYBIND11_MODULE(pybipp, m) {
       .def_readwrite("normalizeImageNvis", &StandardSynthesisOptions::normalizeImageNvis)
       .def("set_normalize_image_by_nvis", &StandardSynthesisOptions::set_normalize_image_by_nvis);
 
-  pybind11::class_<DatasetCreatorDispatcher>(m, "DatasetCreator")
-      .def(pybind11::init<const std::string&, const std::string&, std::size_t, std::size_t>(),
-           pybind11::arg("file_name"), pybind11::arg("description"), pybind11::arg("n_antenna"),
-           pybind11::arg("n_beam"))
-      .def("process_and_write", &DatasetCreatorDispatcher::process_and_write,
-           pybind11::arg("precision"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),
-           pybind11::arg("xyz"), pybind11::arg("uvw"))
-      .def("close", &DatasetCreatorDispatcher::close)
-      .def("is_open", &DatasetCreatorDispatcher::is_open)
-      .def("__enter__", [](DatasetCreatorDispatcher& d) -> DatasetCreatorDispatcher& { return d; })
+  pybind11::class_<DatasetFileDispatcher>(m, "DatasetFile")
+      .def_static("open", &DatasetFileDispatcher::open, pybind11::arg("file_name"))
+      .def_static("create", &DatasetFileDispatcher::create, pybind11::arg("file_name"),
+                  pybind11::arg("description"), pybind11::arg("n_antenna"), pybind11::arg("n_beam"))
+      .def("close", &DatasetFileDispatcher::close)
+      .def("is_open", &DatasetFileDispatcher::is_open)
+      .def("num_samples", &DatasetFileDispatcher::num_samples)
+      .def("num_beam", &DatasetFileDispatcher::num_beam)
+      .def("num_antenna", &DatasetFileDispatcher::num_antenna)
+      .def("eig_vec", &DatasetFileDispatcher::eig_vec, pybind11::arg("index"))
+      .def("eig_val", &DatasetFileDispatcher::eig_val, pybind11::arg("index"))
+      .def("uvw", &DatasetFileDispatcher::uvw, pybind11::arg("index"))
+      .def("xyz", &DatasetFileDispatcher::xyz, pybind11::arg("index"))
+      .def("wl", &DatasetFileDispatcher::wl, pybind11::arg("index"))
+      .def("n_vis", &DatasetFileDispatcher::n_vis, pybind11::arg("index"))
+      .def("write", &DatasetFileDispatcher::write, pybind11::arg("wl"), pybind11::arg("nVis"),
+           pybind11::arg("v"), pybind11::arg("d"), pybind11::arg("xyz"), pybind11::arg("uvw"))
+      .def("__enter__", [](DatasetFileDispatcher& d) -> DatasetFileDispatcher& { return d; })
       .def(
           "__exit__",
-          [](DatasetCreatorDispatcher& d, const std::optional<pybind11::type>&,
-             const std::optional<pybind11::object>&,
-             const std::optional<pybind11::object>&) { d.close(); },
-          "Close dataset file");
-
-  pybind11::class_<DatasetReaderDispatcher>(m, "DatasetReader")
-      .def(pybind11::init<const std::string&>(), pybind11::arg("file_name"))
-      .def("close", &DatasetReaderDispatcher::close)
-      .def("is_open", &DatasetReaderDispatcher::is_open)
-      .def("num_samples", &DatasetReaderDispatcher::num_samples)
-      .def("num_beam", &DatasetReaderDispatcher::num_beam)
-      .def("num_antenna", &DatasetReaderDispatcher::num_antenna)
-      .def("read_eig_vec", &DatasetReaderDispatcher::read_eig_vec, pybind11::arg("index"))
-      .def("read_eig_val", &DatasetReaderDispatcher::read_eig_val, pybind11::arg("index"))
-      .def("read_uvw", &DatasetReaderDispatcher::read_uvw, pybind11::arg("index"))
-      .def("read_xyz", &DatasetReaderDispatcher::read_xyz, pybind11::arg("index"))
-      .def("read_wl", &DatasetReaderDispatcher::read_wl, pybind11::arg("index"))
-      .def("read_n_vis", &DatasetReaderDispatcher::read_n_vis, pybind11::arg("index"))
-      .def("__enter__", [](DatasetReaderDispatcher& d) -> DatasetReaderDispatcher& { return d; })
-      .def(
-          "__exit__",
-          [](DatasetReaderDispatcher& d, const std::optional<pybind11::type>&,
+          [](DatasetFileDispatcher& d, const std::optional<pybind11::type>&,
              const std::optional<pybind11::object>&,
              const std::optional<pybind11::object>&) { d.close(); },
           "Close dataset file");
@@ -406,4 +456,24 @@ PYBIND11_MODULE(pybipp, m) {
 
   // TODO: describe args
   m.def("image_synthesis", &image_synthesis_dispatch);
+
+  m.def(
+       "eigh",
+       [](Context& ctx, float wl, const py::array_t<std::complex<float>, py::array::f_style>& s,
+          const py::array_t<std::complex<float>, py::array::f_style>& w,
+          const py::array_t<float, py::array::f_style>& xyz) {
+         return call_eigh(ctx, wl, s, w, xyz);
+       },
+       pybind11::arg("ctx"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),
+       pybind11::arg("xyz"))
+      .def(
+          "eigh",
+          [](Context& ctx, double wl,
+             const py::array_t<std::complex<double>, py::array::f_style>& s,
+             const py::array_t<std::complex<double>, py::array::f_style>& w,
+             const py::array_t<double, py::array::f_style>& xyz) {
+            return call_eigh(ctx, wl, s, w, xyz);
+          },
+          pybind11::arg("ctx"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),
+          pybind11::arg("xyz"));
 }

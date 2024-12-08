@@ -4,6 +4,9 @@ set(BIPP_SOURCE_FILES
 	context.cpp
 	logger.cpp
 	rt_graph.cpp
+	dataset_file.cpp
+	eigensolver.cpp
+	context.cpp
 	memory/allocator_factory.cpp
 	host/eigensolver.cpp
 	host/gram_matrix.cpp
@@ -12,22 +15,11 @@ set(BIPP_SOURCE_FILES
 	host/kernels/gemmexp.cpp
 	host/kernels/nuft_sum.cpp
 	host/standard_synthesis.cpp
-	io/dataset_file_writer.cpp
-	io/dataset_file_reader.cpp
 	io/image_file_writer.cpp
 	io/image_file_reader.cpp
-	dataset_creator.cpp
-	dataset_reader.cpp
 	image_reader.cpp
 	image_synthesis.cpp
 	)
-
-# if(BIPP_MPI)
-#         list(APPEND BIPP_SOURCE_FILES
-#                 communicator_internal.cpp
-#                 distributed_synthesis.cpp
-#                 )
-# endif()
 
 
 if(BIPP_CUDA OR BIPP_ROCM)
@@ -82,10 +74,6 @@ target_link_libraries(bipp_objects PRIVATE ${BIPP_EXTERNAL_LIBS})
 target_link_libraries(bipp_objects PRIVATE ${BIPP_EXTERNAL_LIBS_PUBLIC})
 target_include_directories(bipp_objects INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
 
-
-add_executable(test_hdf5 test_hdf5.cpp)
-target_link_libraries(test_hdf5 PRIVATE bipp_objects)
-target_include_directories(test_hdf5 PRIVATE ${BIPP_INCLUDE_DIRS})
 
 #shared library
 add_library(bipp $<TARGET_OBJECTS:bipp_objects>)

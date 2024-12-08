@@ -34,7 +34,7 @@ public:
     h5File_ = h5::check(H5Fopen(fileName.data(), H5F_ACC_RDONLY, H5P_DEFAULT));
 
     datasetFileName_ = h5::read_string_attr(h5File_.id(), "datasetFileName");
-    datasetDescription_ = h5::read_string_attr(h5File_.id(), "datasetDescription");
+    // datasetDescription_ = h5::read_string_attr(h5File_.id(), "datasetDescription");
 
     h5::check(H5Ovisit(h5File_.id(), H5_INDEX_NAME, H5_ITER_NATIVE, gatherDatasetNames, &tags_,
                        H5O_INFO_ALL));

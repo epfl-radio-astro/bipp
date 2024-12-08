@@ -39,7 +39,7 @@ public:
     }
   }
 
-  inline auto id() noexcept -> hid_t { return id_; }
+  inline auto id() const noexcept -> const hid_t& { return id_; }
 
 private:
   hid_t id_ = H5I_INVALID_HID;
@@ -52,7 +52,7 @@ public:
 
   DataSet() = default;
 
-  inline auto id() noexcept -> hid_t { return wrapper_.id(); }
+  inline auto id() const noexcept -> hid_t { return wrapper_.id(); }
 
 private:
   IdWrapper wrapper_;
@@ -64,7 +64,7 @@ public:
 
   DataSpace() = default;
 
-  inline auto id() noexcept -> hid_t { return wrapper_.id(); }
+  inline auto id() const noexcept -> hid_t { return wrapper_.id(); }
 
 private:
   IdWrapper wrapper_;
@@ -76,7 +76,7 @@ public:
 
   DataType() = default;
 
-  inline auto id() noexcept -> hid_t { return wrapper_.id(); }
+  inline auto id() const noexcept -> hid_t { return wrapper_.id(); }
 
 private:
   IdWrapper wrapper_;
@@ -88,7 +88,7 @@ public:
 
   Attribute() = default;
 
-  inline auto id() noexcept -> hid_t { return wrapper_.id(); }
+  inline auto id() const noexcept -> hid_t { return wrapper_.id(); }
 
 private:
   IdWrapper wrapper_;
@@ -100,7 +100,7 @@ public:
 
   Property() = default;
 
-  inline auto id() noexcept -> hid_t { return wrapper_.id(); }
+  inline auto id() const noexcept -> hid_t { return wrapper_.id(); }
 
 private:
   IdWrapper wrapper_;
@@ -112,7 +112,7 @@ public:
 
   File() = default;
 
-  inline auto id() noexcept -> hid_t { return wrapper_.id(); }
+  inline auto id() const noexcept -> hid_t { return wrapper_.id(); }
 
 private:
   IdWrapper wrapper_;

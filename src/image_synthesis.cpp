@@ -8,9 +8,9 @@
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
+#include "bipp/dataset.hpp"
 #include "context_internal.hpp"
 #include "host/nufft_synthesis.hpp"
-#include "io/dataset_file_reader.hpp"
 #include "io/image_file_writer.hpp"
 
 #ifdef BIPP_MPI
@@ -19,14 +19,12 @@
 
 namespace bipp {
 void image_synthesis(
-    Communicator& comm, BippProcessingUnit pu,
-    const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt,
-    const std::string& datasetFileName,
+    Context& ctx,
+    const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt, Dataset& dataset,
     std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection,
     std::size_t numPixel, const float* pixelX, const float* pixelY, const float* pixelZ,
     const std::string& outputFileName) {
-  DatasetFileReader dataset(datasetFileName);
-  ImageFileWriter imageWriter(outputFileName, datasetFileName, dataset.description());
+  ImageFileWriter imageWriter(outputFileName, "TODO", dataset.description());
 
   // Check selection and sort selected samples for better performance when reading file
   for(auto& [name, samples] : selection) {
@@ -62,16 +60,15 @@ void image_synthesis(
     }
   }
 
-
-  ContextInternal ctx(pu);
+  ContextInternal& ctxInternal = *InternalContextAccessor::get(ctx);
 
   ConstHostView<float, 1> pixelViewX(pixelX, numPixel, 1);
   ConstHostView<float, 1> pixelViewY(pixelY, numPixel, 1);
   ConstHostView<float, 1> pixelViewZ(pixelZ, numPixel, 1);
 
-  if (ctx.processing_unit() == BIPP_PU_GPU) {
+  if (ctxInternal.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-    gpu::DeviceGuard deviceGuard(ctx.device_id());  // TODO: remove.
+    gpu::DeviceGuard deviceGuard(ctxInternal.device_id());  // TODO: remove.
     throw NotImplementedError();
 #else
     throw GPUSupportError();
@@ -81,12 +78,12 @@ void image_synthesis(
       auto nufftOpt = std::get<NufftSynthesisOptions>(opt);
       for (const auto& [tag, samples] : selection) {
         if (nufftOpt.precision == BIPP_PRECISION_SINGLE) {
-          host::nufft_synthesis<float>(comm, ctx, nufftOpt, dataset,
+          host::nufft_synthesis<float>(ctxInternal, nufftOpt, dataset,
                                        ConstHostView<std::pair<std::size_t, const float*>, 1>(
                                            samples.data(), samples.size(), 1),
                                        pixelViewX, pixelViewY, pixelViewZ, tag, imageWriter);
         } else {
-          host::nufft_synthesis<double>(comm, ctx, nufftOpt, dataset,
+          host::nufft_synthesis<double>(ctxInternal, nufftOpt, dataset,
                                         ConstHostView<std::pair<std::size_t, const float*>, 1>(
                                             samples.data(), samples.size(), 1),
                                         pixelViewX, pixelViewY, pixelViewZ, tag, imageWriter);

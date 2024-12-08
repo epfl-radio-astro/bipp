@@ -26,7 +26,7 @@ public:
 
     // attributes
     h5::create_string_attr(h5File_.id(), "datasetFileName", datasetFileName);
-    h5::create_string_attr(h5File_.id(), "datasetDescription", datasetDescription);
+    // h5::create_string_attr(h5File_.id(), "datasetDescription", datasetDescription);
   }
 
   auto write(const std::string& tag, ConstHostView<float, 1> image) -> void {

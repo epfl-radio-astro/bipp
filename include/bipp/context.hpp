@@ -65,16 +65,6 @@ public:
    */
   auto communicator() const -> const Communicator&;
 
-  /**
-   * Attach to root process to enable distributed image synthesis.
-   * Must be called by all non-root processes. May be called by root process, in which case it will
-   * return false immediately. Non-root processes are only detached once the communicator and
-   * context of the root process are destroyed.
-   *
-   * @return True if process was attached, false otherwise.
-   */
-  auto attach_non_root() -> bool;
-
 private:
   /*! \cond PRIVATE */
   friend InternalContextAccessor;

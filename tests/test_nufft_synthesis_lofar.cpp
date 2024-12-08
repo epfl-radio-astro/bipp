@@ -1,14 +1,13 @@
 #include <complex>
 #include <fstream>
 #include <string>
-#include <utility>
-#include <vector>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "bipp/bipp.hpp"
 #include "bipp/communicator.hpp"
-#include "bipp/dataset_reader.hpp"
 #include "bipp/image_synthesis.hpp"
 #include "gtest/gtest.h"
 #include "io/image_file_reader.hpp"
@@ -126,32 +125,35 @@ protected:
 
     // create dataset
     const std::string datasetFileName = "test_nufft_synthesis_lofar.h5";
-    {
-      bipp::DatasetCreator dataset(datasetFileName, "", nAntenna, nBeam);
-      for (const auto& itData : data["data"]) {
-        auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
-        auto uvw = read_json_scalar_2d<ValueType>(itData["uvw"]);
-        auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
-        auto s = read_json_complex_2d<ValueType>(itData["s_real"], itData["s_imag"]);
-        dataset.process_and_write(wl, s.data(), nBeam, w.data(), nAntenna, xyz.data(), nAntenna,
-                                  uvw.data(), nAntenna * nAntenna);
-      }
+    auto dataset = bipp::DatasetFile::create(datasetFileName, "", nAntenna, nBeam);
+
+    std::vector<ValueType> eigValues(nBeam);
+    std::vector<std::complex<ValueType>> eigVec(nBeam * nAntenna);
+    for (const auto& itData : data["data"]) {
+      auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
+      auto uvw = read_json_scalar_2d<ValueType>(itData["uvw"]);
+      auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
+      auto s = read_json_complex_2d<ValueType>(itData["s_real"], itData["s_imag"]);
+
+      auto info =
+          bipp::eigh<ValueType>(ctx_, wl, nAntenna, nBeam, s.data(), nBeam, w.data(), nAntenna,
+                                xyz.data(), nAntenna, eigValues.data(), eigVec.data(), nAntenna);
+
+      dataset.write(wl, info.second, eigVec.data(), nAntenna, eigValues.data(), xyz.data(),
+                    nAntenna, uvw.data(), nAntenna * nAntenna);
     }
 
     // create selection
     std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection;
     std::vector<std::vector<float>> eigenvalues;
-    {
-      bipp::DatasetReader dataset(datasetFileName);
-      for (std::size_t idxInterval = 0; idxInterval < nIntervals; ++idxInterval) {
-        const std::string tag = std::string("image_") + std::to_string(idxInterval);
+    for (std::size_t idxInterval = 0; idxInterval < nIntervals; ++idxInterval) {
+      const std::string tag = std::string("image_") + std::to_string(idxInterval);
 
-        for (std::size_t idxSample = 0; idxSample < dataset.num_samples(); ++idxSample) {
-          eigenvalues.emplace_back(dataset.num_beam());
-          dataset.read_eig_val(idxSample, eigenvalues.back().data());
-          eigMaskFunc(idxInterval, eigenvalues.back().size(), eigenvalues.back().data());
-          selection[tag].emplace_back(idxSample, eigenvalues.back().data());
-        }
+      for (std::size_t idxSample = 0; idxSample < dataset.num_samples(); ++idxSample) {
+        eigenvalues.emplace_back(dataset.num_beam());
+        dataset.eig_val(idxSample, eigenvalues.back().data());
+        eigMaskFunc(idxInterval, eigenvalues.back().size(), eigenvalues.back().data());
+        selection[tag].emplace_back(idxSample, eigenvalues.back().data());
       }
     }
 
@@ -161,8 +163,8 @@ protected:
     auto comm = bipp::Communicator::local();
 
     const std::string imageFileName = "test_nufft_synthesis_lofar_image.h5";
-    bipp::image_synthesis(comm, BIPP_PU_AUTO, opt, datasetFileName, std::move(selection), nPixel,
-                          lmnX.data(), lmnY.data(), lmnZ.data(), imageFileName);
+    bipp::image_synthesis(ctx_, opt, dataset, std::move(selection), nPixel, lmnX.data(),
+                          lmnY.data(), lmnZ.data(), imageFileName);
 
     {
       bipp::ImageReader imageReader(imageFileName);

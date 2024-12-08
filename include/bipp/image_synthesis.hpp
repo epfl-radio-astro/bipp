@@ -4,7 +4,8 @@
 #include <bipp/enums.h>
 
 #include <array>
-#include <bipp/communicator.hpp>
+#include <bipp/context.hpp>
+#include <bipp/dataset.hpp>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -215,10 +216,10 @@ struct StandardSynthesisOptions {
   }
 };
 
+//TODO: doc
 void image_synthesis(
-    Communicator& comm, BippProcessingUnit pu,
-    const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt,
-    const std::string& datasetFileName,
+    Context& ctx, const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt,
+    Dataset& dataset,
     std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection,
     std::size_t numPixel, const float* pixelX, const float* pixelY, const float* pixelZ,
     const std::string& outputFileName);

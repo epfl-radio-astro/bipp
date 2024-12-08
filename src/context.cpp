@@ -19,17 +19,4 @@ auto Context::processing_unit() const -> BippProcessingUnit{ return ctx_->proces
 
 auto Context::communicator() const -> const Communicator& { return comm_; }
 
-
-auto Context::attach_non_root() -> bool {
-#ifdef BIPP_MPI
-  if (comm_.rank() > 0) {
-    auto& commInt = InternalCommunicatorAccessor::get(comm_);
-    commInt->attach_non_root(InternalContextAccessor::get(*this));
-    return true;
-  }
-#endif
-
-  return false;
-}
-
 }  // namespace bipp
