@@ -68,12 +68,10 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
   assert(pixelZ.size() == numPixel);
 
   ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "input extent");
-  std::array<std::array<T, 2>, 3> input_min_max;
-  std::array<float, 3> input_min;
-  input_min.fill(std::numeric_limits<float>::max());
-  std::array<float, 3> input_max;
-  input_max.fill(std::numeric_limits<float>::lowest());
 
+  std::array<T, 3> input_min_float, input_max_float;
+  input_min_float.fill(std::numeric_limits<float>::max());
+  input_max_float.fill(std::numeric_limits<float>::lowest());
   for (std::size_t i = 0; i < samples.size(); ++i) {
     const auto id = samples[i].first;
 
@@ -81,60 +79,56 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
 
     dataset.uvw_min_max(id, sample_input_min.data(), sample_input_max.data());
 
-    input_min[0] = std::min<float>(input_min[0], sample_input_min[0]);
-    input_min[1] = std::min<float>(input_min[1], sample_input_min[1]);
-    input_min[2] = std::min<float>(input_min[2], sample_input_min[2]);
+    input_min_float[0] = std::min<float>(input_min_float[0], sample_input_min[0]);
+    input_min_float[1] = std::min<float>(input_min_float[1], sample_input_min[1]);
+    input_min_float[2] = std::min<float>(input_min_float[2], sample_input_min[2]);
 
-    input_max[0] = std::max<float>(input_max[0], sample_input_max[0]);
-    input_max[1] = std::max<float>(input_max[1], sample_input_max[1]);
-    input_max[2] = std::max<float>(input_max[2], sample_input_max[2]);
+    input_max_float[0] = std::max<float>(input_max_float[0], sample_input_max[0]);
+    input_max_float[1] = std::max<float>(input_max_float[1], sample_input_max[1]);
+    input_max_float[2] = std::max<float>(input_max_float[2], sample_input_max[2]);
   }
+  std::array<T, 3> input_min, input_max;
+  std::copy(input_min_float.begin(), input_min_float.end(), input_min.begin());
+  std::copy(input_max_float.begin(), input_max_float.end(), input_max.begin());
 
-  input_min_max[0][0] = input_min[0];
-  input_min_max[0][1] = input_max[0];
-
-  input_min_max[1][0] = input_min[1];
-  input_min_max[1][1] = input_max[1];
-
-  input_min_max[2][0] = input_min[2];
-  input_min_max[2][1] = input_max[2];
   ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "input extent");
 
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "input \"u\" min {}, max {}", input_min_max[0][0],
-                   input_min_max[0][1]);
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "input \"v\" min {}, max {}", input_min_max[1][0],
-                   input_min_max[1][1]);
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "input \"w\" min {}, max {}", input_min_max[2][0],
-                   input_min_max[2][1]);
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "input \"u\" min {}, max {}", input_min[0], input_max[0]);
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "input \"v\" min {}, max {}", input_min[1], input_max[1]);
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "input \"w\" min {}, max {}", input_min[2], input_max[2]);
 
   ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "output extent");
-  std::array<std::array<T, 2>, 3> output_min_max;
   auto outMM = std::minmax_element(pixelX.data(), pixelX.data() + pixelX.size());
-  output_min_max[0][0] = *(outMM.first);
-  output_min_max[0][1] = *(outMM.second);
+
+  std::array<T, 3> output_min, output_max;
+  output_min[0] = *(outMM.first);
+  output_max[0] = *(outMM.second);
 
   outMM = std::minmax_element(pixelY.data(), pixelY.data() + pixelY.size());
-  output_min_max[1][0] = *(outMM.first);
-  output_min_max[1][1] = *(outMM.second);
+  output_min[1] = *(outMM.first);
+  output_max[1] = *(outMM.second);
 
   outMM = std::minmax_element(pixelZ.data(), pixelZ.data() + pixelZ.size());
-  output_min_max[2][0] = *(outMM.first);
-  output_min_max[2][1] = *(outMM.second);
+  output_min[2] = *(outMM.first);
+  output_max[2] = *(outMM.second);
 
   ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "output extent");
 
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"l\" min {}, max {}", output_min_max[0][0],
-                   output_min_max[0][1]);
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"m\" min {}, max {}", output_min_max[1][0],
-                   output_min_max[1][1]);
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"n\" min {}, max {}", output_min_max[2][0],
-                   output_min_max[2][1]);
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"l\" min {}, max {}", output_min[0],
+                   output_max[0]);
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"m\" min {}, max {}", output_min[1],
+                   output_max[1]);
+  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"n\" min {}, max {}", output_min[2],
+                   output_max[2]);
 
   const auto nBeam = dataset.num_beam();
   const auto nAntenna = dataset.num_antenna();
 
   ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft: create plan");
-  neonufft::PlanT3<T, 3> plan(neonufft::Options(), 1, input_min_max, output_min_max);
+  auto neo_opt = neonufft::Options();
+  neo_opt.sort_input = false;
+  neo_opt.sort_output = false;
+  neonufft::PlanT3<T, 3> plan(neo_opt, 1, input_min, input_max, output_min, output_max);
   ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft: create plan");
 
   ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft: set image points");
