@@ -244,7 +244,7 @@ struct DatasetFileDispatcher {
 
 void image_synthesis_dispatch(
     Context& ctx, const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt,
-    Dataset& dataset,
+    DatasetFileDispatcher& dataset,
     std::unordered_map<std::string, std::unordered_map<std::size_t, std::vector<float>>>
         pySelection,
     const std::vector<float>& pixelX, const std::vector<float>& pixelY,
@@ -252,7 +252,7 @@ void image_synthesis_dispatch(
   // check selection sizes and convert
   std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection;
   {
-    const auto nBeam = dataset.num_beam();
+    const auto nBeam = dataset.file_.num_beam();
     for(const auto& [tag, sel] : pySelection) {
       auto& list = selection[tag];
       for(const auto&[id, eigVals] : sel) {
@@ -264,7 +264,7 @@ void image_synthesis_dispatch(
       }
     }
 
-    image_synthesis(ctx, opt, dataset, selection, pixelX.size(), pixelX.data(), pixelY.data(),
+    image_synthesis(ctx, opt, dataset.file_, selection, pixelX.size(), pixelX.data(), pixelY.data(),
                     pixelZ.data(), outputFileName);
   }
 }
