@@ -26,14 +26,14 @@ namespace host {
 class DomainPartition {
 public:
 
-  static auto none(const std::shared_ptr<ContextInternal>& ctx,std::size_t n ) {
+  static auto none(std::shared_ptr<Allocator> hostAlloc,std::size_t n ) {
     std::vector<PartitionGroup> groups(1);
     groups[0] = PartitionGroup{0, n};
-    return DomainPartition(ctx, std::move(groups));
+    return DomainPartition(std::move(hostAlloc), std::move(groups));
   }
 
   template <typename T, std::size_t DIM>
-  static auto grid(const std::shared_ptr<ContextInternal>& ctx,
+  static auto grid(std::shared_ptr<Allocator> hostAlloc,
                    std::array<std::size_t, DIM> gridDimensions,
                    std::array<ConstHostView<T, 1>, DIM> coord) -> DomainPartition {
     const auto n = coord[0].size();
@@ -43,7 +43,7 @@ public:
 
     const auto gridSize = std::accumulate(gridDimensions.begin(), gridDimensions.end(),
                                           std::size_t(1), std::multiplies<std::size_t>());
-    if (gridSize <= 1) return DomainPartition::none(ctx, n);
+    if (gridSize <= 1) return DomainPartition::none(hostAlloc, n);
 
     std::array<T, DIM> minCoord, maxCoord;
 
@@ -55,7 +55,7 @@ public:
 
     std::vector<PartitionGroup> groups(gridSize);
 
-    HostArray<std::size_t, 1> permut(ctx->host_alloc(), {n});
+    HostArray<std::size_t, 1> permut(hostAlloc, {n});
 
     std::array<T, DIM> gridSpacingInv;
     for (std::size_t dimIdx = 0; dimIdx < DIM; ++dimIdx) {
@@ -97,7 +97,7 @@ public:
       groups[i].begin -= groups[i].size;
     }
 
-    return DomainPartition(ctx, std::move(permut), std::move(groups));
+    return DomainPartition(std::move(hostAlloc), std::move(permut), std::move(groups));
   }
 
   inline auto groups() const -> const std::vector<PartitionGroup>& { return groups_; }
@@ -106,13 +106,15 @@ public:
     return permut_.size() ? permut_.size() : groups_[0].size;
   }
 
-  template <typename F>
-  inline auto apply(ConstHostView<F, 1> in, HostView<F, 1> out) -> void {
+  template <typename F_IN, typename F_OUT>
+  inline auto apply(ConstHostView<F_IN, 1> in, HostView<F_OUT, 1> out) -> void {
+    static_assert(std::is_convertible_v<F_IN, F_OUT>);
+
     assert(in.size() == out.size());
     if (permut_.size()) {
       const std::size_t* __restrict__ permutPtr = permut_.data();
-      const F* __restrict__ inPtr = in.data();
-      F* __restrict__ outPtr = out.data();
+      const F_IN* __restrict__ inPtr = in.data();
+      F_OUT* __restrict__ outPtr = out.data();
 
       assert(permut_.size() == in.size());
       assert(inPtr != outPtr);
@@ -131,19 +133,20 @@ public:
   inline auto apply(HostView<F, 1> inOut) -> void {
     assert(permut_.size() || groups_[0].size == inOut.size());
     if (permut_.size()) {
-      HostArray<F, 1> scratch(ctx_->host_alloc(), {inOut.size()});
+      HostArray<F, 1> scratch(hostAlloc_, {inOut.size()});
       this->apply<F>(inOut, scratch);
       copy(scratch, inOut);
     }
   }
 
-  template <typename F>
-  inline auto reverse(ConstHostView<F, 1> in, HostView<F, 1> out) -> void {
+  template <typename F_IN, typename F_OUT>
+  inline auto reverse(ConstHostView<F_IN, 1> in, HostView<F_OUT, 1> out) -> void {
+    static_assert(std::is_convertible_v<F_IN, F_OUT>);
     assert(in.size() == out.size());
     if (permut_.size()) {
       const std::size_t* __restrict__ permutPtr = permut_.data();
-      const F* __restrict__ inPtr = in.data();
-      F* __restrict__ outPtr = out.data();
+      const F_IN* __restrict__ inPtr = in.data();
+      F_OUT* __restrict__ outPtr = out.data();
 
       assert(permut_.size() == in.size());
       assert(inPtr != outPtr);
@@ -162,22 +165,21 @@ public:
   inline auto reverse(HostView<F, 1> inOut) -> void {
     assert(permut_.size() || groups_[0].size == inOut.size());
     if (permut_.size()) {
-      HostArray<F, 1> scratch(ctx_->host_alloc(), {inOut.size()});
+      HostArray<F, 1> scratch(hostAlloc_, {inOut.size()});
       this->reverse<F>(inOut, scratch);
       copy(scratch, inOut);
-    } else {
     }
   }
 
 private:
-  explicit DomainPartition(std::shared_ptr<ContextInternal> ctx, HostArray<std::size_t, 1> permut,
+  explicit DomainPartition(std::shared_ptr<Allocator> hostAlloc, HostArray<std::size_t, 1> permut,
                            std::vector<PartitionGroup> groups)
-      : ctx_(std::move(ctx)), permut_(std::move(permut)), groups_(std::move(groups)) {}
+      : hostAlloc_(std::move(hostAlloc)), permut_(std::move(permut)), groups_(std::move(groups)) {}
 
-  explicit DomainPartition(std::shared_ptr<ContextInternal> ctx, std::vector<PartitionGroup> groups)
-      : ctx_(std::move(ctx)), groups_(std::move(groups)) {}
+  explicit DomainPartition(std::shared_ptr<Allocator> hostAlloc, std::vector<PartitionGroup> groups)
+      : hostAlloc_(std::move(hostAlloc)), groups_(std::move(groups)) {}
 
-  std::shared_ptr<ContextInternal> ctx_;
+  std::shared_ptr<Allocator> hostAlloc_;
   HostArray<std::size_t, 1> permut_;
   std::vector<PartitionGroup> groups_;
 };

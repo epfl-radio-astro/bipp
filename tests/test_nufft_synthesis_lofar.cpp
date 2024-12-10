@@ -159,6 +159,7 @@ protected:
 
     bipp::NufftSynthesisOptions opt;
     opt.set_precision(std::is_same_v<T, float> ? BIPP_PRECISION_SINGLE : BIPP_PRECISION_DOUBLE);
+    // opt.set_local_image_partition(bipp::Partition::Grid{{2,2,1}});
 
     auto comm = bipp::Communicator::local();
 

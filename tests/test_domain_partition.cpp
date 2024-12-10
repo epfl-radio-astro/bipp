@@ -49,7 +49,7 @@ public:
         bipp::host::DomainPartition::none(ctx_, domain[0].size());
 #else
     std::variant<bipp::host::DomainPartition> partition =
-        bipp::host::DomainPartition::none(ctx_, domain[0].size());
+        bipp::host::DomainPartition::none(ctx_->host_alloc(), domain[0].size());
 #endif
 
     if (ctx_->processing_unit() == BIPP_PU_GPU) {
@@ -69,7 +69,7 @@ public:
       ASSERT_TRUE(false);
 #endif
     } else {
-      partition = bipp::host::DomainPartition::grid<T, 3>(ctx_, gridDimensions,
+      partition = bipp::host::DomainPartition::grid<T, 3>(ctx_->host_alloc(), gridDimensions,
                                                           {domainX, domainY, domainZ});
     }
 

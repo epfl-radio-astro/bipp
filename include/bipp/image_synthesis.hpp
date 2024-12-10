@@ -19,6 +19,8 @@ namespace bipp {
 /*! \endcond */
 
 struct Partition {
+  Partition() = default;
+
   /**
    * Automatic domain partition method setting.
    */
@@ -38,6 +40,12 @@ struct Partition {
      */
     std::array<std::size_t, 3> dimensions = {1, 1, 1};
   };
+
+  Partition(Partition::Grid g) : method(std::move(g)) {}
+
+  Partition(Partition::Auto g) : method(std::move(g)) {}
+
+  Partition(Partition::None g) : method(std::move(g)) {}
 
   std::variant<Partition::Auto, Partition::None, Partition::Grid> method = Partition::Auto();
 };

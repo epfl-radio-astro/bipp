@@ -14,6 +14,7 @@
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
+#include "host/domain_partition.hpp"
 #include "host/virtual_vis.hpp"
 #include "memory/array.hpp"
 #include "memory/copy.hpp"
@@ -21,6 +22,13 @@
 
 namespace bipp {
 namespace host {
+
+static auto system_memory() -> unsigned long long {
+  unsigned long long pages = sysconf(_SC_PHYS_PAGES);
+  unsigned long long pageSize = sysconf(_SC_PAGE_SIZE);
+  unsigned long long memory = pages * pageSize;
+  return memory > 0 ? memory : 8ull * 1024ull * 1024ull * 1024ull;
+}
 
 auto read_eig_val(ContextInternal& ctx, Dataset& dataset, std::size_t index, HostView<float, 1> d) {
   dataset.eig_val(index, d.data());
@@ -97,63 +105,94 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
   ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "input \"v\" min {}, max {}", input_min[1], input_max[1]);
   ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "input \"w\" min {}, max {}", input_min[2], input_max[2]);
 
-  ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "output extent");
-  auto outMM = std::minmax_element(pixelX.data(), pixelX.data() + pixelX.size());
-
-  std::array<T, 3> output_min, output_max;
-  output_min[0] = *(outMM.first);
-  output_max[0] = *(outMM.second);
-
-  outMM = std::minmax_element(pixelY.data(), pixelY.data() + pixelY.size());
-  output_min[1] = *(outMM.first);
-  output_max[1] = *(outMM.second);
-
-  outMM = std::minmax_element(pixelZ.data(), pixelZ.data() + pixelZ.size());
-  output_min[2] = *(outMM.first);
-  output_max[2] = *(outMM.second);
-
-  ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "output extent");
-
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"l\" min {}, max {}", output_min[0],
-                   output_max[0]);
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"m\" min {}, max {}", output_min[1],
-                   output_max[1]);
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"n\" min {}, max {}", output_min[2],
-                   output_max[2]);
 
   const auto nBeam = dataset.num_beam();
   const auto nAntenna = dataset.num_antenna();
 
-  ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft: create plan");
+  DomainPartition imagePartition =
+      std::visit(
+          [&](auto&& arg) -> DomainPartition {
+            using ArgType = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<ArgType, Partition::Grid>) {
+              ctx.logger().log(BIPP_LOG_LEVEL_INFO, "image partition: grid ({}, {}, {})",
+                               arg.dimensions[0], arg.dimensions[1], arg.dimensions[2]);
+              return DomainPartition::grid<float, 3>(ctx.host_alloc(), arg.dimensions,
+                                                     {pixelX, pixelY, pixelZ});
+            } else if constexpr (std::is_same_v<ArgType, Partition::None> ||
+                                 std::is_same_v<ArgType, Partition::Auto>) {
+              ctx.logger().log(BIPP_LOG_LEVEL_INFO, "image partition: none");
+              return DomainPartition::none(ctx.host_alloc(), numPixel);
+            }
+          },
+          opt.localImagePartition.method);
+
+  HostArray<T, 1> pixelXPermuted(ctx.host_alloc(), numPixel);
+  HostArray<T, 1> pixelYPermuted(ctx.host_alloc(), numPixel);
+  HostArray<T, 1> pixelZPermuted(ctx.host_alloc(), numPixel);
+
+  imagePartition.apply(pixelX, pixelXPermuted);
+  imagePartition.apply(pixelY, pixelYPermuted);
+  imagePartition.apply(pixelZ, pixelZPermuted);
+
+  HostArray<T, 2> uvwArray(ctx.host_alloc(), {nAntenna * nAntenna, 3});
+  HostArray<std::complex<T>, 1> virtualVisArray(ctx.host_alloc(), nAntenna * nAntenna);
+  HostArray<std::complex<T>, 2> vArray(ctx.host_alloc(), {nAntenna, nBeam});
+  HostArray<T, 1> dScaledArray(ctx.host_alloc(), nBeam);
+
   auto neo_opt = neonufft::Options();
   neo_opt.sort_input = false;
   neo_opt.sort_output = false;
-  neonufft::PlanT3<T, 3> plan(neo_opt, 1, input_min, input_max, output_min, output_max);
-  ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft: create plan");
 
-  ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft: set image points");
-  if constexpr (std::is_same_v<T, float>) {
-    plan.set_output_points(numPixel, {pixelX.data(), pixelY.data(), pixelZ.data()});
-  } else {
-    HostArray<T, 1> pixelXDouble(ctx.host_alloc(), pixelX.size());
-    HostArray<T, 1> pixelYDouble(ctx.host_alloc(), pixelY.size());
-    HostArray<T, 1> pixelZDouble(ctx.host_alloc(), pixelZ.size());
-    copy(pixelX, pixelXDouble);
-    copy(pixelY, pixelYDouble);
-    copy(pixelZ, pixelZDouble);
-    plan.set_output_points(numPixel,
-                           {pixelXDouble.data(), pixelYDouble.data(), pixelZDouble.data()});
-  }
-  ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft: set image points");
 
-  {
-    auto loopTimer = ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "loop");
-    HostArray<T, 2> uvwArray(ctx.host_alloc(), {nAntenna * nAntenna, 3});
-    HostArray<std::complex<T>, 1> virtualVisArray(ctx.host_alloc(), nAntenna * nAntenna);
-    HostArray<std::complex<T>, 2> vArray(ctx.host_alloc(), {nAntenna, nBeam});
+  // const auto grid_memory_size = neonufft::PlanT3<T, 3>::grid_memory_size(
+  //     neo_opt, input_min, input_max, output_min, output_max);
 
-    HostArray<T, 1> dScaledArray(ctx.host_alloc(), nBeam);
+  // printf("grid_memory_size = %llu\n", grid_memory_size);
 
+  HostArray<float, 1> imageReal(ctx.host_alloc(), numPixel);
+  imageReal.zero();
+
+  for (const auto& [imgBegin, imgSize] : imagePartition.groups()) {
+    if (!imgSize) continue;
+
+    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "output extent");
+    auto outMM = std::minmax_element(pixelXPermuted.data() + imgBegin,
+                                     pixelXPermuted.data() + imgBegin + imgSize);
+
+    std::array<T, 3> output_min, output_max;
+    output_min[0] = *(outMM.first);
+    output_max[0] = *(outMM.second);
+
+    outMM = std::minmax_element(pixelYPermuted.data() + imgBegin,
+                                pixelYPermuted.data() + imgBegin + imgSize);
+    output_min[1] = *(outMM.first);
+    output_max[1] = *(outMM.second);
+
+    outMM = std::minmax_element(pixelZPermuted.data() + imgBegin,
+                                pixelZPermuted.data() + imgBegin + imgSize);
+    output_min[2] = *(outMM.first);
+    output_max[2] = *(outMM.second);
+
+    ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "output extent");
+
+    ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"l\" min {}, max {}", output_min[0],
+                     output_max[0]);
+    ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"m\" min {}, max {}", output_min[1],
+                     output_max[1]);
+    ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"n\" min {}, max {}", output_min[2],
+                     output_max[2]);
+
+    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft: create plan");
+    neonufft::PlanT3<T, 3> plan(neo_opt, 1, input_min, input_max, output_min, output_max);
+    ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft: create plan");
+
+    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft: set image points");
+    plan.set_output_points(imgSize,
+                           {pixelXPermuted.data() + imgBegin, pixelYPermuted.data() + imgBegin,
+                            pixelZPermuted.data() + imgBegin});
+    ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft: set image points");
+
+    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "data sample loop");
     for (std::size_t i = 0; i < samples.size(); ++i) {
       const auto id = samples[i].first;
 
@@ -199,30 +238,35 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
       plan.add_input(virtualVisArray.data());
       ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft: add data");
     }
-  }
+    ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "data sample loop");
 
-  ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft: transform");
-  HostArray<std::complex<T>, 1> image(ctx.host_alloc(), numPixel);
-  plan.transform(image.data());
-  ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft: transform");
-  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft output", image);
+    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft: transform");
+    HostArray<std::complex<T>, 1> localImage(ctx.host_alloc(), imgSize);
+    plan.transform(localImage.data());
+    ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft: transform");
+    ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft output", localImage);
 
-  HostArray<float, 1> imageReal(ctx.host_alloc(), numPixel);
 
-  ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "extract image");
-  if (opt.normalizeImage) {
-    const T scale = T(1) / T(dataset.num_samples());
-    for (std::size_t j = 0; j < numPixel; ++j) {
-      imageReal[j] = scale * image[j].real();
+    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "extract image");
+
+    if (opt.normalizeImage) {
+      const T scale = T(1) / T(dataset.num_samples());
+      for (std::size_t j = 0; j < imgSize; ++j) {
+        imageReal[j + imgBegin] += scale * localImage[j].real();
+      }
+    } else {
+      for (std::size_t j = 0; j < imgSize; ++j) {
+        imageReal[j + imgBegin] += localImage[j].real();
+      }
     }
-  } else {
-    for (std::size_t j = 0; j < numPixel; ++j) {
-      imageReal[j] = image[j].real();
-    }
+    ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "extract image");
   }
-  ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "extract image");
 
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "scaled image", imageReal);
+
+  ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "permut image");
+  imagePartition.reverse(imageReal);
+  ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "permut image");
 
   ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "write image");
   imageWriter.write(imageTag, imageReal);
