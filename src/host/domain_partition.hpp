@@ -117,7 +117,7 @@ public:
       F_OUT* __restrict__ outPtr = out.data();
 
       assert(permut_.size() == in.size());
-      assert(inPtr != outPtr);
+      assert((void*)inPtr != (void*)outPtr);
 
       for (std::size_t i = 0; i < permut_.size(); ++i) {
         outPtr[permutPtr[i]] = inPtr[i];
@@ -149,7 +149,7 @@ public:
       F_OUT* __restrict__ outPtr = out.data();
 
       assert(permut_.size() == in.size());
-      assert(inPtr != outPtr);
+      assert((void*)inPtr != (void*)outPtr);
 
       for (std::size_t i = 0; i < permut_.size(); ++i) {
         outPtr[i] = inPtr[permutPtr[i]];
