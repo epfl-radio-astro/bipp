@@ -69,7 +69,7 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
                      ConstHostView<std::pair<std::size_t, const float*>, 1> samples,
                      ConstHostView<float, 1> pixelX, ConstHostView<float, 1> pixelY,
                      ConstHostView<float, 1> pixelZ, const std::string& imageTag,
-                     ImageFileWriter& imageWriter) {
+                     Image& imageWriter) {
   auto funcTimer = ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "host::nufft_synthesis");
 
   const auto numPixel = pixelX.size();
@@ -303,7 +303,7 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
   ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "permut image");
 
   ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "write image");
-  imageWriter.write(imageTag, imageReal);
+  imageWriter.set(imageTag, imageReal.data());
   ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "write image");
 }
 
@@ -312,13 +312,13 @@ template void nufft_synthesis<float>(ContextInternal& ctx, const NufftSynthesisO
                                      ConstHostView<std::pair<std::size_t, const float*>, 1> samples,
                                      ConstHostView<float, 1> pixelX, ConstHostView<float, 1> pixelY,
                                      ConstHostView<float, 1> pixelZ, const std::string& imageTag,
-                                     ImageFileWriter& imageWriter);
+                                     Image& imageWriter);
 
 template void nufft_synthesis<double>(
     ContextInternal& ctx, const NufftSynthesisOptions& opt, Dataset& dataset,
     ConstHostView<std::pair<std::size_t, const float*>, 1> samples, ConstHostView<float, 1> pixelX,
     ConstHostView<float, 1> pixelY, ConstHostView<float, 1> pixelZ, const std::string& imageTag,
-    ImageFileWriter& imageWriter);
+    Image& imageWriter);
 
 }  // namespace host
 }  // namespace bipp

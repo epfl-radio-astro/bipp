@@ -21,19 +21,8 @@ else()
   find_package(googletest CONFIG REQUIRED)
 endif()
 
-if(BIPP_BUNDLED_JSON)
-  # add json parser
-  FetchContent_Declare(
-    json
-    URL https://github.com/nlohmann/json/archive/refs/tags/v3.11.2.tar.gz
-    URL_MD5 e8d56bc54621037842ee9f0aeae27746
-  )
-  FetchContent_MakeAvailable(json)
-else()
-  find_package(nlohmann_json CONFIG REQUIRED)
-endif()
 
-list(APPEND BIPP_TEST_LIBRARIES gtest_main nlohmann_json::nlohmann_json)
+list(APPEND BIPP_TEST_LIBRARIES gtest_main )
 
 # test executables
 add_executable(run_tests

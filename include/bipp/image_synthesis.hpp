@@ -6,6 +6,7 @@
 #include <array>
 #include <bipp/context.hpp>
 #include <bipp/dataset.hpp>
+#include <bipp/image.hpp>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -229,8 +230,7 @@ void image_synthesis(
     Context& ctx, const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt,
     Dataset& dataset,
     std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection,
-    std::size_t numPixel, const float* pixelX, const float* pixelY, const float* pixelZ,
-    const std::string& outputFileName);
+    Image& image);
 
 /*! \cond PRIVATE */
 }  // namespace bipp

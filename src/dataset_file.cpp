@@ -329,77 +329,77 @@ const std::string& DatasetFile::description() const {
   if (impl_)
     return impl_->description();
   else
-    throw GenericError("DatasetFile: read after close");
+    throw GenericError("DatasetFile: access after close");
 }
 
 std::size_t DatasetFile::num_samples() const {
   if (impl_)
     return impl_->num_samples();
   else
-    throw GenericError("DatasetFile: read after close");
+    throw GenericError("DatasetFile: access after close");
 }
 
 std::size_t DatasetFile::num_antenna() const {
   if (impl_)
     return impl_->num_antenna();
   else
-    throw GenericError("DatasetFile: read after close");
+    throw GenericError("DatasetFile: access after close");
 }
 
 std::size_t DatasetFile::num_beam() const {
   if (impl_)
     return impl_->num_beam();
   else
-    throw GenericError("DatasetFile: read after close");
+    throw GenericError("DatasetFile: access after close");
 }
 
 void DatasetFile::eig_vec(std::size_t index, std::complex<float>* v, std::size_t ldv) {
   if (impl_)
     impl_->eig_vec(index, v, ldv);
   else
-    throw GenericError("DatasetFile: read after close");
+    throw GenericError("DatasetFile: access after close");
 }
 
 void DatasetFile::eig_val(std::size_t index, float* d) {
   if (impl_)
     impl_->eig_val(index, d);
   else
-    throw GenericError("DatasetFile: read after close");
+    throw GenericError("DatasetFile: access after close");
 }
 
 void DatasetFile::uvw(std::size_t index, float* uvw, std::size_t lduvw) {
   if (impl_)
     impl_->uvw(index, uvw, lduvw);
   else
-    throw GenericError("DatasetFile: read after close");
+    throw GenericError("DatasetFile: access after close");
 }
 
 void DatasetFile::uvw_min_max(std::size_t index, float* uvwMin, float* uvwMax) {
   if (impl_)
     impl_->uvw_min_max(index, uvwMin, uvwMax);
   else
-    throw GenericError("DatasetFile: read after close");
+    throw GenericError("DatasetFile: access after close");
 }
 
 void DatasetFile::xyz(std::size_t index, float* xyz, std::size_t ldxyz) {
   if (impl_)
     impl_->xyz(index, xyz, ldxyz);
   else
-    throw GenericError("DatasetFile: read after close");
+    throw GenericError("DatasetFile: access after close");
 }
 
 float DatasetFile::wl(std::size_t index) {
   if (impl_)
     return impl_->wl(index);
   else
-    throw GenericError("DatasetFile: read after close");
+    throw GenericError("DatasetFile: access after close");
 }
 
 std::size_t DatasetFile::n_vis(std::size_t index) {
   if (impl_)
     return impl_->n_vis(index);
   else
-    throw GenericError("DatasetFile: read after close");
+    throw GenericError("DatasetFile: access after close");
 }
 
 void DatasetFile::write(float wl, std::size_t nVis, const std::complex<float>* v, std::size_t ldv,

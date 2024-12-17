@@ -46,6 +46,18 @@ private:
   herr_t (*close_)(hid_t) = nullptr;
 };
 
+class Group {
+public:
+  Group(hid_t identifier) noexcept : wrapper_(identifier, H5Gclose) {}
+
+  Group() = default;
+
+  inline auto id() const noexcept -> hid_t { return wrapper_.id(); }
+
+private:
+  IdWrapper wrapper_;
+};
+
 class DataSet {
 public:
   DataSet(hid_t identifier) noexcept : wrapper_(identifier, H5Dclose) {}

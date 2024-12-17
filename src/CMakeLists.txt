@@ -15,9 +15,6 @@ set(BIPP_SOURCE_FILES
 	host/kernels/gemmexp.cpp
 	host/kernels/nuft_sum.cpp
 	host/standard_synthesis.cpp
-	io/image_file_writer.cpp
-	io/image_file_reader.cpp
-	image_reader.cpp
 	image_synthesis.cpp
 	image_file.cpp
 	)

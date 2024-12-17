@@ -10,7 +10,6 @@
 #include "bipp/communicator.hpp"
 #include "bipp/image_synthesis.hpp"
 #include "gtest/gtest.h"
-#include "io/image_file_reader.hpp"
 #include "nlohmann/json.hpp"
 
 static auto get_lofar_input_json() -> const nlohmann::json& {
@@ -105,6 +104,7 @@ protected:
     const auto lmnX = read_json_scalar_1d<ValueType>(output_data["lmn_x"]);
     const auto lmnY = read_json_scalar_1d<ValueType>(output_data["lmn_y"]);
     const auto lmnZ = read_json_scalar_1d<ValueType>(output_data["lmn_z"]);
+
     const std::size_t nPixel = imgRef.size() / nIntervals;
 
     // map intervals to mask
@@ -163,21 +163,24 @@ protected:
 
     auto comm = bipp::Communicator::local();
 
-    const std::string imageFileName = "test_nufft_synthesis_lofar_image.h5";
-    bipp::image_synthesis(ctx_, opt, dataset, std::move(selection), nPixel, lmnX.data(),
-                          lmnY.data(), lmnZ.data(), imageFileName);
+    std::vector<ValueType> lmn(3 * nPixel);
+    std::copy(lmnX.begin(), lmnX.end(), lmn.begin());
+    std::copy(lmnY.begin(), lmnY.end(), lmn.begin() + nPixel);
+    std::copy(lmnZ.begin(), lmnZ.end(), lmn.begin() + 2 * nPixel);
 
-    {
-      bipp::ImageReader imageReader(imageFileName);
-      std::vector<ValueType> img(nPixel);
-      for (std::size_t idxInterval = 0; idxInterval < nIntervals; ++idxInterval) {
-        const std::string tag = std::string("image_") + std::to_string(idxInterval);
-        imageReader.read(tag, img.data());
-        for (std::size_t i = 0; i < nPixel; ++i) {
-          // Single precision is very inaccurate due to different summation orders
-          // Use twice the absolute error for single precision
-          ASSERT_NEAR(img[i], imgRef[i + idxInterval * nPixel], 0.05 * (4.0 / sizeof(ValueType)));
-        }
+    auto imgFile =
+        bipp::ImageFile::create("test_nufft_synthesis_lofar_image.h5", nPixel, lmn.data(), nPixel);
+
+    bipp::image_synthesis(ctx_, opt, dataset, std::move(selection), imgFile);
+
+    std::vector<ValueType> img(nPixel);
+    for (std::size_t idxInterval = 0; idxInterval < nIntervals; ++idxInterval) {
+      const std::string tag = std::string("image_") + std::to_string(idxInterval);
+      imgFile.get(tag, img.data());
+      for (std::size_t i = 0; i < nPixel; ++i) {
+        // Single precision is very inaccurate due to different summation orders
+        // Use twice the absolute error for single precision
+        ASSERT_NEAR(img[i], imgRef[i + idxInterval * nPixel], 0.05 * (4.0 / sizeof(ValueType)));
       }
     }
   }

@@ -21,6 +21,7 @@
 #include <map>
 
 #include "bipp/bipp.hpp"
+#include "bipp/image_file.hpp"
 
 using namespace bipp;
 namespace py = pybind11;
@@ -247,8 +248,7 @@ void image_synthesis_dispatch(
     DatasetFileDispatcher& dataset,
     std::unordered_map<std::string, std::unordered_map<std::size_t, std::vector<float>>>
         pySelection,
-    const std::vector<float>& pixelX, const std::vector<float>& pixelY,
-    const std::vector<float>& pixelZ, const std::string& outputFileName) {
+    ImageFile& file) {
   // check selection sizes and convert
   std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection;
   {
@@ -264,8 +264,7 @@ void image_synthesis_dispatch(
       }
     }
 
-    image_synthesis(ctx, opt, dataset.file_, selection, pixelX.size(), pixelX.data(), pixelY.data(),
-                    pixelZ.data(), outputFileName);
+    image_synthesis(ctx, opt, dataset.file_, selection, file);
   }
 }
 
@@ -429,30 +428,62 @@ PYBIND11_MODULE(pybipp, m) {
              const std::optional<pybind11::object>&) { d.close(); },
           "Close dataset file");
 
-  pybind11::class_<ImageReader>(m, "ImageReader")
-      .def(pybind11::init<const std::string&>(), pybind11::arg("file_name"))
-      .def("close", &ImageReader::close)
-      .def("is_open", &ImageReader::is_open)
-      .def("num_tags", &ImageReader::num_tags)
-      .def("tags", &ImageReader::tags)
-      .def("dataset_file_name", &ImageReader::dataset_file_name)
-      .def("dataset_description", &ImageReader::dataset_description)
-      .def("num_pixel", &ImageReader::num_pixel)
+  pybind11::class_<ImageFile>(m, "ImageFile")
+      .def_static("open", &ImageFile::open, pybind11::arg("file_name"))
+      .def_static(
+          "create",
+          [](const std::string& fileName,
+             const py::array_t<float, py::array::f_style | py::array::forcecast>& lmn)
+              -> ImageFile {
+            auto numPixel = lmn.shape(0);
+            check_2d_array(lmn, {numPixel, 3});
+
+            return ImageFile::create(fileName, numPixel, lmn.data(0),
+                                     safe_cast<std::size_t>(lmn.strides(1) / lmn.itemsize()));
+          },
+          pybind11::arg("file_name"), pybind11::arg("lmn"))
+      .def("close", &ImageFile::close)
+      .def("is_open", &ImageFile::is_open)
+      .def("tags", &ImageFile::tags)
+      .def("num_tags", &ImageFile::num_tags)
+      .def("num_pixel", &ImageFile::num_pixel)
+      .def("meta_data", &ImageFile::meta_data)
+      .def("set_meta", &ImageFile::set_meta, pybind11::arg("name"), pybind11::arg("value"))
       .def(
-          "read",
-          [](ImageReader& reader, const std::string& tag) {
-            py::array_t<float> image(reader.num_pixel());
-            reader.read(tag, image.mutable_data(0));
+          "get",
+          [](ImageFile& f, const std::string& tag) -> py::array_t<float, py::array::f_style> {
+            auto image = py::array_t<float, py::array::f_style>(py::ssize_t(f.num_pixel()));
+            f.get(tag, image.mutable_data(0));
             return image;
           },
           pybind11::arg("tag"))
-      .def("__enter__", [](ImageReader& d) -> ImageReader& { return d; })
+      .def(
+          "set",
+          [](ImageFile& f, const std::string& tag,
+             const py::array_t<float, py::array::f_style | py::array::forcecast>& image)
+              -> py::array_t<float, py::array::f_style> {
+            check_1d_array(image, f.num_pixel());
+            f.set(tag, image.data(0));
+            return image;
+          },
+          pybind11::arg("tag"), pybind11::arg("image"))
+      .def(
+          "pixel_lmn",
+          [](ImageFile& f) -> py::array_t<float, py::array::f_style> {
+            auto lmn = py::array_t<float, py::array::f_style>(
+                {py::ssize_t(f.num_pixel()), py::ssize_t(3)});
+            f.pixel_lmn(lmn.mutable_data(0),
+                        safe_cast<std::size_t>(lmn.strides(1) / lmn.itemsize()));
+            return lmn;
+          })
+      .def("__enter__", [](ImageFile& f) -> ImageFile& { return f; })
       .def(
           "__exit__",
-          [](ImageReader& d, const std::optional<pybind11::type>&,
+          [](ImageFile& f, const std::optional<pybind11::type>&,
              const std::optional<pybind11::object>&,
-             const std::optional<pybind11::object>&) { d.close(); },
-          "Close dataset file");
+             const std::optional<pybind11::object>&) { f.close(); },
+          "Close image file");
+
 
   // TODO: describe args
   m.def("image_synthesis", &image_synthesis_dispatch);

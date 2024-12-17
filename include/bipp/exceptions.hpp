@@ -86,6 +86,9 @@ class BIPP_EXPORT HDF5Error : public GenericError {
 public:
   HDF5Error() : GenericError("BIPP: HDF5Error error") {}
 
+  template <std::size_t N>
+  HDF5Error(const char (&msg)[N]) : GenericError(msg) {}
+
   BippError error_code() const noexcept override { return BippError::BIPP_HDF5_ERROR; }
 };
 
