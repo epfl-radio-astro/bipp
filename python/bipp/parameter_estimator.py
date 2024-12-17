@@ -119,7 +119,7 @@ class ParameterEstimator:
             G : :py:class:`~bipp.phased_array.bipp.gram.GramMatrix`
                 (N_beam, N_beam) gram matrix.
         """
-        D =  bipp.pybipp.eigh(self._ctx, wl,S, W, XYZ)
+        D = bipp.pybipp.eigh(self._ctx, wl,S, W, XYZ)
         D = D[D > 0.0]
         D = D[np.argsort(D)[::-1]]
         if self._fne:

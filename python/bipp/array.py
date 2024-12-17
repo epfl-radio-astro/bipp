@@ -36,7 +36,7 @@ class LabeledMatrix:
             ):
                 raise ValueError("Parameter[data] must be CSC/CSR-ordered.")
         else:
-            self.__data = np.array(data, copy=False)
+            self.__data = np.asarray(data)
             self.__data.setflags(write=False)
 
             if self.__data.ndim != 2:
@@ -113,7 +113,8 @@ class LabeledMatrix:
         if not chk.is_instance(LabeledMatrix)(lmtx):
             raise ValueError("Parameter[lmtx] must be a LabeledMatrix.")
 
-        axes = np.array(axes, copy=False)
+        axes = np.asarray(axes)
+
         if not np.all((axes == 0) | (axes == 1)):
             raise ValueError("Parameter[axes] can only contain {0, 1}.")
 

@@ -31,7 +31,7 @@ class GramMatrix(array.LabeledMatrix):
     """
 
     def __init__(self, data, beam_idx):
-        data = np.array(data, copy=False)
+        data = np.asarray(data)
         N_beam = len(beam_idx)
 
         if not chk.has_shape((N_beam, N_beam))(data):

@@ -84,7 +84,7 @@ class InstrumentGeometry(array.LabeledMatrix):
     """
 
     def __init__(self, xyz, ant_idx):
-        xyz = np.array(xyz, copy=False)
+        xyz = np.asarray(xyz)
         N_antenna = len(xyz)
         if not chk.has_shape((N_antenna, 3))(xyz):
             raise ValueError("Parameter[xyz] must be a (N_antenna, 3) array.")

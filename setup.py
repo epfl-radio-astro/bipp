@@ -51,7 +51,7 @@ setup(
     ]
     + bipp_cmake_args_list,
     install_requires=[
-        "numpy",
+        "numpy>2",
         "astropy",
         "matplotlib",
         "tqdm",

@@ -68,7 +68,7 @@ set(BIPP_INSTALL_PYTHON_SUFFIX "platlib" CACHE STRING "Python installation suffi
 # Library install location
 set(BIPP_INSTALL_LIB_SUFFIX "${CMAKE_INSTALL_LIBDIR}" CACHE STRING "Lib install suffix")
 
-option(BIPP_BUNDLED_LIBS "Use bundled libraries for spdlog, googletest and json" ON)
+option(BIPP_BUNDLED_LIBS "Use bundled libraries for spdlog, pybind11, googletest and json" ON)
 cmake_dependent_option(BIPP_BUNDLED_SPDLOG "Use bundled spdlog lib" ON "BIPP_BUNDLED_LIBS" OFF)
 cmake_dependent_option(BIPP_BUNDLED_PYBIND11 "Use bundled pybind11 lib" ON "BIPP_BUNDLED_LIBS" OFF)
 cmake_dependent_option(BIPP_BUNDLED_GOOGLETEST "Use bundled googletest lib" ON "BIPP_BUNDLED_LIBS" OFF)

@@ -517,7 +517,7 @@ def is_array_shape(x):
        False
     """
     if is_array_like(x):
-        x = np.array(x, copy=False)
+        x = np.asarray(x)
 
         if x.ndim == 1:
             if (len(x) > 0) and np.issubdtype(x.dtype, np.integer) and np.all(x > 0):
@@ -561,7 +561,7 @@ def has_shape(shape):
 
     def _has_shape(x):
         if is_array_like(x):
-            x = np.array(x, copy=False)
+            x = np.asarray(x)
         elif sparse.isspmatrix(x):
             pass
         else:
@@ -610,7 +610,7 @@ def has_ndim(ndim):
 
     def _has_ndim(x):
         if is_array_like(x):
-            x = np.array(x, copy=False)
+            x = np.asarray(x)
         else:
             return False
 
@@ -665,7 +665,7 @@ def has_integers(x):
        (False, False)
     """
     if is_array_like(x):
-        x = np.array(x, copy=False)
+        x = np.asarray(x)
 
         if np.issubdtype(x.dtype, np.integer):
             return True
@@ -718,7 +718,7 @@ def has_booleans(x):
        False
     """
     if is_array_like(x):
-        x = np.array(x, copy=False)
+        x = np.asarray(x)
 
         if np.issubdtype(x.dtype, np.bool_):
             return True
@@ -771,7 +771,7 @@ def has_evens(x):
        True
     """
     if has_integers(x):
-        x = np.array(x, copy=False)
+        x = np.asarray(x)
 
         if np.all(x % 2 == 0):
             return True
@@ -825,7 +825,7 @@ def has_odds(x):
        True
     """
     if has_integers(x):
-        x = np.array(x, copy=False)
+        x = np.asarray(x)
 
         if np.all(x % 2 == 1):
             return True
@@ -881,7 +881,7 @@ def has_pow2s(x):
        False
     """
     if has_integers(x):
-        x = np.array(x, copy=False)
+        x = np.asarray(x)
 
         if np.all(x > 0):
             exp = np.log2(x)
@@ -934,7 +934,7 @@ def has_complex(x):
        True
     """
     if is_array_like(x):
-        x = np.array(x, copy=False)
+        x = np.asarray(x)
 
         if np.issubdtype(x.dtype, np.complexfloating):
             return True
@@ -982,7 +982,7 @@ def has_reals(x):
        False
     """
     if is_array_like(x):
-        x = np.array(x, copy=False)
+        x = np.asarray(x)
 
         if np.issubdtype(x.dtype, np.integer) or np.issubdtype(x.dtype, np.floating):
             return True

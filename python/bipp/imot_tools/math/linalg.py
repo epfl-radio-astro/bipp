@@ -140,12 +140,12 @@ def eigh(A, B=None, tau=1, N=None):
         [ 0.0583+0.0055j  0.    +0.j      0.    +0.j    ]
         [ 0.0363+0.0209j  0.    +0.j      0.    +0.j    ]]
     """
-    A = np.array(A, copy=False)
+    A = np.asarray(A)
     M = len(A)
     if not (chk.has_shape([M, M])(A) and np.allclose(A, A.conj().T)):
         raise ValueError("Parameter[A] must be hermitian symmetric.")
 
-    B = np.eye(M) if (B is None) else np.array(B, copy=False)
+    B = np.eye(M) if (B is None) else np.asarray(B)
     if not (chk.has_shape([M, M])(B) and np.allclose(B, B.conj().T)):
         raise ValueError("Parameter[B] must be hermitian symmetric.")
 
@@ -228,7 +228,7 @@ def rot(axis, angle):
               [ 0.  ,  0.54,  0.84],
               [ 0.  , -0.84,  0.54]])
     """
-    axis = np.array(axis, copy=False)
+    axis = np.asarray(axis)
 
     a, b, c = axis / linalg.norm(axis)
     ct, st = np.cos(angle), np.sin(angle)
@@ -284,7 +284,7 @@ def z_rot2angle(R):
        >>> np.around(angle, 2)
        1.57
     """
-    R = np.array(R, copy=False)
+    R = np.asarray(R)
 
     if not np.allclose(R[[0, 1, 2, 2, 2], [2, 2, 2, 0, 1]], np.r_[0, 0, 1, 0, 0]):
         raise ValueError("Parameter[R] is not a rotation matrix around the Z-axis.")

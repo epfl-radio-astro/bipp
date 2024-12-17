@@ -53,7 +53,7 @@ def spherical(direction, FoV, size):
     if not (0 < np.rad2deg(FoV) <= 179):
         raise ValueError("Parameter[FoV] must be in (0, 179] degrees.")
 
-    size = np.array(size, copy=False)
+    size = np.asarray(size)
     if np.any(size <= 0):
         raise ValueError("Parameter[size] must contain positive entries.")
 
@@ -111,7 +111,7 @@ def uniform(direction, FoV, size):
     if not (0 < np.rad2deg(FoV) <= 179):
         raise ValueError("Parameter[FoV] must be in (0, 179] degrees.")
 
-    size = np.array(size, copy=False)
+    size = np.asarray(size)
     if np.any(size <= 0):
         raise ValueError("Parameter[size] must contain positive entries.")
 

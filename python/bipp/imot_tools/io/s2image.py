@@ -157,7 +157,7 @@ class Image:
         -----
         For efficiency reasons, `data` and `grid` are not copied internally.
         """
-        grid = np.array(grid, copy=False)
+        grid = np.asarray(grid)
         grid_shape_error_msg = (
             "Parameter[grid] must have shape (3, N_height, N_width) or (3, N_points)."
         )
@@ -171,7 +171,7 @@ class Image:
             raise ValueError(grid_shape_error_msg)
         self._grid = grid / linalg.norm(grid, axis=0)
 
-        data = np.array(data, copy=False)
+        data = np.asarray(data)
         if self._is_gridded:
             N_height, N_width = self._grid.shape[1:]
             if (data.ndim == 2) and chk.has_shape([N_height, N_width])(data):
