@@ -19,6 +19,7 @@ set(BIPP_SOURCE_FILES
 	io/image_file_reader.cpp
 	image_reader.cpp
 	image_synthesis.cpp
+	image_file.cpp
 	)
 
 
