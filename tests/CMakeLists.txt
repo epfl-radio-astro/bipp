@@ -1,29 +1,3 @@
-set(BIPP_TEST_LIBRARIES)
-set(BIPP_TEST_INCLUDE_DIRS)
-
-set(BUILD_GMOCK OFF CACHE BOOL "")
-set(INSTALL_GTEST OFF CACHE BOOL "")
-mark_as_advanced(BUILD_GMOCK INSTALL_GTEST)
-
-
-set(JSON_Install OFF CACHE BOOL "")
-set(JSON_BuildTests OFF CACHE INTERNAL "")
-
-if(BIPP_BUNDLED_GOOGLETEST)
-  # add googletest
-  FetchContent_Declare(
-    googletest
-    URL https://github.com/google/googletest/archive/refs/tags/v1.13.0.tar.gz
-    URL_MD5 95b29f0038ec84a611df951d74d99897
-  )
-  FetchContent_MakeAvailable(googletest)
-else()
-  find_package(googletest CONFIG REQUIRED)
-endif()
-
-
-list(APPEND BIPP_TEST_LIBRARIES gtest_main )
-
 # test executables
 add_executable(run_tests
   run_tests.cpp

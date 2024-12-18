@@ -52,14 +52,16 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
 # Options
 set(BUILD_SHARED_LIBS "ON" CACHE STRING "Build as shared library") # default to shared
 option(BIPP_BUILD_TESTS "Build tests" OFF)
+option(BIPP_BUILD_APPS "Build apps" ON)
 option(BIPP_PYTHON "Build python module" ON)
 option(BIPP_MAGMA "Use MAGMA library as eigensolver" OFF)
 option(BIPP_UMPIRE "Use Umpire memory pool library" OFF)
-option(BIPP_VC "Use VC vectorization library" OFF)
 option(BIPP_OMP "Use OpenMP for multi-threading" ON)
 option(BIPP_MPI "Use MPI for multi-process parallization" OFF)
 
 option(BIPP_INSTALL_LIB "Install library" ON)
+cmake_dependent_option(BIPP_INSTALL_APPS "BIPP_INSTALL_APPS" ON "BIPP_INSTALL_LIB" OFF)
+
 cmake_dependent_option(BIPP_INSTALL_PYTHON "Install Python module" ON "BIPP_PYTHON" OFF)
 cmake_dependent_option(BIPP_INSTALL_PYTHON_DEPS "Install dependencies bundled with Python module" OFF "BIPP_PYTHON" OFF)
 set(BIPP_INSTALL_PYTHON_PREFIX "" CACHE STRING "Python install prefix. If not set, CMAKE_INSTALL_PREFIX will be used.")
@@ -73,6 +75,7 @@ cmake_dependent_option(BIPP_BUNDLED_SPDLOG "Use bundled spdlog lib" ON "BIPP_BUN
 cmake_dependent_option(BIPP_BUNDLED_PYBIND11 "Use bundled pybind11 lib" ON "BIPP_BUNDLED_LIBS" OFF)
 cmake_dependent_option(BIPP_BUNDLED_GOOGLETEST "Use bundled googletest lib" ON "BIPP_BUNDLED_LIBS" OFF)
 cmake_dependent_option(BIPP_BUNDLED_JSON "Use bundled json lib" ON "BIPP_BUNDLED_LIBS" OFF)
+cmake_dependent_option(BIPP_BUNDLED_CLI11 "Use bundled CLI11 lib" ON "BIPP_BUNDLED_LIBS" OFF)
 
 set(BIPP_GPU "OFF" CACHE STRING "GPU backend")
 set_property(CACHE BIPP_GPU PROPERTY STRINGS
@@ -132,6 +135,9 @@ set(BIPP_FLAGS "")
 set(BIPP_EXTERNAL_LIBS "")
 set(BIPP_EXTERNAL_LIBS_PUBLIC "")
 set(BIPP_INCLUDE_DIRS "")
+
+set(BIPP_TEST_LIBRARIES)
+set(BIPP_APP_LIBRARIES)
 
 # CUDA
 if(BIPP_CUDA)
@@ -252,31 +258,79 @@ if(BIPP_OMP)
   list(APPEND BIPP_EXTERNAL_LIBS OpenMP::OpenMP_CXX)
 endif()
 
-if(BIPP_VC)
-  find_package(Vc CONFIG REQUIRED)
-  list(APPEND BIPP_EXTERNAL_LIBS Vc::Vc)
-endif()
-
-
 if(BIPP_BUNDLED_SPDLOG)
+  set(SPDLOG_INSTALL OFF CACHE BOOL "")
   FetchContent_Declare(
 	spdlog
 	URL https://github.com/gabime/spdlog/archive/refs/tags/v1.14.1.tar.gz
 	URL_MD5 f2c3f15c20e67b261836ff7bfda302cf
   )
-  FetchContent_GetProperties(spdlog)
-  if(NOT spdlog_POPULATED)
-	FetchContent_Populate(spdlog)
-  endif()
-  list(APPEND BIPP_INCLUDE_DIRS ${spdlog_SOURCE_DIR}/include)
+  FetchContent_MakeAvailable(spdlog)
+  list(APPEND BIPP_EXTERNAL_LIBS spdlog::spdlog_header_only)
 else()
   find_package(spdlog CONFIG REQUIRED)
   list(APPEND BIPP_EXTERNAL_LIBS spdlog::spdlog)
 endif()
 
+# header-only command line parser
+if(BIPP_BUILD_APPS)
+  if(BIPP_BUNDLED_CLI11)
+	set(CLI11_INSTALL OFF CACHE BOOL "")
+	set(CLI11_BUILD_TESTS OFF CACHE BOOL "")
+	set(CLI11_BUILD_EXAMPLES OFF CACHE BOOL "")
+	FetchContent_Declare(
+	  cli11
+	  URL https://github.com/CLIUtils/CLI11/archive/refs/tags/v2.4.2.tar.gz
+	  URL_MD5 f9c0acb8c483a524e9dd275955227254
+	)
+	FetchContent_MakeAvailable(cli11)
+  else()
+	find_package(CLI11 CONFIG REQUIRED)
+  endif()
+  list(APPEND BIPP_APP_LIBRARIES CLI11::CLI11)
+endif()
+
+# json parser
+
+if(BIPP_BUILD_TESTS OR BIPP_BUILD_APPS)
+  if(BIPP_BUNDLED_JSON)
+	set(JSON_Install OFF CACHE BOOL "")
+	set(JSON_BuildTests OFF CACHE INTERNAL "")
+	  FetchContent_Declare(
+	  json
+	  URL https://github.com/nlohmann/json/archive/refs/tags/v3.11.2.tar.gz
+	  URL_MD5 e8d56bc54621037842ee9f0aeae27746
+	)
+	FetchContent_MakeAvailable(json)
+  else()
+	find_package(nlohmann_json CONFIG REQUIRED)
+  endif()
+  list(APPEND BIPP_APP_LIBRARIES nlohmann_json::nlohmann_json)
+  list(APPEND BIPP_TEST_LIBRARIES nlohmann_json::nlohmann_json)
+endif()
+
+
+if(BIPP_BUILD_TESTS)
+  if(BIPP_BUNDLED_GOOGLETEST)
+	set(BUILD_GMOCK OFF CACHE BOOL "")
+	set(INSTALL_GTEST OFF CACHE BOOL "")
+	# add googletest
+	FetchContent_Declare(
+	  googletest
+	  URL https://github.com/google/googletest/archive/refs/tags/v1.13.0.tar.gz
+	  URL_MD5 95b29f0038ec84a611df951d74d99897
+	)
+	FetchContent_MakeAvailable(googletest)
+  else()
+	find_package(googletest CONFIG REQUIRED)
+  endif()
+  list(APPEND BIPP_TEST_LIBRARIES gtest)
+endif()
+
+
 # check if C api is available for blas and lapack
 # include(CheckCXXSymbolExists)
-set(CMAKE_REQUIRED_LIBRARIES ${BIPP_EXTERNAL_LIBS})
+set(CMAKE_REQUIRED_LIBRARIES BLAS::BLAS)
 include(CheckFunctionExists)
 
 unset(BIPP_BLAS_C CACHE) # Result is cached, so change of library will not lead to a new check automatically

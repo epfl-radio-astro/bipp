@@ -75,6 +75,7 @@ target_include_directories(bipp_objects INTERFACE $<BUILD_INTERFACE:${PROJECT_SO
 
 #shared library
 add_library(bipp $<TARGET_OBJECTS:bipp_objects>)
+add_library(bipp::bipp ALIAS bipp)
 
 set_property(TARGET bipp PROPERTY VERSION ${BIPP_VERSION})
 set_property(TARGET bipp PROPERTY SOVERSION ${BIPP_SO_VERSION})
@@ -151,4 +152,8 @@ if(BIPP_INSTALL_LIB)
 	install(DIRECTORY "${PROJECT_SOURCE_DIR}/cmake/modules"
 		DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/bipp"
         FILES_MATCHING PATTERN "*.cmake")
+endif()
+
+if(BIPP_BUILD_APPS)
+    add_subdirectory(apps)
 endif()
