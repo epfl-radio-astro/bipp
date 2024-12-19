@@ -55,8 +55,8 @@ public:
 
     // create data spaces
     h5Wl_ = h5::create_one_dim_space(h5File_.id(), "wl", h5::get_type_id<float>(), CHUNK_SIZE);
-    h5NVis_ =
-        h5::create_one_dim_space(h5File_.id(), "nvis", h5::get_type_id<unsigned int>(), CHUNK_SIZE);
+    h5Scale_ = h5::create_one_dim_space(h5File_.id(), "scale", h5::get_type_id<float>(),
+                                       CHUNK_SIZE);
     h5MinU_ =
         h5::create_one_dim_space(h5File_.id(), "uMin", h5::get_type_id<float>(), CHUNK_SIZE);
     h5MinV_ =
@@ -107,13 +107,11 @@ public:
     }
     {
       std::array<hsize_t, 2> dims = {3, nAntenna_ * nAntenna_};
-      h5UVWType_ =
-          h5::check(H5Tarray_create(h5::get_type_id<float>(), dims.size(), dims.data()));
+      h5UVWType_ = h5::check(H5Tarray_create(h5::get_type_id<float>(), dims.size(), dims.data()));
     }
     {
       std::array<hsize_t, 2> dims = {3, nAntenna_};
-      h5XYZType_ =
-          h5::check(H5Tarray_create(h5::get_type_id<float>(), dims.size(), dims.data()));
+      h5XYZType_ = h5::check(H5Tarray_create(h5::get_type_id<float>(), dims.size(), dims.data()));
     }
 
     h5EigVal_ = h5::check(H5Dopen(h5File_.id(), "eigVal", H5P_DEFAULT));
@@ -121,7 +119,7 @@ public:
     h5UVW_ = h5::check(H5Dopen(h5File_.id(), "uvw", H5P_DEFAULT));
     h5XYZ_ = h5::check(H5Dopen(h5File_.id(), "xyz", H5P_DEFAULT));
     h5Wl_ = h5::check(H5Dopen(h5File_.id(), "wl", H5P_DEFAULT));
-    h5NVis_ = h5::check(H5Dopen(h5File_.id(), "nvis", H5P_DEFAULT));
+    h5Scale_ = h5::check(H5Dopen(h5File_.id(), "scale", H5P_DEFAULT));
     h5MinU_ = h5::check(H5Dopen(h5File_.id(), "uMin", H5P_DEFAULT));
     h5MinV_ = h5::check(H5Dopen(h5File_.id(), "vMin", H5P_DEFAULT));
     h5MinW_ = h5::check(H5Dopen(h5File_.id(), "wMin", H5P_DEFAULT));
@@ -130,7 +128,7 @@ public:
     h5MaxW_ = h5::check(H5Dopen(h5File_.id(), "wMax", H5P_DEFAULT));
 
     // all samples have the same size. Select one to set number of samples.
-    h5::DataSpace dspace = h5::check(H5Dget_space(h5NVis_.id()));
+    h5::DataSpace dspace = h5::check(H5Dget_space(h5Scale_.id()));
     hsize_t dim = 0;
     hsize_t maxDim = 0;
     h5::check(H5Sget_simple_extent_dims(dspace.id(), &dim, &maxDim));
@@ -199,16 +197,14 @@ public:
     return value;
   }
 
-  auto n_vis(std::size_t index) -> std::size_t {
-    unsigned int value = 0;
-    h5::read_single_element(index, h5NVis_.id(), h5::get_type_id<decltype(value)>(), &value);
+  auto scale(std::size_t index) -> float {
+    float value = 0;
+    h5::read_single_element(index, h5Scale_.id(), h5::get_type_id<decltype(value)>(), &value);
     return value;
   }
 
-  auto write(float wl, std::size_t nVis, const std::complex<float>* v, std::size_t ldv,
-             const float* d, const float* xyz, std::size_t ldxyz, const float* uvw,
-             std::size_t lduvw) -> void {
-
+  auto write(float wl, float scale, const std::complex<float>* v, std::size_t ldv, const float* d,
+             const float* xyz, std::size_t ldxyz, const float* uvw, std::size_t lduvw) -> void {
     ConstHostView<std::complex<float>, 2> vView(v, {nAntenna_, nBeam_}, {1, ldv});
     ConstHostView<float, 2> uvwView (uvw, {nAntenna_ * nAntenna_, 3}, {1, lduvw});
     ConstHostView<float, 2> xyzView(xyz, {nAntenna_, 3}, {1, ldxyz});
@@ -245,7 +241,7 @@ public:
     h5::check(H5Dextend(h5UVW_.id(), &newSize));
     h5::check(H5Dextend(h5XYZ_.id(), &newSize));
     h5::check(H5Dextend(h5Wl_.id(), &newSize));
-    h5::check(H5Dextend(h5NVis_.id(), &newSize));
+    h5::check(H5Dextend(h5Scale_.id(), &newSize));
     h5::check(H5Dextend(h5MinU_.id(), &newSize));
     h5::check(H5Dextend(h5MinV_.id(), &newSize));
     h5::check(H5Dextend(h5MinW_.id(), &newSize));
@@ -263,8 +259,8 @@ public:
     h5::write_single_element(index, h5XYZ_.id(), h5XYZType_.id(), xyzView.data());
 
     h5::write_single_element(index, h5Wl_.id(), h5::get_type_id<float>(), &wl);
-    unsigned int nVisOut = static_cast<unsigned int>(nVis);
-    h5::write_single_element(index, h5NVis_.id(), h5::get_type_id<decltype(nVisOut)>(), &nVisOut);
+    h5::write_single_element(index, h5Scale_.id(), h5::get_type_id<decltype(scale)>(),
+                             &scale);
 
     const auto uMM = std::minmax_element(&uvwView[{0, 0}], &uvwView[{0, 0}] + uvwView.shape(0));
     const auto vMM = std::minmax_element(&uvwView[{0, 1}], &uvwView[{0, 1}] + uvwView.shape(0));
@@ -303,7 +299,7 @@ private:
   h5::DataSet h5UVW_;
   h5::DataSet h5XYZ_;
   h5::DataSet h5Wl_;
-  h5::DataSet h5NVis_;
+  h5::DataSet h5Scale_;
   h5::DataSet h5MinU_;
   h5::DataSet h5MinV_;
   h5::DataSet h5MinW_;
@@ -395,18 +391,18 @@ float DatasetFile::wl(std::size_t index) {
     throw GenericError("DatasetFile: access after close");
 }
 
-std::size_t DatasetFile::n_vis(std::size_t index) {
+float DatasetFile::scale(std::size_t index) {
   if (impl_)
-    return impl_->n_vis(index);
+    return impl_->scale(index);
   else
     throw GenericError("DatasetFile: access after close");
 }
 
-void DatasetFile::write(float wl, std::size_t nVis, const std::complex<float>* v, std::size_t ldv,
-                        const float* d, const float* xyz, std::size_t ldxyz, const float* uvw,
-                        std::size_t lduvw) {
+void DatasetFile::write(float wl, float scale, const std::complex<float>* v,
+                        std::size_t ldv, const float* d, const float* xyz, std::size_t ldxyz,
+                        const float* uvw, std::size_t lduvw) {
   if (impl_)
-    impl_->write(wl, nVis, v, ldv, d, xyz, ldxyz, uvw, lduvw);
+    impl_->write(wl, scale, v, ldv, d, xyz, ldxyz, uvw, lduvw);
   else
     throw GenericError("DatasetFile: write after close");
 }

@@ -220,9 +220,9 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
         ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "scale eigenvalues");
         ConstHostView<float, 1> d(samples[i].second, nBeam, 1);
 
-        if (opt.normalizeImageNvis) {
-          const auto nVis = dataset.n_vis(id);
-          const T scale = nVis ? 1 / T(nVis) : 0;
+        if (opt.apply_scaling) {
+          const T scale = dataset.scale(id);
+          ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "applying scale {}", scale);
           for (std::size_t j = 0; j < nBeam; ++j) {
             dScaledArray[j] = scale * d[j];
           }

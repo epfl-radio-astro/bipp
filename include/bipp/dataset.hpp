@@ -33,7 +33,7 @@ public:
 
   virtual float wl(std::size_t index) = 0;
 
-  virtual std::size_t n_vis(std::size_t index) = 0;
+  virtual float scale(std::size_t index) = 0;
 
   virtual ~Dataset() = default;
 };

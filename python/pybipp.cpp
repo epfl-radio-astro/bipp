@@ -217,13 +217,13 @@ struct DatasetFileDispatcher {
 
   float wl(std::size_t index) { return file_.wl(index); }
 
-  std::size_t n_vis(std::size_t index) { return file_.n_vis(index); }
+  float scale(std::size_t index) { return file_.scale(index); }
 
   void close() { file_.close(); }
 
   bool is_open() const noexcept { return file_.is_open(); }
 
-  auto write(float wl, std::size_t nVis,
+  auto write(float wl, float scale,
              const py::array_t<std::complex<float>, py::array::f_style | py::array::forcecast>& v,
              const py::array_t<float, py::array::f_style | py::array::forcecast>& d,
              const py::array_t<float, py::array::f_style | py::array::forcecast>& xyz,
@@ -235,9 +235,9 @@ struct DatasetFileDispatcher {
     check_2d_array(uvw, {nAntenna * nAntenna, 3});
     check_1d_array(d, nBeam);
 
-    file_.write(wl, nVis, v.data(0), safe_cast<std::size_t>(v.strides(1) / v.itemsize()), d.data(0),
-                xyz.data(0), safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()), uvw.data(0),
-                safe_cast<std::size_t>(uvw.strides(1) / uvw.itemsize()));
+    file_.write(wl, scale, v.data(0), safe_cast<std::size_t>(v.strides(1) / v.itemsize()),
+                d.data(0), xyz.data(0), safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()),
+                uvw.data(0), safe_cast<std::size_t>(uvw.strides(1) / uvw.itemsize()));
   }
 
   DatasetFile file_;
@@ -309,7 +309,7 @@ auto call_eigh(Context& ctx, T wl, const py::array_t<std::complex<T>, py::array:
                const py::array_t<std::complex<T>, py::array::f_style>& w,
                const py::array_t<T, py::array::f_style>& xyz)
     -> std::tuple<py::array_t<std::complex<T>, py::array::f_style>,
-                  py::array_t<T, py::array::f_style>, std::size_t> {
+                  py::array_t<T, py::array::f_style>, T> {
   check_2d_array(w);
   auto nAntenna = w.shape(0);
   auto nBeam = w.shape(1);
@@ -318,12 +318,11 @@ auto call_eigh(Context& ctx, T wl, const py::array_t<std::complex<T>, py::array:
 
   auto d = py::array_t<T, py::array::f_style>({py::ssize_t(nBeam)});
   auto v = py::array_t<std::complex<T>, py::array::f_style>({py::ssize_t(nAntenna), py::ssize_t(nBeam)});
-  std::pair<std::size_t, std::size_t> pev{0, 0};
-  pev = eigh<T>(ctx, wl, nAntenna, nBeam, s.data(0),
-                safe_cast<std::size_t>(s.strides(1) / s.itemsize()), w.data(0),
-                safe_cast<std::size_t>(w.strides(1) / w.itemsize()), xyz.data(0),
-                safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()), d.mutable_data(0),
-                v.mutable_data(0), safe_cast<std::size_t>(v.strides(1) / v.itemsize()));
+  auto pev = eigh<T>(ctx, wl, nAntenna, nBeam, s.data(0),
+                     safe_cast<std::size_t>(s.strides(1) / s.itemsize()), w.data(0),
+                     safe_cast<std::size_t>(w.strides(1) / w.itemsize()), xyz.data(0),
+                     safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()), d.mutable_data(0),
+                     v.mutable_data(0), safe_cast<std::size_t>(v.strides(1) / v.itemsize()));
 
   return {std::move(v), std::move(d), pev.second};
 }
@@ -389,19 +388,19 @@ PYBIND11_MODULE(pybipp, m) {
       .def("set_local_image_partition", &NufftSynthesisOptions::set_local_image_partition)
       .def_readwrite("local_uvw_partition", &NufftSynthesisOptions::localUVWPartition)
       .def("set_local_uvw_partition", &NufftSynthesisOptions::set_local_uvw_partition)
-      .def_readwrite("normalizeImage", &NufftSynthesisOptions::normalizeImage)
+      .def_readwrite("normalize_image", &NufftSynthesisOptions::normalizeImage)
       .def("set_normalize_image", &NufftSynthesisOptions::set_normalize_image)
-      .def_readwrite("normalizeImageNvis", &NufftSynthesisOptions::normalizeImageNvis)
-      .def("set_normalize_image_by_nvis", &NufftSynthesisOptions::set_normalize_image_by_nvis);
+      .def_readwrite("apply_scaling", &NufftSynthesisOptions::apply_scaling)
+      .def("set_apply_scaling", &NufftSynthesisOptions::set_apply_scaling);
 
   pybind11::class_<StandardSynthesisOptions>(m, "StandardSynthesisOptions")
       .def(py::init())
       .def_readwrite("collect_group_size", &StandardSynthesisOptions::collectGroupSize)
       .def("set_collect_group_size", &StandardSynthesisOptions::set_collect_group_size)
-      .def_readwrite("normalizeImage", &StandardSynthesisOptions::normalizeImage)
+      .def_readwrite("normalize_image", &StandardSynthesisOptions::normalizeImage)
       .def("set_normalize_image", &StandardSynthesisOptions::set_normalize_image)
-      .def_readwrite("normalizeImageNvis", &StandardSynthesisOptions::normalizeImageNvis)
-      .def("set_normalize_image_by_nvis", &StandardSynthesisOptions::set_normalize_image_by_nvis);
+      .def_readwrite("apply_scaling", &StandardSynthesisOptions::apply_scaling)
+      .def("set_apply_scaling", &StandardSynthesisOptions::set_apply_scaling);
 
   pybind11::class_<DatasetFileDispatcher>(m, "DatasetFile")
       .def_static("open", &DatasetFileDispatcher::open, pybind11::arg("file_name"))
@@ -417,8 +416,8 @@ PYBIND11_MODULE(pybipp, m) {
       .def("uvw", &DatasetFileDispatcher::uvw, pybind11::arg("index"))
       .def("xyz", &DatasetFileDispatcher::xyz, pybind11::arg("index"))
       .def("wl", &DatasetFileDispatcher::wl, pybind11::arg("index"))
-      .def("n_vis", &DatasetFileDispatcher::n_vis, pybind11::arg("index"))
-      .def("write", &DatasetFileDispatcher::write, pybind11::arg("wl"), pybind11::arg("nVis"),
+      .def("scale", &DatasetFileDispatcher::scale, pybind11::arg("index"))
+      .def("write", &DatasetFileDispatcher::write, pybind11::arg("wl"), pybind11::arg("scale"),
            pybind11::arg("v"), pybind11::arg("d"), pybind11::arg("xyz"), pybind11::arg("uvw"))
       .def("__enter__", [](DatasetFileDispatcher& d) -> DatasetFileDispatcher& { return d; })
       .def(

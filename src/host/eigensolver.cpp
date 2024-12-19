@@ -44,7 +44,7 @@ static auto copy_lower_triangle_at_indices(const std::vector<std::size_t>& indic
 template <typename T>
 auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
           ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz, HostView<T, 1> d,
-          HostView<std::complex<T>, 2> vUnbeam) -> std::pair<std::size_t, std::size_t> {
+          HostView<std::complex<T>, 2> vUnbeam) -> std::pair<std::size_t, T> {
   auto funcTimer = ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "host::eigh");
   const auto nAntenna = w.shape(0);
   const auto nBeam = w.shape(1);
@@ -131,19 +131,21 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", d.sub_view(0, nBeamReduced));
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", v);
 
-  return std::make_pair(nBeamReduced, nVis);
+  const T scalingFactor = nVis ? T(1) / T(nVis) : T(0);
+
+  return std::make_pair(nBeamReduced, scalingFactor);
 }
 
 template auto eigh<float>(ContextInternal& ctx, float wl, ConstHostView<std::complex<float>, 2> s,
                           ConstHostView<std::complex<float>, 2> w, ConstHostView<float, 2> xyz,
                           HostView<float, 1> d, HostView<std::complex<float>, 2> vUnbeam)
-    -> std::pair<std::size_t, std::size_t>;
+    -> std::pair<std::size_t, float>;
 
 template auto eigh<double>(ContextInternal& ctx, double wl,
                            ConstHostView<std::complex<double>, 2> s,
                            ConstHostView<std::complex<double>, 2> w, ConstHostView<double, 2> xyz,
                            HostView<double, 1> d, HostView<std::complex<double>, 2> vUnbeam)
-    -> std::pair<std::size_t, std::size_t>;
+    -> std::pair<std::size_t, double>;
 
 }  // namespace host
 }  // namespace bipp

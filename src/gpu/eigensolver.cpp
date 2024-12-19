@@ -24,7 +24,7 @@ namespace gpu {
 template <typename T>
 auto eigh(ContextInternal& ctx, T wl, ConstDeviceView<api::ComplexType<T>, 2> s,
           ConstDeviceView<api::ComplexType<T>, 2> w, ConstDeviceView<T, 2> xyz, DeviceView<T, 1> d,
-          DeviceView<api::ComplexType<T>, 2> vUnbeam) -> std::pair<std::size_t, std::size_t> {
+          DeviceView<api::ComplexType<T>, 2> vUnbeam) -> std::pair<std::size_t, T> {
   const auto nAntenna = w.shape(0);
   const auto nBeam = w.shape(1);
   auto& queue = ctx.gpu_queue();
@@ -119,19 +119,23 @@ auto eigh(ContextInternal& ctx, T wl, ConstDeviceView<api::ComplexType<T>, 2> s,
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", d.sub_view(0, nBeamReduced));
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", v);
 
-  return std::make_pair(nBeamReduced, nVis);
+  const T scalingFactor = nVis ? T(1) / T(nVis) : T(0);
+
+  return std::make_pair(nBeamReduced, scalingFactor);
 }
 
 template auto eigh<float>(ContextInternal& ctx, float wl,
                           ConstDeviceView<api::ComplexType<float>, 2> s,
                           ConstDeviceView<api::ComplexType<float>, 2> w,
                           ConstDeviceView<float, 2> xyz, DeviceView<float, 1> d,
-                          DeviceView<api::ComplexType<float>, 2> vUnbeam) -> std::pair<std::size_t, std::size_t>;
+                          DeviceView<api::ComplexType<float>, 2> vUnbeam)
+    -> std::pair<std::size_t, float>;
 
 template auto eigh<double>(ContextInternal& ctx, double wl,
                            ConstDeviceView<api::ComplexType<double>, 2> s,
                            ConstDeviceView<api::ComplexType<double>, 2> w,
                            ConstDeviceView<double, 2> xyz, DeviceView<double, 1> d,
-                           DeviceView<api::ComplexType<double>, 2> vUnbeam) -> std::pair<std::size_t, std::size_t>;
+                           DeviceView<api::ComplexType<double>, 2> vUnbeam)
+    -> std::pair<std::size_t, double>;
 }  // namespace gpu
 }  // namespace bipp

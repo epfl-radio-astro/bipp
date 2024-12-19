@@ -27,9 +27,9 @@ template <typename T, typename>
 BIPP_EXPORT auto eigh(Context& ctx, T wl, std::size_t nAntenna, std::size_t nBeam,
                       const std::complex<T>* s, std::size_t lds, const std::complex<T>* w,
                       std::size_t ldw, const T* xyz, std::size_t ldxyz, T* d, std::complex<T>* v,
-                      std::size_t ldv) -> std::pair<std::size_t, std::size_t> {
+                      std::size_t ldv) -> std::pair<std::size_t, T> {
   auto& ctxInternal = *InternalContextAccessor::get(ctx);
-  std::pair<std::size_t, std::size_t> pev {0, 0};
+  std::pair<std::size_t, T> pev{0, 0};
   if (ctxInternal.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     gpu::DeviceGuard deviceGuard(ctxInternal.device_id());
@@ -69,12 +69,12 @@ template auto eigh<float, void>(Context& ctx, float wl, std::size_t nAntenna, st
                                 const std::complex<float>* s, std::size_t lds,
                                 const std::complex<float>* w, std::size_t ldw, const float* xyz,
                                 std::size_t ldxyz, float* d, std::complex<float>* v,
-                                std::size_t ldv) -> std::pair<std::size_t, std::size_t>;
+                                std::size_t ldv) -> std::pair<std::size_t, float>;
 
 template auto eigh<double, void>(Context& ctx, double wl, std::size_t nAntenna, std::size_t nBeam,
                                  const std::complex<double>* s, std::size_t lds,
                                  const std::complex<double>* w, std::size_t ldw, const double* xyz,
                                  std::size_t ldxyz, double* d, std::complex<double>* v,
-                                 std::size_t ldv) -> std::pair<std::size_t, std::size_t>;
+                                 std::size_t ldv) -> std::pair<std::size_t, double>;
 
 }  // namespace bipp

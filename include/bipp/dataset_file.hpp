@@ -41,7 +41,7 @@ public:
 
   float wl(std::size_t index) override;
 
-  std::size_t n_vis(std::size_t index) override;
+  float scale(std::size_t index) override;
 
   // void process_and_write(float wl, const std::complex<float>* s, std::size_t lds,
   //                        const std::complex<float>* w, std::size_t ldw, const float* xyz,
@@ -51,7 +51,7 @@ public:
   //                        const std::complex<double>* w, std::size_t ldw, const double* xyz,
   //                        std::size_t ldxyz, const double* uvw, std::size_t lduvw);
 
-  void write(float wl, std::size_t nVis, const std::complex<float>* v, std::size_t ldv,
+  void write(float wl, float scale, const std::complex<float>* v, std::size_t ldv,
              const float* d, const float* xyz, std::size_t ldxyz, const float* uvw,
              std::size_t lduvw);
 

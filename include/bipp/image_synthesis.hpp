@@ -87,9 +87,9 @@ struct NufftSynthesisOptions {
   bool normalizeImage = true;
 
   /**
-   * Normalize image by the number of non-zero visibilities.
+   * Apply scaling defined in dataset.
    */
-  bool normalizeImageNvis = true;
+  bool apply_scaling = true;
 
   /**
    * Set the tolerance.
@@ -142,12 +142,12 @@ struct NufftSynthesisOptions {
   }
 
   /**
-   * Set normalization of image by number of non-zero visibilities.
+   * Set scaling setting.
    *
-   * @param[in] normalize True or false.
+   * @param[in] apply True or false.
    */
-  inline auto set_normalize_image_by_nvis(bool normalize) -> NufftSynthesisOptions& {
-    normalizeImageNvis = normalize;
+  inline auto set_apply_scaling(bool apply) -> NufftSynthesisOptions& {
+    apply_scaling = apply;
     return *this;
   }
 
@@ -182,7 +182,7 @@ struct StandardSynthesisOptions {
   /**
    * Normalize image by the number of non-zero visibilities.
    */
-  bool normalizeImageNvis = true;
+  bool apply_scaling = true;
 
   /**
    * Set the collection group size.
@@ -205,12 +205,12 @@ struct StandardSynthesisOptions {
   }
 
   /**
-   * Set normalization of image by number of non-zero visibilities.
+   * Set scaling setting.
    *
-   * @param[in] normalize True or false.
+   * @param[in] apply True or false.
    */
-  inline auto set_normalize_image_by_nvis(bool normalize) -> StandardSynthesisOptions& {
-    normalizeImageNvis = normalize;
+  inline auto set_apply_scaling(bool apply) -> StandardSynthesisOptions& {
+    apply_scaling = apply;
     return *this;
   }
 
