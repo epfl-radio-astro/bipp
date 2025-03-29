@@ -74,18 +74,21 @@ inline auto apply_uvw_partition(const UVWGroup<T>& group, HostView<T, 2> uvw,
 
     std::size_t count = 0;
 
-    auto u = uvw.slice_view(0);
-    auto v = uvw.slice_view(1);
-    auto w = uvw.slice_view(2);
+    T* __restrict__ u = uvw.slice_view(0).data();
+    T* __restrict__ v = uvw.slice_view(1).data();
+    T* __restrict__ w = uvw.slice_view(2).data();
+    std::complex<T>* __restrict__ virtualVisPtr = virtualVis.data();
 
     for (std::size_t i = 0; i < n; ++i) {
+      assert(i < uvw.shape(0));
+      assert(i < virtualVis.shape(0));
       if (u[i] >= group.lowerBoundInclusive[0] && u[i] < group.upperBoundExclusive[0] &&
           v[i] >= group.lowerBoundInclusive[1] && v[i] < group.upperBoundExclusive[1] &&
           w[i] >= group.lowerBoundInclusive[2] && w[i] < group.upperBoundExclusive[2]) {
         u[count] = u[i];
         v[count] = v[i];
         w[count] = w[i];
-        virtualVis[count] = virtualVis[i];
+        virtualVisPtr[count] = virtualVisPtr[i];
         ++count;
       }
     }

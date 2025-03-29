@@ -15,6 +15,7 @@
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
 #include "host/domain_partition.hpp"
+#include "host/nufft.hpp"
 #include "host/uvw_partition.hpp"
 #include "host/virtual_vis.hpp"
 #include "memory/array.hpp"
@@ -65,12 +66,15 @@ auto read_uvw(ContextInternal& ctx, Dataset& dataset, std::size_t index, HostVie
 }
 
 template <typename T>
-void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dataset& dataset,
+void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthesisOptions& opt,
+                     Dataset& dataset,
                      ConstHostView<std::pair<std::size_t, const float*>, 1> samples,
                      ConstHostView<float, 1> pixelX, ConstHostView<float, 1> pixelY,
                      ConstHostView<float, 1> pixelZ, const std::string& imageTag,
                      Image& imageWriter) {
+  auto& ctx = *ctxPtr;
   auto funcTimer = ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "host::nufft_synthesis");
+  ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "prepare");
 
   const auto numPixel = pixelX.size();
   assert(pixelY.size() == numPixel);
@@ -99,49 +103,46 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
   std::array<T, 3> input_min, input_max;
   std::copy(input_min_float.begin(), input_min_float.end(), input_min.begin());
   std::copy(input_max_float.begin(), input_max_float.end(), input_max.begin());
-
   ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "input extent");
 
   ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "input \"u\" min {}, max {}", input_min[0], input_max[0]);
   ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "input \"v\" min {}, max {}", input_min[1], input_max[1]);
   ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "input \"w\" min {}, max {}", input_min[2], input_max[2]);
 
-  auto inputGroups =
-      std::visit(
-          [&](auto&& arg) -> std::vector<UVWGroup<T>> {
-            using ArgType = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<ArgType, Partition::Grid>) {
-              ctx.logger().log(BIPP_LOG_LEVEL_INFO, "input partition: grid ({}, {}, {})",
-                               arg.dimensions[0], arg.dimensions[1], arg.dimensions[2]);
-              return create_uvw_partitions(arg.dimensions, input_min, input_max);
-            } else if constexpr (std::is_same_v<ArgType, Partition::None> ||
-                                 std::is_same_v<ArgType, Partition::Auto>) {
-              ctx.logger().log(BIPP_LOG_LEVEL_INFO, "input partition: none");
-              return create_uvw_partitions({1, 1, 1}, input_min, input_max);
-            }
-          },
-          opt.localUVWPartition.method);
+  auto inputGroups = std::visit(
+      [&](auto&& arg) -> std::vector<UVWGroup<T>> {
+        using ArgType = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<ArgType, Partition::Grid>) {
+          ctx.logger().log(BIPP_LOG_LEVEL_INFO, "input partition: grid ({}, {}, {})",
+                           arg.dimensions[0], arg.dimensions[1], arg.dimensions[2]);
+          return create_uvw_partitions(arg.dimensions, input_min, input_max);
+        } else if constexpr (std::is_same_v<ArgType, Partition::None> ||
+                             std::is_same_v<ArgType, Partition::Auto>) {
+          ctx.logger().log(BIPP_LOG_LEVEL_INFO, "input partition: none");
+          return create_uvw_partitions({1, 1, 1}, input_min, input_max);
+        }
+      },
+      opt.localUVWPartition.method);
 
   const auto nBeam = dataset.num_beam();
   const auto nAntenna = dataset.num_antenna();
 
   ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "image partition");
-  DomainPartition imagePartition =
-      std::visit(
-          [&](auto&& arg) -> DomainPartition {
-            using ArgType = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<ArgType, Partition::Grid>) {
-              ctx.logger().log(BIPP_LOG_LEVEL_INFO, "image partition: grid ({}, {}, {})",
-                               arg.dimensions[0], arg.dimensions[1], arg.dimensions[2]);
-              return DomainPartition::grid<float, 3>(ctx.host_alloc(), arg.dimensions,
-                                                     {pixelX, pixelY, pixelZ});
-            } else if constexpr (std::is_same_v<ArgType, Partition::None> ||
-                                 std::is_same_v<ArgType, Partition::Auto>) {
-              ctx.logger().log(BIPP_LOG_LEVEL_INFO, "image partition: none");
-              return DomainPartition::none(ctx.host_alloc(), numPixel);
-            }
-          },
-          opt.localImagePartition.method);
+  DomainPartition imagePartition = std::visit(
+      [&](auto&& arg) -> DomainPartition {
+        using ArgType = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<ArgType, Partition::Grid>) {
+          ctx.logger().log(BIPP_LOG_LEVEL_INFO, "image partition: grid ({}, {}, {})",
+                           arg.dimensions[0], arg.dimensions[1], arg.dimensions[2]);
+          return DomainPartition::grid<float, 3>(ctx.host_alloc(), arg.dimensions,
+                                                 {pixelX, pixelY, pixelZ});
+        } else if constexpr (std::is_same_v<ArgType, Partition::None> ||
+                             std::is_same_v<ArgType, Partition::Auto>) {
+          ctx.logger().log(BIPP_LOG_LEVEL_INFO, "image partition: none");
+          return DomainPartition::none(ctx.host_alloc(), numPixel);
+        }
+      },
+      opt.localImagePartition.method);
 
   HostArray<T, 1> pixelXPermuted(ctx.host_alloc(), numPixel);
   HostArray<T, 1> pixelYPermuted(ctx.host_alloc(), numPixel);
@@ -150,7 +151,6 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
   imagePartition.apply(pixelX, pixelXPermuted);
   imagePartition.apply(pixelY, pixelYPermuted);
   imagePartition.apply(pixelZ, pixelZPermuted);
-
   ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "image partition");
 
   HostArray<T, 2> uvwArray(ctx.host_alloc(), {nAntenna * nAntenna, 3});
@@ -162,7 +162,6 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
   neo_opt.sort_input = false;
   neo_opt.sort_output = false;
 
-
   // const auto grid_memory_size = neonufft::PlanT3<T, 3>::grid_memory_size(
   //     neo_opt, input_min, input_max, output_min, output_max);
 
@@ -171,31 +170,32 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
   HostArray<float, 1> imageReal(ctx.host_alloc(), numPixel);
   imageReal.zero();
 
+  ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "prepare");
+
+  ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft");
   for (const auto& [imgBegin, imgSize] : imagePartition.groups()) {
     if (!imgSize) continue;
 
+    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "output extent");
+    auto outMM = std::minmax_element(pixelXPermuted.data() + imgBegin,
+                                     pixelXPermuted.data() + imgBegin + imgSize);
+    std::array<T, 3> output_min, output_max;
+    output_min[0] = *(outMM.first);
+    output_max[0] = *(outMM.second);
+
+    outMM = std::minmax_element(pixelYPermuted.data() + imgBegin,
+                                pixelYPermuted.data() + imgBegin + imgSize);
+    output_min[1] = *(outMM.first);
+    output_max[1] = *(outMM.second);
+
+    outMM = std::minmax_element(pixelZPermuted.data() + imgBegin,
+                                pixelZPermuted.data() + imgBegin + imgSize);
+    output_min[2] = *(outMM.first);
+    output_max[2] = *(outMM.second);
+    ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "output extent");
+
+    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "sample loop");
     for (const auto& inGroup : inputGroups) {
-
-      ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "output extent");
-      auto outMM = std::minmax_element(pixelXPermuted.data() + imgBegin,
-                                       pixelXPermuted.data() + imgBegin + imgSize);
-
-      std::array<T, 3> output_min, output_max;
-      output_min[0] = *(outMM.first);
-      output_max[0] = *(outMM.second);
-
-      outMM = std::minmax_element(pixelYPermuted.data() + imgBegin,
-                                  pixelYPermuted.data() + imgBegin + imgSize);
-      output_min[1] = *(outMM.first);
-      output_max[1] = *(outMM.second);
-
-      outMM = std::minmax_element(pixelZPermuted.data() + imgBegin,
-                                  pixelZPermuted.data() + imgBegin + imgSize);
-      output_min[2] = *(outMM.first);
-      output_max[2] = *(outMM.second);
-
-      ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "output extent");
-
       ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"l\" min {}, max {}", output_min[0],
                        output_max[0]);
       ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"m\" min {}, max {}", output_min[1],
@@ -203,21 +203,17 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
       ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"n\" min {}, max {}", output_min[2],
                        output_max[2]);
 
-      ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft: create plan");
-      neonufft::PlanT3<T, 3> plan(neo_opt, 1, input_min, input_max, output_min, output_max);
-      ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft: create plan");
+      std::unique_ptr<NUFFTInterface<T>> nufft(new host::NUFFT<T>(
+          ctxPtr, 10, nAntenna * nAntenna, neo_opt, 1, inGroup.lowerBoundInclusive,
+          inGroup.upperBoundExclusive, output_min, output_max));
+      nufft->set_output_points(pixelXPermuted.sub_view(imgBegin, imgSize),
+                               pixelYPermuted.sub_view(imgBegin, imgSize),
+                               pixelZPermuted.sub_view(imgBegin, imgSize));
 
-      ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft: set image points");
-      plan.set_output_points(imgSize,
-                             {pixelXPermuted.data() + imgBegin, pixelYPermuted.data() + imgBegin,
-                              pixelZPermuted.data() + imgBegin});
-      ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft: set image points");
-
-      ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "data sample loop");
       for (std::size_t i = 0; i < samples.size(); ++i) {
+        ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "read dataset");
         const auto id = samples[i].first;
 
-        ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "scale eigenvalues");
         ConstHostView<float, 1> d(samples[i].second, nBeam, 1);
 
         if (opt.apply_scaling) {
@@ -229,9 +225,7 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
         } else {
           copy(d, dScaledArray);
         }
-        ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "scale eigenvalues");
 
-        ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "read dataset");
         read_uvw(ctx, dataset, id, uvwArray);
 
         read_eig_vec(ctx, dataset, id, vArray);
@@ -244,56 +238,36 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
         ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "v", uvwArray.slice_view(1));
         ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "w", uvwArray.slice_view(2));
 
-        ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "compute virtual vis");
+        ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "virtual vis");
         virtual_vis<T>(ctx, dScaledArray, vArray, virtualVisArray);
-        ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "compute virtual vis");
+        ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "virtual vis");
 
         ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "partition uvw");
         auto [uvwView, virtualVisView] =
             inputGroups.size() > 1 ? apply_uvw_partition(inGroup, uvwArray, virtualVisArray)
                                    : std::pair<HostView<T, 2>, HostView<std::complex<T>, 1>>(
                                          uvwArray, virtualVisArray);
-
         ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "partition uvw");
 
-        // process next input group if no uvw points are within this group
-        if (virtualVisView.size() == 0) {
-          continue;
-        }
-
-        ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "virutal vis", virtualVisView);
-
-        ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft: set input points");
-        plan.set_input_points(uvwView.shape(0),
-                              {&uvwView[{0, 0}], &uvwView[{0, 1}], &uvwView[{0, 2}]});
-        ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft: set input points");
-
-        ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft: add data");
-        plan.add_input(virtualVisView.data());
-        ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft: add data");
-      }
-      ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "data sample loop");
-
-      ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "nufft: transform");
-      HostArray<std::complex<T>, 1> localImage(ctx.host_alloc(), imgSize);
-      plan.transform(localImage.data());
-      ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft: transform");
-      ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft output", localImage);
-
-      ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "extract image");
-
-      if (opt.normalizeImage) {
-        const T scale = T(1) / T(dataset.num_samples());
-        for (std::size_t j = 0; j < imgSize; ++j) {
-          imageReal[j + imgBegin] += scale * localImage[j].real();
-        }
-      } else {
-        for (std::size_t j = 0; j < imgSize; ++j) {
-          imageReal[j + imgBegin] += localImage[j].real();
+        if (virtualVisView.size()) {
+          ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "virutal vis", virtualVisView);
+          nufft->add_input(uvwView, virtualVisView);
         }
       }
-      ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "extract image");
+
+      nufft->transform_and_add(imageReal.sub_view(imgBegin, imgSize));
+      ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "sample loop");
     }
+  }
+  ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "nufft");
+
+  if (opt.normalizeImage) {
+    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "scale image");
+    const T scale = T(1) / T(dataset.num_samples());
+    for (std::size_t j = 0; j < imageReal.size(); ++j) {
+      imageReal[j] *= scale;
+    }
+    ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "scale image");
   }
 
   ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "scaled image", imageReal);
@@ -307,15 +281,15 @@ void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dat
   ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "write image");
 }
 
-template void nufft_synthesis<float>(ContextInternal& ctx, const NufftSynthesisOptions& opt,
-                                     Dataset& dataset,
+template void nufft_synthesis<float>(std::shared_ptr<ContextInternal> ctxPtr,
+                                     const NufftSynthesisOptions& opt, Dataset& dataset,
                                      ConstHostView<std::pair<std::size_t, const float*>, 1> samples,
                                      ConstHostView<float, 1> pixelX, ConstHostView<float, 1> pixelY,
                                      ConstHostView<float, 1> pixelZ, const std::string& imageTag,
                                      Image& imageWriter);
 
 template void nufft_synthesis<double>(
-    ContextInternal& ctx, const NufftSynthesisOptions& opt, Dataset& dataset,
+    std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthesisOptions& opt, Dataset& dataset,
     ConstHostView<std::pair<std::size_t, const float*>, 1> samples, ConstHostView<float, 1> pixelX,
     ConstHostView<float, 1> pixelY, ConstHostView<float, 1> pixelZ, const std::string& imageTag,
     Image& imageWriter);

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <complex>
+#include <memory>
 #include <optional>
 #include <variant>
 
@@ -58,11 +59,11 @@ void image_synthesis(
     }
   }
 
-  ContextInternal& ctxInternal = *InternalContextAccessor::get(ctx);
+  std::shared_ptr<ContextInternal> ctxInternal = InternalContextAccessor::get(ctx);
 
   const auto numPixel = image.num_pixel();
 
-  HostArray<float, 2> pixelXYZ(ctxInternal.host_alloc(), {numPixel, 3});
+  HostArray<float, 2> pixelXYZ(ctxInternal->host_alloc(), {numPixel, 3});
 
   image.pixel_lmn(pixelXYZ.data(), pixelXYZ.strides(1));
 
@@ -70,7 +71,7 @@ void image_synthesis(
   ConstHostView<float, 1> pixelViewY = pixelXYZ.slice_view(1);
   ConstHostView<float, 1> pixelViewZ = pixelXYZ.slice_view(2);
 
-  if (ctxInternal.processing_unit() == BIPP_PU_GPU) {
+  if (ctxInternal->processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
     gpu::DeviceGuard deviceGuard(ctxInternal.device_id());  // TODO: remove.
     throw NotImplementedError();

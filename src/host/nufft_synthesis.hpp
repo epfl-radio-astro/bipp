@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 
 #include "bipp/communicator.hpp"
 #include "bipp/config.h"
@@ -10,7 +11,8 @@
 namespace bipp {
 namespace host {
 template <typename T>
-void nufft_synthesis(ContextInternal& ctx, const NufftSynthesisOptions& opt, Dataset& dataset,
+void nufft_synthesis(std::shared_ptr<ContextInternal> ctx, const NufftSynthesisOptions& opt,
+                     Dataset& dataset,
                      ConstHostView<std::pair<std::size_t, const float*>, 1> samples,
                      ConstHostView<float, 1> pixelX, ConstHostView<float, 1> pixelY,
                      ConstHostView<float, 1> pixelZ, const std::string& imageTag,
