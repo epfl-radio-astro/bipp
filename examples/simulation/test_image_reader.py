@@ -35,13 +35,13 @@ N_pix = 350
 
 lsq_images = []
 std_images = []
-with bipp.ImageReader("image.h5") as reader:
+with bipp.ImageFile.open("image.h5") as reader:
     tags = reader.tags()
     for t in tags:
         if "lsq" in t:
-            lsq_images.append(reader.read(t).reshape(N_pix, N_pix))
+            lsq_images.append(reader.get(t).reshape(N_pix, N_pix))
         elif "std" in t:
-            std_images.append(reader.read(t).reshape(N_pix, N_pix))
+            std_images.append(reader.get(t).reshape(N_pix, N_pix))
 
 
 lsq_images = np.array(lsq_images)

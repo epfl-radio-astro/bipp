@@ -55,7 +55,7 @@ time_slice = 1
 I_est = bb_pe.ParameterEstimator(N_level, sigma=0.95)
 
 
-with bipp.DatasetFile.open("test.h5") as dataset:
+with bipp.DatasetFile.open("test.h5") as dataset, bipp.ImageFile.create("image.h5", lmn_grid.transpose()) as image:
     for idx in range(0, dataset.num_samples(), time_slice):
         I_est.collect(dataset.eig_val(idx))
 
@@ -73,6 +73,14 @@ with bipp.DatasetFile.open("test.h5") as dataset:
                 level_selection[idx] = fi(dataset.eig_val(idx))
             selection[tag] = level_selection
 
+
+    image.set_meta("grid_x", xyz_grid[0].flatten())
+    image.set_meta("grid_y", xyz_grid[1].flatten())
+    image.set_meta("grid_z", xyz_grid[2].flatten())
+
+    #  with open('selection.json', 'w') as f:
+    #      json.dump(selection, f, cls=NumpyArrayEncoder)
+
     print("synthesis")
 
     comm = bipp.communicator.world()
@@ -80,7 +88,7 @@ with bipp.DatasetFile.open("test.h5") as dataset:
     opt.set_local_image_partition(bipp.Partition.grid([1,1,1]))
     opt.set_local_uvw_partition(bipp.Partition.grid([1,1,1]))
     ctx = bipp.Context("AUTO", comm)
-    bipp.image_synthesis(ctx, opt, dataset, selection, lmn_grid[0], lmn_grid[1], lmn_grid[2], "image.h5")
+    bipp.image_synthesis(ctx, opt, dataset, selection, image)
 
 
 #  bipp.image_synthesis(mapping)
