@@ -13,13 +13,13 @@
 #include "context_internal.hpp"
 #include "memory/view.hpp"
 
-#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-#include "gpu/eigensolver.hpp"
-#include "gpu/util/device_accessor.hpp"
-#include "gpu/util/device_guard.hpp"
-#include "gpu/util/device_pointer.hpp"
-#include "gpu/util/runtime_api.hpp"
-#endif
+// #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+// #include "gpu/eigensolver.hpp"
+// #include "gpu/util/device_accessor.hpp"
+// #include "gpu/util/device_guard.hpp"
+// #include "gpu/util/device_pointer.hpp"
+// #include "gpu/util/runtime_api.hpp"
+// #endif
 
 namespace bipp {
 
@@ -31,29 +31,29 @@ BIPP_EXPORT auto eigh(Context& ctx, T wl, std::size_t nAntenna, std::size_t nBea
   auto& ctxInternal = *InternalContextAccessor::get(ctx);
   std::pair<std::size_t, T> pev{0, 0};
   if (ctxInternal.processing_unit() == BIPP_PU_GPU) {
-#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-    gpu::DeviceGuard deviceGuard(ctxInternal.device_id());
+// #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+//     gpu::DeviceGuard deviceGuard(ctxInternal.device_id());
 
-    auto& queue = ctxInternal.gpu_queue();
-    // Syncronize with default stream.
-    queue.sync_with_stream(nullptr);
-    // syncronize with stream to be synchronous with host before exiting
-    auto syncGuard = queue.sync_guard();
+//     auto& queue = ctxInternal.gpu_queue();
+//     // Syncronize with default stream.
+//     queue.sync_with_stream(nullptr);
+//     // syncronize with stream to be synchronous with host before exiting
+//     auto syncGuard = queue.sync_guard();
 
-    ConstDeviceAccessor<gpu::api::ComplexType<T>, 2> sDevice(
-        queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(s), {nBeam, nBeam}, {1, lds});
-    ConstDeviceAccessor<gpu::api::ComplexType<T>, 2> wDevice(
-        queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(w), {nAntenna, nBeam}, {1, ldw});
-    ConstDeviceAccessor<T, 2> xyzDevice(queue, xyz, {nAntenna, 3}, {1, ldxyz});
-    DeviceAccessor<T, 1> dDevice(queue, d, nBeam, 1);
+//     ConstDeviceAccessor<gpu::api::ComplexType<T>, 2> sDevice(
+//         queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(s), {nBeam, nBeam}, {1, lds});
+//     ConstDeviceAccessor<gpu::api::ComplexType<T>, 2> wDevice(
+//         queue, reinterpret_cast<const gpu::api::ComplexType<T>*>(w), {nAntenna, nBeam}, {1, ldw});
+//     ConstDeviceAccessor<T, 2> xyzDevice(queue, xyz, {nAntenna, 3}, {1, ldxyz});
+//     DeviceAccessor<T, 1> dDevice(queue, d, nBeam, 1);
 
-    // call eigh on GPU
-    pev = gpu::eigh<T>(ctxInternal, wl, sDevice.view(), wDevice.view(), xyzDevice.view(), dDevice.view());
+//     // call eigh on GPU
+//     pev = gpu::eigh<T>(ctxInternal, wl, sDevice.view(), wDevice.view(), xyzDevice.view(), dDevice.view());
 
-    dDevice.copy_back(queue);
-#else
+//     dDevice.copy_back(queue);
+// #else
     throw GPUSupportError();
-#endif
+// #endif
   } else {
     pev = host::eigh<T>(
         ctxInternal, wl, ConstHostView<std::complex<T>, 2>(s, {nBeam, nBeam}, {1, lds}),

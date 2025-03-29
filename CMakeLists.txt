@@ -248,8 +248,10 @@ find_package(FFTWF REQUIRED)
 list(APPEND BIPP_EXTERNAL_LIBS FFTW::FFTW FFTWF::FFTWF)
 
 if(BIPP_CUDA OR BIPP_ROCM)
-	find_package(CUFINUFFT REQUIRED)
-	list(APPEND BIPP_EXTERNAL_LIBS CUFINUFFT::cufinufft)
+	if(NOT TARGET neonufft::neonufft_gpu)
+	  message(FATAL_ERROR "Neonufft not compiled with GPU support.")
+	endif()
+	list(APPEND BIPP_EXTERNAL_LIBS neonufft::neonufft_gpu)
 endif()
 
 # OpenMP

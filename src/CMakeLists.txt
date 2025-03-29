@@ -20,28 +20,28 @@ set(BIPP_SOURCE_FILES
 	)
 
 
-if(BIPP_CUDA OR BIPP_ROCM)
-	list(APPEND BIPP_SOURCE_FILES
-		gpu/eigensolver.cpp
-		gpu/gram_matrix.cpp
-		gpu/nufft_3d3.cpp
-		gpu/nufft_synthesis.cpp
-		gpu/virtual_vis.cpp
-		gpu/standard_synthesis.cpp
-		gpu/domain_partition.cu
-		gpu/collector.cpp
-		gpu/util/solver_api.cpp
-		gpu/kernels/gram.cu
-		gpu/kernels/scale_matrix.cu
-		gpu/kernels/add_vector.cu
-		gpu/kernels/gemmexp.cu
-		gpu/kernels/center_vector.cu
-		gpu/kernels/min_max_element.cu
-		gpu/kernels/nuft_sum.cu
-		gpu/kernels/copy_at_indices.cu
-		gpu/kernels/scale_vector.cu
-		)
-endif()
+# if(BIPP_CUDA OR BIPP_ROCM)
+#         list(APPEND BIPP_SOURCE_FILES
+#                 gpu/eigensolver.cpp
+#                 gpu/gram_matrix.cpp
+#                 gpu/nufft_3d3.cpp
+#                 gpu/nufft_synthesis.cpp
+#                 gpu/virtual_vis.cpp
+#                 gpu/standard_synthesis.cpp
+#                 gpu/domain_partition.cu
+#                 gpu/collector.cpp
+#                 gpu/util/solver_api.cpp
+#                 gpu/kernels/gram.cu
+#                 gpu/kernels/scale_matrix.cu
+#                 gpu/kernels/add_vector.cu
+#                 gpu/kernels/gemmexp.cu
+#                 gpu/kernels/center_vector.cu
+#                 gpu/kernels/min_max_element.cu
+#                 gpu/kernels/nuft_sum.cu
+#                 gpu/kernels/copy_at_indices.cu
+#                 gpu/kernels/scale_vector.cu
+#                 )
+# endif()
 
 if(BIPP_MPI)
 	list(APPEND BIPP_SOURCE_FILES

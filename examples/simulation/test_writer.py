@@ -59,7 +59,7 @@ XYZ = dev(time[0])
 W = mb(XYZ, wl)
 
 comm = bipp.communicator.world()
-ctx = bipp.Context("AUTO", comm)
+ctx = bipp.Context("CPU", comm)
 
 with bipp.DatasetFile.create("test.h5", "lofar", W.data.shape[0], W.data.shape[1]) as dataset:
     for t in ProgressBar(time[::time_slice]):

@@ -22,6 +22,10 @@
 #include "memory/copy.hpp"
 #include "nufft_util.hpp"
 
+#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+#include "gpu/nufft.hpp"
+#endif
+
 namespace bipp {
 namespace host {
 
@@ -202,10 +206,23 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
                        output_max[1]);
       ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "output \"n\" min {}, max {}", output_min[2],
                        output_max[2]);
+      std::unique_ptr<NUFFTInterface<T>> nufft;
 
-      std::unique_ptr<NUFFTInterface<T>> nufft(new host::NUFFT<T>(
-          ctxPtr, 10, nAntenna * nAntenna, neo_opt, 1, inGroup.lowerBoundInclusive,
-          inGroup.upperBoundExclusive, output_min, output_max));
+      if(ctx.processing_unit() == BIPP_PU_GPU) {
+#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+        ctx.gpu_queue().sync();  // make sure previous memory is freed
+        nufft.reset(new gpu::NUFFT<T>(ctxPtr, 40, nAntenna * nAntenna, neo_opt, 1,
+                                       inGroup.lowerBoundInclusive, inGroup.upperBoundExclusive,
+                                       output_min, output_max));
+#else
+    throw GPUSupportError();
+#endif
+      } else {
+        nufft.reset(new host::NUFFT<T>(ctxPtr, 10, nAntenna * nAntenna, neo_opt, 1,
+                                       inGroup.lowerBoundInclusive, inGroup.upperBoundExclusive,
+                                       output_min, output_max));
+      }
+
       nufft->set_output_points(pixelXPermuted.sub_view(imgBegin, imgSize),
                                pixelYPermuted.sub_view(imgBegin, imgSize),
                                pixelZPermuted.sub_view(imgBegin, imgSize));

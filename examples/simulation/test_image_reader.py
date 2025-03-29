@@ -108,7 +108,7 @@ ax.set_title(
 )
 
 
-#  plt.savefig("nufft_synthesis_std.png")
+plt.savefig("nufft_synthesis_std.png")
 plt.figure()
 titles = ["Strong sources", "Mild sources", "Faint Sources"]
 for i in range(lsq_images.shape[0]):
@@ -125,5 +125,5 @@ for i in range(lsq_images.shape[0]):
     )
 
 plt.suptitle(f"Bipp Eigenmaps")
-#  plt.savefig("nufft_synthesis_lsq.png")
+plt.savefig("nufft_synthesis_lsq.png")
 plt.show()

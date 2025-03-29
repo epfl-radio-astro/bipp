@@ -71,33 +71,24 @@ void image_synthesis(
   ConstHostView<float, 1> pixelViewY = pixelXYZ.slice_view(1);
   ConstHostView<float, 1> pixelViewZ = pixelXYZ.slice_view(2);
 
-  if (ctxInternal->processing_unit() == BIPP_PU_GPU) {
-#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-    gpu::DeviceGuard deviceGuard(ctxInternal.device_id());  // TODO: remove.
-    throw NotImplementedError();
-#else
-    throw GPUSupportError();
-#endif
-  } else {
-    if (std::holds_alternative<NufftSynthesisOptions>(opt)) {
-      auto nufftOpt = std::get<NufftSynthesisOptions>(opt);
-      for (const auto& [tag, samples] : selection) {
-        if (nufftOpt.precision == BIPP_PRECISION_SINGLE) {
-          host::nufft_synthesis<float>(ctxInternal, nufftOpt, dataset,
-                                       ConstHostView<std::pair<std::size_t, const float*>, 1>(
-                                           samples.data(), samples.size(), 1),
-                                       pixelViewX, pixelViewY, pixelViewZ, tag, image);
-        } else {
-          host::nufft_synthesis<double>(ctxInternal, nufftOpt, dataset,
-                                        ConstHostView<std::pair<std::size_t, const float*>, 1>(
-                                            samples.data(), samples.size(), 1),
-                                        pixelViewX, pixelViewY, pixelViewZ, tag, image);
-        }
+  if (std::holds_alternative<NufftSynthesisOptions>(opt)) {
+    auto nufftOpt = std::get<NufftSynthesisOptions>(opt);
+    for (const auto& [tag, samples] : selection) {
+      if (nufftOpt.precision == BIPP_PRECISION_SINGLE) {
+        host::nufft_synthesis<float>(ctxInternal, nufftOpt, dataset,
+                                     ConstHostView<std::pair<std::size_t, const float*>, 1>(
+                                         samples.data(), samples.size(), 1),
+                                     pixelViewX, pixelViewY, pixelViewZ, tag, image);
+      } else {
+        host::nufft_synthesis<double>(ctxInternal, nufftOpt, dataset,
+                                      ConstHostView<std::pair<std::size_t, const float*>, 1>(
+                                          samples.data(), samples.size(), 1),
+                                      pixelViewX, pixelViewY, pixelViewZ, tag, image);
       }
-
-    } else {
-      throw NotImplementedError();
     }
+
+  } else {
+    throw NotImplementedError();
   }
 }
 
