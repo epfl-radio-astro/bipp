@@ -196,9 +196,11 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
     for (const auto& [uvwBegin, uvwSize] : uvwPartition.groups()) {
       if (!uvwSize) continue;
 
-      auto uView = uvwCollection.slice_view(0).sub_view(uvwBegin, uvwSize);
-      auto vView = uvwCollection.slice_view(1).sub_view(uvwBegin, uvwSize);
-      auto wView = uvwCollection.slice_view(2).sub_view(uvwBegin, uvwSize);
+      auto uvwPart = uvwCollection.sub_view({uvwBegin, 0}, {uvwSize, 3});
+
+      auto uView = uvwPart.slice_view(0);
+      auto vView = uvwPart.slice_view(1);
+      auto wView = uvwPart.slice_view(2);
 
       auto uMinMax = std::minmax_element(uView.data(), uView.data() + uView.size());
       auto vMinMax = std::minmax_element(vView.data(), vView.data() + vView.size());
@@ -212,17 +214,19 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
       if (ctx.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
         ctx.gpu_queue().sync();  // make sure previous memory is freed
-        nufft.reset(new gpu::NUFFT<T>(ctxPtr, neoOpt, 1, uvwMin, uvwMax, uvwCollection, pixelMin,
+        nufft.reset(new gpu::NUFFT<T>(ctxPtr, neoOpt, 1, uvwMin, uvwMax, uvwPart, pixelMin,
                                       pixelMax, pixelX, pixelY, pixelZ));
 #else
         throw GPUSupportError();
 #endif
       } else {
-        nufft.reset(new host::NUFFT<T>(ctxPtr, neoOpt, 1, uvwMin, uvwMax, uvwCollection, pixelMin,
+        nufft.reset(new host::NUFFT<T>(ctxPtr, neoOpt, 1, uvwMin, uvwMax, uvwPart, pixelMin,
                                        pixelMax, pixelX, pixelY, pixelZ));
       }
       ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "prepare nufft");
 
+      auto virtualVisPart =
+          virtualVisCollection.sub_view({uvwBegin, 0}, {uvwSize, virtualVisCollection.shape(1)});
       for (std::size_t imageIdx = 0; imageIdx < nImages; ++imageIdx) {
         ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "compute nufft");
         ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft input u", uvwCollection.slice_view(0));
@@ -230,8 +234,7 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
         ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft input w", uvwCollection.slice_view(2));
         ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft input values",
                                 virtualVisCollection.slice_view(imageIdx));
-        nufft->transform_and_add(virtualVisCollection.slice_view(imageIdx),
-                                 images.slice_view(imageIdx));
+        nufft->transform_and_add(virtualVisPart.slice_view(imageIdx), images.slice_view(imageIdx));
         ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "compute nufft");
         // TODO call reset if api changed in neonufft
       }
