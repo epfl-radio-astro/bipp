@@ -5,22 +5,32 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <array>
+#include <cstddef>
+#include <optional>
 
 #include "bipp/bipp.hpp"
 #include "bipp/communicator.hpp"
 
 int main(int argc, char** argv) {
-  std::string procName, datasetFileName, selectionFileName, imageFileName;
+  std::string procName, datasetFileName, selectionFileName, imageFileName, precision;
+  std::optional<std::array<std::size_t, 3>> uvwPartition, imagePartition;
+  float tolerance = 1e-3;
 
   CLI::App app{"bipp image synthesis"};
-  app.add_option("-i", datasetFileName, "Input dataset file name")->required();
-  app.add_option("-s", selectionFileName, "Selection file name");
-  app.add_option("-o", imageFileName, "Output image file name")->required();
-  app.add_option("-p", procName, "Processing unit")
+  app.add_option("-d,--datset", datasetFileName, "Dataset file name")->required();
+  app.add_option("-s,--selection", selectionFileName, "Selection file name");
+  app.add_option("-i,--image", imageFileName, "Output image file name")->required();
+  app.add_option("-t,--tol", tolerance, "NUFFT tolerance")->default_val(1e-3);
+  app.add_option("-p,--proc", procName, "Processing unit")
       ->check(CLI::IsMember({"auto", "cpu", "gpu"}))
       ->default_val("auto");
+  app.add_option("-f,--float_precision", procName, "Floating point precision")
+      ->check(CLI::IsMember({"single", "double"}))
+      ->default_val("single");
+  app.add_option("--uvw_part", uvwPartition, "UVW partition size for lower memory usage");
+  app.add_option("--image_part", imagePartition, "Image partition size for lower memory usage");
   CLI11_PARSE(app, argc, argv);
-
 
   auto dataset = bipp::DatasetFile::open(datasetFileName);
   auto image = bipp::ImageFile::open(imageFileName);
@@ -76,7 +86,26 @@ int main(int argc, char** argv) {
 
   bipp::Context ctx(pu, comm);
 
-  bipp::image_synthesis(ctx, bipp::NufftSynthesisOptions(), dataset, selection, image);
+  bipp::NufftSynthesisOptions opt;
+  opt.tolerance = tolerance;
+  if(uvwPartition.has_value()) {
+    auto& p = uvwPartition.value();
+    opt.localUVWPartition =
+        bipp::Partition::Grid{p[0], p[1], p[2]};
+  }
+
+  if(imagePartition.has_value()) {
+    auto& p = imagePartition.value();
+    opt.localImagePartition = bipp::Partition::Grid{p[0], p[1], p[2]};
+  }
+
+  if (precision == "double") {
+    opt.precision = BIPP_PRECISION_DOUBLE;
+  } else {
+    opt.precision = BIPP_PRECISION_SINGLE;
+  }
+
+  bipp::image_synthesis(ctx, opt, dataset, selection, image);
 
   return 0;
 }

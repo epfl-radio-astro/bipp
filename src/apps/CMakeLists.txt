@@ -6,3 +6,7 @@ if(BIPP_INSTALL_APPS)
 endif()
 
 
+set_target_properties(bipp_synthesis
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)

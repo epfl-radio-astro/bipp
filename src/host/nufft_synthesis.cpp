@@ -10,6 +10,7 @@
 #include <limits>
 #include <memory>
 #include <neonufft/plan.hpp>
+#include <numeric>
 #include <type_traits>
 
 #include "bipp/config.h"
