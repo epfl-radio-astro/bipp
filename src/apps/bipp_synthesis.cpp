@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
   }
 
   auto pu = BIPP_PU_AUTO;
-  if(procName == "cpu") {
+  if (procName == "cpu") {
     pu = BIPP_PU_CPU;
   } else if (procName == "gpu") {
     pu = BIPP_PU_GPU;
