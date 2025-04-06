@@ -13,8 +13,9 @@ namespace bipp {
 template <typename T>
 class NUFFTInterface {
 public:
-  virtual auto transform_and_add(ConstHostView<std::complex<T>, 1> values, HostView<float, 1> out)
-      -> void = 0;
+  virtual auto add(ConstHostView<T, 2> uvw, ConstHostView<std::complex<T>, 2> values) -> void = 0;
+
+  virtual auto get_image(std::size_t imgIdx, HostView<float, 1> image) -> void = 0;
 
   virtual ~NUFFTInterface() = default;
 };

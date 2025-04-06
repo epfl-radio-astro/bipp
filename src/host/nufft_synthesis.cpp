@@ -90,11 +90,8 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
   assert(images.shape(1) == dScaled.shape(2));
   assert(nBeam == dScaled.shape(0));
 
-  const std::size_t maxCollectGroupSize = 40;
-
-  auto neoOpt = neonufft::Options();
-  neoOpt.sort_input = false;
-  neoOpt.sort_output = false;
+  //TODO: decide based on host memory size
+  const std::size_t maxCollectGroupSize = std::max<std::size_t>(200, sampleIds.size());
 
 
   // copy pixel values to double precision if required
@@ -108,19 +105,45 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
     pixelXYZConverted = pixelXYZ;
   }
 
-  auto pixelX = pixelXYZConverted.slice_view(0);
-  auto pixelY = pixelXYZConverted.slice_view(1);
-  auto pixelZ = pixelXYZConverted.slice_view(2);
 
-  auto pixelXMinMax = std::minmax_element(pixelX.data(), pixelX.data() + pixelX.size());
-  auto pixelYMinMax = std::minmax_element(pixelY.data(), pixelY.data() + pixelY.size());
-  auto pixelZMinMax = std::minmax_element(pixelZ.data(), pixelZ.data() + pixelZ.size());
+  std::unique_ptr<NUFFTInterface<T>> nufft;
 
-  std::array<T, 3> pixelMin = {*pixelXMinMax.first, *pixelYMinMax.first, *pixelZMinMax.first};
-  std::array<T, 3> pixelMax = {*pixelXMinMax.second, *pixelYMinMax.second, *pixelZMinMax.second};
+  nufft.reset(
+      new gpu::NUFFT<T>(ctxPtr, opt, pixelXYZConverted, nImages, nBaselines, maxCollectGroupSize));
 
+  HostArray<T, 2> uvw(ctx.host_alloc(), {nBaselines, 3});
+  HostArray<std::complex<T>, 2> virtualVis(ctx.host_alloc(), {nBaselines, nImages});
+  HostArray<std::complex<T>, 2> eigVec(ctx.host_alloc(), {nAntenna, nBeam});
+  HostArray<T, 1> dSlice(ctx.host_alloc(), nBeam);
+  for (std::size_t i = 0; i < sampleIds.size(); ++i) {
+    const auto id = sampleIds[i];
 
+    ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "sample id: {}", id);
+    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "read uvw");
+    read_uvw(ctx, dataset, id, uvw);
+    ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "read uvw");
+    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "read eig vec");
+    read_eig_vec(ctx, dataset, id, eigVec);
+    ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "read eig vec");
+    ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", eigVec);
 
+    for (std::size_t imageIdx = 0; imageIdx < nImages; ++imageIdx) {
+      copy(dScaled.slice_view(imageIdx).slice_view(i), dSlice);
+      ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "scaled eigenvalues", dSlice);
+      virtual_vis<T>(ctx, dSlice, eigVec, virtualVis.slice_view(imageIdx));
+      ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "virtual vis", virtualVis.slice_view(imageIdx));
+    }
+
+    nufft->add(uvw, virtualVis);
+  }
+
+  for (std::size_t imageIdx = 0; imageIdx < nImages; ++imageIdx) {
+    nufft->get_image(imageIdx, images.slice_view(imageIdx));
+  }
+
+  //---------------
+
+  /*
   for (std::size_t sampleStartIdx = 0; sampleStartIdx < sampleIds.size();
        sampleStartIdx += maxCollectGroupSize) {
     const std::size_t collectGroupSize =
@@ -240,6 +263,7 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
       }
     }
   }
+*/
 }
 
 template void nufft_synthesis<float>(std::shared_ptr<ContextInternal> ctxPtr,

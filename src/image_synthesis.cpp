@@ -106,6 +106,7 @@ void image_synthesis(
     for (std::size_t idx = 0; idx < nSamples; ++idx) {
       copy(ConstHostView<float, 1>(sourceIds[idx].second, nBeam, 1), dScaledSlice.slice_view(idx));
     }
+    ctxInternal->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "scaled eigenvalues", dScaledSlice);
   }
 
   const auto nPixel = image.num_pixel();

@@ -19,6 +19,11 @@ set(BIPP_SOURCE_FILES
 	image_file.cpp
 	)
 
+if(BIPP_CUDA OR BIPP_ROCM)
+	list(APPEND BIPP_SOURCE_FILES
+		gpu/kernels/add_vector.cu
+		)
+endif()
 
 # if(BIPP_CUDA OR BIPP_ROCM)
 #         list(APPEND BIPP_SOURCE_FILES
