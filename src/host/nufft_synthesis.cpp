@@ -105,11 +105,18 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
     pixelXYZConverted = pixelXYZ;
   }
 
-
   std::unique_ptr<NUFFTInterface<T>> nufft;
-
-  nufft.reset(
-      new gpu::NUFFT<T>(ctxPtr, opt, pixelXYZConverted, nImages, nBaselines, maxCollectGroupSize));
+  if (ctx.processing_unit() == BIPP_PU_GPU) {
+#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+    nufft.reset(new gpu::NUFFT<T>(ctxPtr, opt, pixelXYZConverted, nImages, nBaselines,
+                                  maxCollectGroupSize));
+#else
+    throw GPUSupportError();
+#endif
+  } else {
+    nufft.reset(new host::NUFFT<T>(ctxPtr, opt, pixelXYZConverted, nImages, nBaselines,
+                                   maxCollectGroupSize));
+  }
 
   HostArray<T, 2> uvw(ctx.host_alloc(), {nBaselines, 3});
   HostArray<std::complex<T>, 2> virtualVis(ctx.host_alloc(), {nBaselines, nImages});

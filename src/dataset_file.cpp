@@ -307,6 +307,14 @@ float DatasetFile::scale(std::size_t index) {
     throw GenericError("DatasetFile: access after close");
 }
 
+void DatasetFile::write(float wl, float scale, const std::complex<float>* v, std::size_t ldv,
+                        const float* d, const float* uvw, std::size_t lduvw) {
+  if (impl_)
+    impl_->write(wl, scale, v, ldv, d,  uvw, lduvw);
+  else
+    throw GenericError("DatasetFile: write after close");
+}
+
 void DatasetFile::close() { return impl_.reset(); }
 
 bool DatasetFile::is_open() const noexcept { return bool(impl_); }

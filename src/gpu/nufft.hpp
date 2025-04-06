@@ -26,8 +26,6 @@ namespace gpu {
 template <typename T>
 class NUFFT : public NUFFTInterface<T> {
 public:
-  using ComplexType = neonufft::gpu::ComplexType<T>;
-
   NUFFT(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
         ConstHostView<T, 2> pixelXYZ, std::size_t nImages, std::size_t nBaselines,
         std::size_t collectGroupSize)
@@ -118,11 +116,11 @@ private:
       uvwPartition.apply(values.slice_view(imageIdx));
     }
 
-    auto maxGroupSize = std::max_element(uvwPartition.groups().begin(), uvwPartition.groups().end(),
-                                         [](const PartitionGroup& g1, const PartitionGroup& g2) {
-                                           return g1.size < g2.size;
-                                         })
-                            ->size;
+    const auto maxGroupSize =
+        std::max_element(
+            uvwPartition.groups().begin(), uvwPartition.groups().end(),
+            [](const PartitionGroup& g1, const PartitionGroup& g2) { return g1.size < g2.size; })
+            ->size;
 
     auto uvwBuffer = queue.create_device_array<T, 1>(3 * maxGroupSize);
 

@@ -85,7 +85,7 @@ with bipp.DatasetFile.open("test.h5") as dataset, bipp.ImageFile.create("image.h
 
     comm = bipp.communicator.world()
     opt = bipp.NufftSynthesisOptions()
-    opt.set_local_image_partition(bipp.Partition.grid([1,1,1]))
+    #  opt.set_local_image_partition(bipp.Partition.grid([1,1,1]))
     opt.set_local_uvw_partition(bipp.Partition.grid([1,1,1]))
     ctx = bipp.Context("AUTO", comm)
     bipp.image_synthesis(ctx, opt, dataset, selection, image)

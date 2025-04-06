@@ -9,6 +9,7 @@ Simulation LOFAR imaging with Bipp (NUFFT).
 """
 
 import sys
+import re
 from tqdm import tqdm as ProgressBar
 import astropy.units as u
 import astropy.coordinates as coord
@@ -37,6 +38,7 @@ lsq_images = []
 std_images = []
 with bipp.ImageFile.open("image.h5") as reader:
     tags = reader.tags()
+    tags.sort()
     for t in tags:
         if "lsq" in t:
             lsq_images.append(reader.get(t).reshape(N_pix, N_pix))
@@ -73,9 +75,6 @@ obs_end = time[-1]
 
 
 lmn_grid, xyz_grid = frame.make_grids(N_pix, FoV, field_center)
-
-
-
 
 I_lsq_eq = s2image.Image(lsq_images, xyz_grid)
 I_std_eq = s2image.Image(std_images, xyz_grid)
