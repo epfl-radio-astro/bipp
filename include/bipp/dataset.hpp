@@ -27,10 +27,6 @@ public:
 
   virtual void uvw(std::size_t index, float* uvw, std::size_t lduvw) = 0;
 
-  virtual void uvw_min_max(std::size_t index, float* uvwMin, float* uvwMax) = 0;
-
-  virtual void xyz(std::size_t index, float* xyz, std::size_t ldxyz) = 0;
-
   virtual float wl(std::size_t index) = 0;
 
   virtual float scale(std::size_t index) = 0;

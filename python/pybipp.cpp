@@ -207,14 +207,6 @@ struct DatasetFileDispatcher {
     return out;
   }
 
-  py::array xyz(std::size_t index) {
-    py::array_t<float, py::array::f_style | py::array::forcecast> out(
-        {file_.num_antenna(), std::size_t(3)});
-
-    file_.xyz(index, out.mutable_data(0), out.strides(1) / out.itemsize());
-    return out;
-  }
-
   float wl(std::size_t index) { return file_.wl(index); }
 
   float scale(std::size_t index) { return file_.scale(index); }
@@ -226,18 +218,15 @@ struct DatasetFileDispatcher {
   auto write(float wl, float scale,
              const py::array_t<std::complex<float>, py::array::f_style | py::array::forcecast>& v,
              const py::array_t<float, py::array::f_style | py::array::forcecast>& d,
-             const py::array_t<float, py::array::f_style | py::array::forcecast>& xyz,
              const py::array_t<float, py::array::f_style | py::array::forcecast>& uvw) -> void {
     long nAntenna = file_.num_antenna();
     long nBeam = file_.num_beam();
     check_2d_array(v, {nAntenna, nBeam});
-    check_2d_array(xyz, {nAntenna, 3});
     check_2d_array(uvw, {nAntenna * nAntenna, 3});
     check_1d_array(d, nBeam);
 
     file_.write(wl, scale, v.data(0), safe_cast<std::size_t>(v.strides(1) / v.itemsize()),
-                d.data(0), xyz.data(0), safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()),
-                uvw.data(0), safe_cast<std::size_t>(uvw.strides(1) / uvw.itemsize()));
+                d.data(0), uvw.data(0), safe_cast<std::size_t>(uvw.strides(1) / uvw.itemsize()));
   }
 
   DatasetFile file_;
@@ -414,11 +403,10 @@ PYBIND11_MODULE(pybipp, m) {
       .def("eig_vec", &DatasetFileDispatcher::eig_vec, pybind11::arg("index"))
       .def("eig_val", &DatasetFileDispatcher::eig_val, pybind11::arg("index"))
       .def("uvw", &DatasetFileDispatcher::uvw, pybind11::arg("index"))
-      .def("xyz", &DatasetFileDispatcher::xyz, pybind11::arg("index"))
       .def("wl", &DatasetFileDispatcher::wl, pybind11::arg("index"))
       .def("scale", &DatasetFileDispatcher::scale, pybind11::arg("index"))
       .def("write", &DatasetFileDispatcher::write, pybind11::arg("wl"), pybind11::arg("scale"),
-           pybind11::arg("v"), pybind11::arg("d"), pybind11::arg("xyz"), pybind11::arg("uvw"))
+           pybind11::arg("v"), pybind11::arg("d"), pybind11::arg("uvw"))
       .def("__enter__", [](DatasetFileDispatcher& d) -> DatasetFileDispatcher& { return d; })
       .def(
           "__exit__",

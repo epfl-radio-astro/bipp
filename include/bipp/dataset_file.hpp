@@ -35,25 +35,12 @@ public:
 
   void uvw(std::size_t index, float* uvw, std::size_t lduvw) override;
 
-  void uvw_min_max(std::size_t index, float* uvwMin, float* uvwMax) override;
-
-  void xyz(std::size_t index, float* xyz, std::size_t ldxyz) override;
-
   float wl(std::size_t index) override;
 
   float scale(std::size_t index) override;
 
-  // void process_and_write(float wl, const std::complex<float>* s, std::size_t lds,
-  //                        const std::complex<float>* w, std::size_t ldw, const float* xyz,
-  //                        std::size_t ldxyz, const float* uvw, std::size_t lduvw);
-
-  // void process_and_write(double wl, const std::complex<double>* s, std::size_t lds,
-  //                        const std::complex<double>* w, std::size_t ldw, const double* xyz,
-  //                        std::size_t ldxyz, const double* uvw, std::size_t lduvw);
-
-  void write(float wl, float scale, const std::complex<float>* v, std::size_t ldv,
-             const float* d, const float* xyz, std::size_t ldxyz, const float* uvw,
-             std::size_t lduvw);
+  void write(float wl, float scale, const std::complex<float>* v, std::size_t ldv, const float* d,
+             const float* uvw, std::size_t lduvw);
 
   void close();
 
