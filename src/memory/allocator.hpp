@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
@@ -28,7 +29,7 @@ public:
 
   virtual auto deallocate(void* ptr) -> void = 0;
 
-  virtual auto size() -> std::uint_least64_t = 0;
+  virtual auto size() -> std::optional<std::uint_least64_t> { return std::nullopt; }
 
   virtual auto type() -> MemoryType = 0;
 };

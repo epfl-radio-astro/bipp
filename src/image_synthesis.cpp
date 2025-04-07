@@ -12,7 +12,7 @@
 #include "bipp/exceptions.hpp"
 #include "bipp/image.hpp"
 #include "context_internal.hpp"
-#include "host/nufft_synthesis.hpp"
+#include "nufft_synthesis.hpp"
 #include "memory/array.hpp"
 #include "memory/copy.hpp"
 
@@ -122,10 +122,10 @@ void image_synthesis(
   if (std::holds_alternative<NufftSynthesisOptions>(opt)) {
     auto nufftOpt = std::get<NufftSynthesisOptions>(opt);
     if (nufftOpt.precision == BIPP_PRECISION_SINGLE) {
-      host::nufft_synthesis<float>(ctxInternal, nufftOpt, dataset, pixelXYZ, sampleIds, dScaled,
+      nufft_synthesis<float>(ctxInternal, nufftOpt, dataset, pixelXYZ, sampleIds, dScaled,
                                    imageArray);
     } else {
-      host::nufft_synthesis<double>(ctxInternal, nufftOpt, dataset, pixelXYZ, sampleIds, dScaled,
+      nufft_synthesis<double>(ctxInternal, nufftOpt, dataset, pixelXYZ, sampleIds, dScaled,
                                     imageArray);
     }
 

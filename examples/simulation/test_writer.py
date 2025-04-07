@@ -69,5 +69,5 @@ with bipp.DatasetFile.create("test.h5", "lofar", W.data.shape[0], W.data.shape[1
         S = vis(XYZ, W, wl)
         uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
         v, d, scale =bipp.eigh(ctx, wl, S.data, W.data, XYZ.data)
-        dataset.write(wl, scale, v, d, XYZ.data, uvw)
+        dataset.write(wl, scale, v, d, uvw)
         #  dataset.process_and_write('single', wl, S.data, W.data, XYZ.data, uvw)

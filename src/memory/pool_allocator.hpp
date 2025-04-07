@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 
 #include "bipp/config.h"
@@ -88,7 +89,7 @@ public:
     }
   }
 
-  auto size() -> std::uint_least64_t override { return memorySize_; }
+  auto size() -> std::optional<std::uint_least64_t> override { return memorySize_; }
 
   auto type() -> MemoryType override { return type_; }
 

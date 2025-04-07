@@ -9,7 +9,6 @@
 #include "context_internal.hpp"
 
 namespace bipp {
-namespace host {
 
 template <typename T>
 void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthesisOptions& opt,
@@ -17,5 +16,4 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
                      ConstHostView<std::size_t, 1> sampleIds, ConstHostView<float, 3> dScaled,
                      HostView<float, 2> images);
 
-}  // namespace host
 }  // namespace bipp

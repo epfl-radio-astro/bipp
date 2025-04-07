@@ -7,14 +7,13 @@ set(BIPP_SOURCE_FILES
 	dataset_file.cpp
 	eigensolver.cpp
 	context.cpp
+	nufft_synthesis.cpp
 	memory/allocator_factory.cpp
 	host/eigensolver.cpp
 	host/gram_matrix.cpp
-	host/nufft_synthesis.cpp
 	host/virtual_vis.cpp
 	host/kernels/gemmexp.cpp
 	host/kernels/nuft_sum.cpp
-	host/standard_synthesis.cpp
 	image_synthesis.cpp
 	image_file.cpp
 	)
