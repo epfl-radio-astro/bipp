@@ -12,7 +12,7 @@
 #include <cublas_v2.h>
 
 #elif defined(BIPP_ROCM)
-#include <rocblas.h>
+#include <rocblas/rocblas.h>
 
 #else
 #error Either BIPP_CUDA or BIPP_ROCM must be defined!

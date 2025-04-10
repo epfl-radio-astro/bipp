@@ -17,7 +17,6 @@
 #include "bipp/exceptions.hpp"
 #include "host/domain_partition.hpp"
 #include "host/nufft.hpp"
-#include "host/uvw_partition.hpp"
 #include "host/virtual_vis.hpp"
 #include "memory/array.hpp"
 #include "memory/copy.hpp"

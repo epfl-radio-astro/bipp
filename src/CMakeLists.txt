@@ -18,8 +18,9 @@ set(BIPP_SOURCE_FILES
 	image_file.cpp
 	)
 
+set(BIPP_GPU_KERNEL_FILES)
 if(BIPP_CUDA OR BIPP_ROCM)
-	list(APPEND BIPP_SOURCE_FILES
+    list(APPEND BIPP_GPU_KERNEL_FILES
 		gpu/kernels/add_vector.cu
 		)
 endif()
@@ -53,14 +54,13 @@ if(BIPP_MPI)
 		)
 endif()
 
-# set all files to CXX, such that .cu files are compiled by the CXX compiler with ROCM enabled
 if(BIPP_ROCM)
-    set_source_files_properties(${BIPP_SOURCE_FILES} PROPERTIES LANGUAGE CXX)
+    set_source_files_properties(${BIPP_GPU_KERNEL_FILES} PROPERTIES LANGUAGE HIP)
 endif()
 
 
 
-add_library(bipp_objects OBJECT ${BIPP_SOURCE_FILES})
+add_library(bipp_objects OBJECT ${BIPP_SOURCE_FILES} ${BIPP_GPU_KERNEL_FILES})
 
 # All .cu files are self-contained. Device linking can have issues with propageted linker flags of other targets like MPI.
 if(BIPP_CUDA)

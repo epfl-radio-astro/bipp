@@ -54,7 +54,6 @@ set(BUILD_SHARED_LIBS "ON" CACHE STRING "Build as shared library") # default to 
 option(BIPP_BUILD_TESTS "Build tests" OFF)
 option(BIPP_BUILD_APPS "Build apps" ON)
 option(BIPP_PYTHON "Build python module" ON)
-option(BIPP_MAGMA "Use MAGMA library as eigensolver" OFF)
 option(BIPP_UMPIRE "Use Umpire memory pool library" OFF)
 option(BIPP_OMP "Use OpenMP for multi-threading" ON)
 option(BIPP_MPI "Use MPI for multi-process parallization" OFF)
@@ -81,7 +80,6 @@ set(BIPP_GPU "OFF" CACHE STRING "GPU backend")
 set_property(CACHE BIPP_GPU PROPERTY STRINGS
 	"OFF" "CUDA" "ROCM"
 	)
-set(CMAKE_HIP_ARCHITECTURES "gfx803;gfx900;gfx906" CACHE STRING "HIP GPU architectures")
 
 set(BIPP_BUILD_TYPE "OFF" CACHE STRING "If set, overrides the CMAKE_BUILD_TYPE variable.")
 set_property(CACHE BIPP_BUILD_TYPE PROPERTY STRINGS
@@ -120,7 +118,6 @@ if(BIPP_GPU)
 		set(BIPP_CUDA ON)
 	elseif(BIPP_GPU STREQUAL "ROCM")
 		set(BIPP_ROCM ON)
-		set(BIPP_MAGMA ON)
 	else()
 		message(FATAL_ERROR "Invalid GPU backend")
 	endif()
@@ -159,12 +156,12 @@ if(BIPP_CUDA)
 		set_property(TARGET CUDA::cublas PROPERTY INTERFACE_LINK_LIBRARIES ${CUDA_CUBLAS_LIBRARY})
 		set_property(TARGET CUDA::cublas PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 
-		find_library(CUDA_CUSOLVER_LIBRARY cusolver PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
-		if(NOT TARGET CUDA::cusolver)
-			add_library(CUDA::cusolver INTERFACE IMPORTED)
-		endif()
-		set_property(TARGET CUDA::cusolver PROPERTY INTERFACE_LINK_LIBRARIES ${CUDA_CUSOLVER_LIBRARY})
-		set_property(TARGET CUDA::cusolver PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+		# find_library(CUDA_CUSOLVER_LIBRARY cusolver PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+		# if(NOT TARGET CUDA::cusolver)
+		#     add_library(CUDA::cusolver INTERFACE IMPORTED)
+		# endif()
+		# set_property(TARGET CUDA::cusolver PROPERTY INTERFACE_LINK_LIBRARIES ${CUDA_CUSOLVER_LIBRARY})
+		# set_property(TARGET CUDA::cusolver PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 	endif()
 
 	list(APPEND BIPP_EXTERNAL_LIBS CUDA::cudart CUDA::cublas CUDA::cusolver)
@@ -172,36 +169,12 @@ endif()
 
 # ROCm
 if(BIPP_ROCM)
-	list(APPEND BIPP_FLAGS -fno-gpu-rdc)
-
-	include(CheckCXXCompilerFlag)
-
-	check_cxx_compiler_flag("--offload-arch=gfx906" _IS_OFFLOAD_HIPCC)
-	if(_IS_OFFLOAD_HIPCC)
-		foreach(arch ${CMAKE_HIP_ARCHITECTURES})
-			list(APPEND BIPP_FLAGS --offload-arch=${arch})
-		endforeach()
-	else()
-		check_cxx_compiler_flag("--amdgpu-target=gfx906" _IS_AMDGPU_HIPCC)
-		if(NOT _IS_AMDGPU_HIPCC)
-			message(FATAL_ERROR "ROCm build requires hipcc to be set as CXX compiler.")
-		endif()
-		foreach(arch ${CMAKE_HIP_ARCHITECTURES})
-			list(APPEND BIPP_FLAGS --amdgpu-target=${arch})
-		endforeach()
-	endif()
+	enable_language(HIP)
 
 	find_package(hip CONFIG REQUIRED)
 	find_package(rocblas CONFIG REQUIRED)
 	find_package(hipcub CONFIG REQUIRED)
 	list(APPEND BIPP_EXTERNAL_LIBS hip::host roc::rocblas hip::hipcub)
-endif()
-
-# MAGMA
-if(BIPP_MAGMA)
-	find_package(MAGMA MODULE REQUIRED)
-	list(APPEND BIPP_EXTERNAL_LIBS MAGMA::MAGMA)
-	list(APPEND BIPP_FLAGS -DUSE_HIP) # required to compile magma header
 endif()
 
 # Umpire

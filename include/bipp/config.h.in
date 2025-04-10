@@ -2,7 +2,6 @@
 
 #cmakedefine BIPP_CUDA
 #cmakedefine BIPP_ROCM
-#cmakedefine BIPP_MAGMA
 #cmakedefine BIPP_BLAS_C
 #cmakedefine BIPP_LAPACK_C
 #cmakedefine BIPP_UMPIRE

@@ -13,10 +13,6 @@
 #include "memory/allocator_factory.hpp"
 #include "memory/array.hpp"
 
-#if !defined(BIPP_MAGMA) && defined(BIPP_CUDA)
-#include <cusolverDn.h>
-#endif
-
 namespace bipp {
 namespace gpu {
 
@@ -60,20 +56,6 @@ public:
             });
     api::blas::set_stream(*blasHandle_, *stream_);
 
-#if !defined(BIPP_MAGMA) && defined(BIPP_CUDA)
-    // create gpu solver
-    cusolverDnHandle_t solverHandle;
-    if (cusolverDnCreate(&solverHandle) != CUSOLVER_STATUS_SUCCESS)
-      throw GPUError("cusolver error");
-    solverHandle_ = std::unique_ptr<cusolverDnHandle_t, std::function<void(cusolverDnHandle_t*)>>(
-        new cusolverDnHandle_t(solverHandle), [](cusolverDnHandle_t* ptr) {
-          cusolverDnDestroy(*ptr);
-          delete ptr;
-        });
-
-    if (cusolverDnSetStream(solverHandle, *stream_) != CUSOLVER_STATUS_SUCCESS)
-      throw GPUError("cusolver error");
-#endif
   }
 
   Queue(const Queue&) = delete;
@@ -87,10 +69,6 @@ public:
   auto stream() const -> const api::StreamType& { return *stream_; }
 
   auto blas_handle() const -> const api::blas::HandleType& { return *blasHandle_; }
-
-#if !defined(BIPP_MAGMA) && defined(BIPP_CUDA)
-  auto solver_handle() const -> const cusolverDnHandle_t& { return *solverHandle_; }
-#endif
 
   auto device_id() const -> int { return deviceId_; }
 
@@ -182,9 +160,6 @@ private:
   std::unique_ptr<api::StreamType, std::function<void(api::StreamType*)>> stream_;
   std::unique_ptr<api::EventType, std::function<void(api::EventType*)>> event_;
   std::unique_ptr<api::blas::HandleType, std::function<void(api::blas::HandleType*)>> blasHandle_;
-#if !defined(BIPP_MAGMA) && defined(BIPP_CUDA)
-  std::unique_ptr<cusolverDnHandle_t, std::function<void(cusolverDnHandle_t*)>> solverHandle_;
-#endif
 
   auto remove_unused_data() -> void {}
 };
