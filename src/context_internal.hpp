@@ -37,15 +37,8 @@ public:
 
   auto host_alloc() const -> const std::shared_ptr<Allocator>& { return hostAlloc_; }
 
-  auto set_log(BippLogLevel level, const char* out = "stdout") { log_ = Logger(level, out); }
-
-  auto logger() -> Logger& { return log_; }
-
-  ~ContextInternal();
-
 private:
   BippProcessingUnit pu_;
-  Logger log_;
   std::shared_ptr<Allocator> hostAlloc_;
   int deviceId_ = 0;
 

@@ -25,7 +25,7 @@
 namespace bipp {
 
 ContextInternal::ContextInternal(BippProcessingUnit pu)
-    : hostAlloc_(AllocatorFactory::host()), log_(BIPP_LOG_LEVEL_OFF), deviceId_(0) {
+    : hostAlloc_(AllocatorFactory::host()), deviceId_(0) {
 #ifdef BIPP_MPI
   initialize_mpi_init_guard();
   int myRank = 0;
@@ -66,49 +66,11 @@ ContextInternal::ContextInternal(BippProcessingUnit pu)
   }
 #endif
 
-  const char* logOut = "stdout";
-  if (const char* logOutEnv = std::getenv("BIPP_LOG_OUT")) {
-    logOut = logOutEnv;
-  }
-
-  std::string logRankString = "0";
-  if (const char* logRankEnv = std::getenv("BIPP_LOG_RANK")) {
-    logRankString = logRankEnv;
-  }
-  const int logRank = std::stoi(logRankString);
-
-  auto logLevel = BIPP_LOG_LEVEL_OFF;
-
-  // Set initial log level if environment variable is set
-  if (const char* envLog = std::getenv("BIPP_LOG_LEVEL")) {
-    if (!std::strcmp(envLog, "off") || !std::strcmp(envLog, "OFF"))
-      logLevel = BIPP_LOG_LEVEL_OFF;
-    else if (!std::strcmp(envLog, "debug") || !std::strcmp(envLog, "DEBUG"))
-      logLevel = BIPP_LOG_LEVEL_DEBUG;
-    else if (!std::strcmp(envLog, "info") || !std::strcmp(envLog, "INFO"))
-      logLevel = BIPP_LOG_LEVEL_INFO;
-    else if (!std::strcmp(envLog, "warn") || !std::strcmp(envLog, "WARN"))
-      logLevel = BIPP_LOG_LEVEL_WARN;
-    else if (!std::strcmp(envLog, "error") || !std::strcmp(envLog, "ERROR"))
-      logLevel = BIPP_LOG_LEVEL_ERROR;
-  }
-
-  if (logRank == myRank) {
-    log_ = Logger(logLevel, logOut);
-  }
-
   if (pu_ == BIPP_PU_CPU)
-    log_.log(BIPP_LOG_LEVEL_INFO, "{} CPU context created", static_cast<const void*>(this));
+    globLogger.log(BIPP_LOG_LEVEL_INFO, "{} CPU context created", static_cast<const void*>(this));
   else
-    log_.log(BIPP_LOG_LEVEL_INFO, "{} GPU context created", static_cast<const void*>(this));
+    globLogger.log(BIPP_LOG_LEVEL_INFO, "{} GPU context created", static_cast<const void*>(this));
 }
 
-ContextInternal::~ContextInternal() {
-  try {
-    log_.log_timings(BIPP_LOG_LEVEL_INFO);
-    log_.log(BIPP_LOG_LEVEL_INFO, "{} Context destroyed", static_cast<const void*>(this));
-  } catch (...) {
-  }
-}
 
 }  // namespace bipp

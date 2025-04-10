@@ -106,7 +106,7 @@ void image_synthesis(
     for (std::size_t idx = 0; idx < nSamples; ++idx) {
       copy(ConstHostView<float, 1>(sourceIds[idx].second, nBeam, 1), dScaledSlice.slice_view(idx));
     }
-    ctxInternal->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "scaled eigenvalues", dScaledSlice);
+    globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "scaled eigenvalues", dScaledSlice);
   }
 
   const auto nPixel = image.num_pixel();
@@ -130,7 +130,7 @@ void image_synthesis(
     }
 
     if (nufftOpt.normalizeImage) {
-      ctxInternal->logger().start_timing(BIPP_LOG_LEVEL_INFO, "scale image");
+      globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "scale image");
       const float scale = 1.f / float(nSamples);
 
       for (std::size_t idxImg = 0; idxImg < nImages; ++idxImg) {
@@ -139,7 +139,7 @@ void image_synthesis(
           imageSlice[j] *= scale;
         }
       }
-      ctxInternal->logger().stop_timing(BIPP_LOG_LEVEL_INFO, "scale image");
+      globLogger.stop_timing(BIPP_LOG_LEVEL_INFO, "scale image");
     }
 
   } else {
@@ -147,12 +147,12 @@ void image_synthesis(
   }
 
   // write image
-  ctxInternal->logger().start_timing(BIPP_LOG_LEVEL_INFO, "write imageArray");
+  globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "write imageArray");
   for (std::size_t idxImg = 0; idxImg < nImages; ++idxImg) {
-    ctxInternal->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "image", imageArray.slice_view(idxImg));
+    globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "image", imageArray.slice_view(idxImg));
     image.set(imageNames[idxImg], &imageArray[{0, idxImg}]);
   }
-  ctxInternal->logger().stop_timing(BIPP_LOG_LEVEL_INFO, "write imageArray");
+  globLogger.stop_timing(BIPP_LOG_LEVEL_INFO, "write imageArray");
 }
 
 }  // namespace bipp

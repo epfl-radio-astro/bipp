@@ -76,7 +76,7 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
                      ConstHostView<std::size_t, 1> sampleIds, ConstHostView<float, 3> dScaled,
                      HostView<float, 2> images) {
   auto& ctx = *ctxPtr;
-  auto funcTimer = ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "host::nufft_synthesis");
+  auto funcTimer = globLogger.scoped_timing(BIPP_LOG_LEVEL_INFO, "host::nufft_synthesis");
 
   const auto nPixel = pixelXYZ.shape(0);
   const auto nImages = images.shape(1);
@@ -125,20 +125,20 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
   for (std::size_t i = 0; i < sampleIds.size(); ++i) {
     const auto id = sampleIds[i];
 
-    ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "sample id: {}", id);
-    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "read uvw");
+    globLogger.log(BIPP_LOG_LEVEL_DEBUG, "sample id: {}", id);
+    globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "read uvw");
     read_uvw(ctx, dataset, id, uvw);
-    ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "read uvw");
-    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "read eig vec");
+    globLogger.stop_timing(BIPP_LOG_LEVEL_INFO, "read uvw");
+    globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "read eig vec");
     read_eig_vec(ctx, dataset, id, eigVec);
-    ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "read eig vec");
-    ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", eigVec);
+    globLogger.stop_timing(BIPP_LOG_LEVEL_INFO, "read eig vec");
+    globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", eigVec);
 
     for (std::size_t imageIdx = 0; imageIdx < nImages; ++imageIdx) {
       copy(dScaled.slice_view(imageIdx).slice_view(i), dSlice);
-      ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "scaled eigenvalues", dSlice);
+      globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "scaled eigenvalues", dSlice);
       host::virtual_vis<T>(ctx, dSlice, eigVec, virtualVis.slice_view(imageIdx));
-      ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "virtual vis", virtualVis.slice_view(imageIdx));
+      globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "virtual vis", virtualVis.slice_view(imageIdx));
     }
 
     nufft->add(uvw, virtualVis);

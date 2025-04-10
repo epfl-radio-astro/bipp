@@ -43,9 +43,7 @@ MPIInitGuard mpiInitGuard;
 
 }  // namespace
 
-auto initialize_mpi_init_guard() -> void{
-	mpiInitGuard.initialize();
-}
+auto initialize_mpi_init_guard() -> void { mpiInitGuard.initialize(); }
 
 }  // namespace bipp
 #endif

@@ -29,7 +29,7 @@ static T calc_pi_sinc(T x) {
 template <typename T>
 auto gram_matrix(ContextInternal& ctx, ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz,
                  T wl, HostView<std::complex<T>, 2> g) -> void {
-  auto funcTimer = ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "host::gram_matrix");
+  auto funcTimer = globLogger.scoped_timing(BIPP_LOG_LEVEL_INFO, "host::gram_matrix");
   const auto nAntenna= w.shape(0);
   const auto nBeam= w.shape(1);
 
@@ -60,7 +60,7 @@ auto gram_matrix(ContextInternal& ctx, ConstHostView<std::complex<T>, 2> w, Cons
   blas::symm<std::complex<T>>(CblasLeft, CblasLower, {1, 0}, buffer, w, {0, 0}, bufferC);
   blas::gemm<std::complex<T>>(CblasConjTrans, CblasNoTrans, {1, 0}, w, bufferC, {0, 0}, g);
 
-  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gram", g);
+  globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "gram", g);
 }
 
 template auto gram_matrix<float>(ContextInternal& ctx, ConstHostView<std::complex<float>, 2> w,

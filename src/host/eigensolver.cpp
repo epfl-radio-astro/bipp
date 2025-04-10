@@ -45,7 +45,7 @@ template <typename T>
 auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
           ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz, HostView<T, 1> d,
           HostView<std::complex<T>, 2> vUnbeam) -> std::pair<std::size_t, T> {
-  auto funcTimer = ctx.logger().scoped_timing(BIPP_LOG_LEVEL_INFO, "host::eigh");
+  auto funcTimer = globLogger.scoped_timing(BIPP_LOG_LEVEL_INFO, "host::eigh");
   const auto nAntenna = w.shape(0);
   const auto nBeam = w.shape(1);
 
@@ -71,7 +71,7 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
       }
     }
   }
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "eigensolver (host) nVis = {}", nVis);
+  globLogger.log(BIPP_LOG_LEVEL_DEBUG, "eigensolver (host) nVis = {}", nVis);
 
   std::vector<std::size_t> indices;
   indices.reserve(nBeam);
@@ -81,7 +81,7 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
 
   const std::size_t nBeamReduced = indices.size();
 
-  ctx.logger().log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} columns / rows", nBeam - nBeamReduced);
+  globLogger.log(BIPP_LOG_LEVEL_DEBUG, "Eigensolver: removing {} columns / rows", nBeam - nBeamReduced);
 
   d.zero();
   vUnbeam.zero();
@@ -97,10 +97,10 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
     auto g = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nBeam, nBeam});
     gram_matrix<T>(ctx, w, xyz, wl, g);
 
-    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "lapack solve");
+    globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "lapack solve");
     lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, mode, 'L', nBeam, v.data(), v.strides(1),
                        g.data(), g.strides(1), d.data());
-    ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "lapack solve");
+    globLogger.stop_timing(BIPP_LOG_LEVEL_INFO, "lapack solve");
 
     if (vUnbeam.size())
       blas::gemm<std::complex<T>>(CblasNoTrans, CblasNoTrans, {1, 0}, w, v, {0, 0}, vUnbeam);
@@ -118,18 +118,18 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
     auto gReduced = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nBeamReduced, nBeamReduced});
     gram_matrix<T>(ctx, wReduced, xyz, wl, gReduced);
 
-    ctx.logger().start_timing(BIPP_LOG_LEVEL_INFO, "lapack solve");
+    globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "lapack solve");
     lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, mode, 'L', nBeamReduced, v.data(), v.strides(1),
                        gReduced.data(), gReduced.strides(1), d.data());
-    ctx.logger().stop_timing(BIPP_LOG_LEVEL_INFO, "lapack solve");
+    globLogger.stop_timing(BIPP_LOG_LEVEL_INFO, "lapack solve");
 
     if (vUnbeam.size())
       blas::gemm<std::complex<T>>(CblasNoTrans, CblasNoTrans, {1, 0}, wReduced, v, {0, 0},
                                   vUnbeam.sub_view({0, 0}, {nAntenna, nBeamReduced}));
   }
 
-  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", d.sub_view(0, nBeamReduced));
-  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", v);
+  globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvalues", d.sub_view(0, nBeamReduced));
+  globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", v);
 
   const T scalingFactor = nVis ? T(1) / T(nVis) : T(0);
 

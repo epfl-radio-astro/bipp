@@ -75,7 +75,7 @@ private:
         [&](auto&& arg) -> host::DomainPartition {
           using ArgType = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<ArgType, Partition::Grid>) {
-            ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "uvw partition: grid ({}, {}, {})",
+            globLogger.log(BIPP_LOG_LEVEL_INFO, "uvw partition: grid ({}, {}, {})",
                                arg.dimensions[0], arg.dimensions[1], arg.dimensions[2]);
             return host::DomainPartition::grid<T, 3>(
                 ctx_->host_alloc(), arg.dimensions,
@@ -83,7 +83,7 @@ private:
           } else if constexpr (std::is_same_v<ArgType, Partition::None> ||
                                std::is_same_v<ArgType, Partition::Auto>) {
             // TODO: AUTO partitioning
-            ctx_->logger().log(BIPP_LOG_LEVEL_INFO, "uvw partition: none");
+            globLogger.log(BIPP_LOG_LEVEL_INFO, "uvw partition: none");
             return host::DomainPartition::none(ctx_->host_alloc(), uvw.shape(0));
           }
         },
@@ -112,7 +112,7 @@ private:
     for (const auto& [uvwBegin, uvwSize] : uvwPartition.groups()) {
       if (!uvwSize) continue;
 
-      ctx_->logger().log(BIPP_LOG_LEVEL_DEBUG, "uvw partition begin = {}, size = {}", uvwBegin,
+      globLogger.log(BIPP_LOG_LEVEL_DEBUG, "uvw partition begin = {}, size = {}", uvwBegin,
                          uvwSize);
 
       auto uvwPart = uvw.sub_view({uvwBegin, 0}, {uvwSize, 3});
@@ -129,9 +129,9 @@ private:
       std::array<T, 3> uvwMax = {*uMinMax.second, *vMinMax.second, *wMinMax.second};
 
       // TODO: add allocator
-      ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points u", uView);
-      ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points v", vView);
-      ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points w", wView);
+      globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points u", uView);
+      globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points v", vView);
+      globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points w", wView);
       neonufft::PlanT3<T, 3> plan(neoOpt, 1, uvwMin, uvwMax, pixelMin_, pixelMax_);
       plan.set_input_points(uvwSize, {uView.data(), vView.data(), wView.data()});
       plan.set_output_points(pixelXYZ_.shape(0), {pixelXYZ_.data(), pixelXYZ_.slice_view(1).data(),
@@ -140,9 +140,9 @@ private:
       for (std::size_t imageIdx = 0; imageIdx < nImages_; ++imageIdx) {
         auto valuesSlice = values.slice_view(imageIdx).sub_view(uvwBegin, uvwSize);
         plan.add_input(valuesSlice.data());
-        ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft input", valuesSlice);
+        globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft input", valuesSlice);
         plan.transform(imageCpx.data());
-        ctx_->logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft output", imageCpx);
+        globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft output", imageCpx);
 
         // const auto nPixel = images_.shape(0);
         // for (std::size_t pixelIdx = 0; pixelIdx < nPixel; ++pixelIdx) {
