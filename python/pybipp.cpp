@@ -294,7 +294,7 @@ auto create_distributed_context(const std::string& pu, Communicator comm) -> Con
 }
 
 template <typename T>
-auto call_eigh(Context& ctx, T wl, const py::array_t<std::complex<T>, py::array::f_style>& s,
+auto call_eigh(T wl, const py::array_t<std::complex<T>, py::array::f_style>& s,
                const py::array_t<std::complex<T>, py::array::f_style>& w,
                const py::array_t<T, py::array::f_style>& xyz)
     -> std::tuple<py::array_t<std::complex<T>, py::array::f_style>,
@@ -307,11 +307,11 @@ auto call_eigh(Context& ctx, T wl, const py::array_t<std::complex<T>, py::array:
 
   auto d = py::array_t<T, py::array::f_style>({py::ssize_t(nBeam)});
   auto v = py::array_t<std::complex<T>, py::array::f_style>({py::ssize_t(nAntenna), py::ssize_t(nBeam)});
-  auto pev = eigh<T>(ctx, wl, nAntenna, nBeam, s.data(0),
-                     safe_cast<std::size_t>(s.strides(1) / s.itemsize()), w.data(0),
-                     safe_cast<std::size_t>(w.strides(1) / w.itemsize()), xyz.data(0),
-                     safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()), d.mutable_data(0),
-                     v.mutable_data(0), safe_cast<std::size_t>(v.strides(1) / v.itemsize()));
+  auto pev =
+      eigh<T>(wl, nAntenna, nBeam, s.data(0), safe_cast<std::size_t>(s.strides(1) / s.itemsize()),
+              w.data(0), safe_cast<std::size_t>(w.strides(1) / w.itemsize()), xyz.data(0),
+              safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()), d.mutable_data(0),
+              v.mutable_data(0), safe_cast<std::size_t>(v.strides(1) / v.itemsize()));
 
   return {std::move(v), std::move(d), pev.second};
 }
@@ -477,21 +477,16 @@ PYBIND11_MODULE(pybipp, m) {
 
   m.def(
        "eigh",
-       [](Context& ctx, float wl, const py::array_t<std::complex<float>, py::array::f_style>& s,
+       [](float wl, const py::array_t<std::complex<float>, py::array::f_style>& s,
           const py::array_t<std::complex<float>, py::array::f_style>& w,
-          const py::array_t<float, py::array::f_style>& xyz) {
-         return call_eigh(ctx, wl, s, w, xyz);
-       },
-       pybind11::arg("ctx"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),
-       pybind11::arg("xyz"))
+          const py::array_t<float, py::array::f_style>& xyz) { return call_eigh(wl, s, w, xyz); },
+       pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"), pybind11::arg("xyz"))
       .def(
           "eigh",
-          [](Context& ctx, double wl,
-             const py::array_t<std::complex<double>, py::array::f_style>& s,
+          [](double wl, const py::array_t<std::complex<double>, py::array::f_style>& s,
              const py::array_t<std::complex<double>, py::array::f_style>& w,
              const py::array_t<double, py::array::f_style>& xyz) {
-            return call_eigh(ctx, wl, s, w, xyz);
+            return call_eigh(wl, s, w, xyz);
           },
-          pybind11::arg("ctx"), pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"),
-          pybind11::arg("xyz"));
+          pybind11::arg("wl"), pybind11::arg("s"), pybind11::arg("w"), pybind11::arg("xyz"));
 }

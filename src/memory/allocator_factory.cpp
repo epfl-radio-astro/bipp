@@ -1,5 +1,6 @@
 #include "memory/allocator_factory.hpp"
 
+#include <cstdlib>
 #include <memory>
 
 #include "bipp/config.h"
@@ -16,6 +17,28 @@
 #endif
 
 namespace bipp {
+
+auto AllocatorFactory::simple_host() -> std::unique_ptr<Allocator> {
+  class SimpleAllocator : public Allocator {
+  public:
+    auto allocate(std::size_t size) -> void* override {
+      void* ptr = nullptr;
+      if (size) {
+        ptr = std::malloc(size);
+        if (!ptr) throw std::bad_alloc();
+      }
+      return ptr;
+    }
+
+    auto deallocate(void* ptr) -> void override {
+      if (ptr) std::free(ptr);
+    }
+
+    auto type() -> MemoryType override { return MemoryType::Host; }
+  };
+
+  return std::make_unique<SimpleAllocator>();
+}
 
 auto AllocatorFactory::host() -> std::unique_ptr<Allocator> {
 #ifdef BIPP_UMPIRE

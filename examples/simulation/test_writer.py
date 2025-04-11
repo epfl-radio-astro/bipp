@@ -58,9 +58,6 @@ time_slice = 25
 XYZ = dev(time[0])
 W = mb(XYZ, wl)
 
-comm = bipp.communicator.world()
-ctx = bipp.Context("CPU", comm)
-
 with bipp.DatasetFile.create("test.h5", "lofar", W.data.shape[0], W.data.shape[1]) as dataset:
     for t in ProgressBar(time[::time_slice]):
         XYZ = dev(t)
@@ -68,6 +65,5 @@ with bipp.DatasetFile.create("test.h5", "lofar", W.data.shape[0], W.data.shape[1
         W = mb(XYZ, wl)
         S = vis(XYZ, W, wl)
         uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
-        v, d, scale =bipp.eigh(ctx, wl, S.data, W.data, XYZ.data)
+        v, d, scale = bipp.eigh(wl, S.data, W.data, XYZ.data)
         dataset.write(wl, scale, v, d, uvw)
-        #  dataset.process_and_write('single', wl, S.data, W.data, XYZ.data, uvw)

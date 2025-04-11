@@ -18,6 +18,7 @@
 #include "memory/allocator.hpp"
 #include "memory/array.hpp"
 #include "memory/copy.hpp"
+#include "memory/allocator_factory.hpp"
 
 namespace bipp {
 namespace host {
@@ -42,12 +43,14 @@ static auto copy_lower_triangle_at_indices(const std::vector<std::size_t>& indic
 }
 
 template <typename T>
-auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
-          ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz, HostView<T, 1> d,
-          HostView<std::complex<T>, 2> vUnbeam) -> std::pair<std::size_t, T> {
+auto eigh(T wl, ConstHostView<std::complex<T>, 2> s, ConstHostView<std::complex<T>, 2> w,
+          ConstHostView<T, 2> xyz, HostView<T, 1> d, HostView<std::complex<T>, 2> vUnbeam)
+    -> std::pair<std::size_t, T> {
   auto funcTimer = globLogger.scoped_timing(BIPP_LOG_LEVEL_INFO, "host::eigh");
   const auto nAntenna = w.shape(0);
   const auto nBeam = w.shape(1);
+
+  std::shared_ptr<Allocator> alloc = AllocatorFactory::simple_host();
 
   assert(xyz.shape(0) == nAntenna);
   assert(xyz.shape(1) == 3);
@@ -56,7 +59,7 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
   assert(!vUnbeam.size() || vUnbeam.shape(0) == nAntenna);
   assert(!vUnbeam.size() || vUnbeam.shape(1) == nBeam);
 
-  HostArray<short, 1> nonZeroIndexFlag(ctx.host_alloc(), nBeam);
+  HostArray<short, 1> nonZeroIndexFlag(alloc, nBeam);
   nonZeroIndexFlag.zero();
 
   // flag working coloumns / rows
@@ -86,7 +89,7 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
   d.zero();
   vUnbeam.zero();
 
-  HostArray<std::complex<T>, 2> v(ctx.host_alloc(), {nBeamReduced, nBeamReduced});
+  HostArray<std::complex<T>, 2> v(alloc, {nBeamReduced, nBeamReduced});
 
   const char mode = vUnbeam.size() ? 'V' : 'N';
 
@@ -94,8 +97,8 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
     copy(s, v);
 
     // Compute gram matrix
-    auto g = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nBeam, nBeam});
-    gram_matrix<T>(ctx, w, xyz, wl, g);
+    auto g = HostArray<std::complex<T>, 2>(alloc, {nBeam, nBeam});
+    gram_matrix<T>(alloc, w, xyz, wl, g);
 
     globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "lapack solve");
     lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, mode, 'L', nBeam, v.data(), v.strides(1),
@@ -106,7 +109,7 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
       blas::gemm<std::complex<T>>(CblasNoTrans, CblasNoTrans, {1, 0}, w, v, {0, 0}, vUnbeam);
   } else {
     // Remove broken beams from w and s
-    HostArray<std::complex<T>, 2> wReduced(ctx.host_alloc(), {nAntenna, nBeamReduced});
+    HostArray<std::complex<T>, 2> wReduced(alloc, {nAntenna, nBeamReduced});
 
     copy_lower_triangle_at_indices(indices, s, v);
 
@@ -115,8 +118,8 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
     }
 
     // Compute gram matrix
-    auto gReduced = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nBeamReduced, nBeamReduced});
-    gram_matrix<T>(ctx, wReduced, xyz, wl, gReduced);
+    auto gReduced = HostArray<std::complex<T>, 2>(alloc, {nBeamReduced, nBeamReduced});
+    gram_matrix<T>(alloc, wReduced, xyz, wl, gReduced);
 
     globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "lapack solve");
     lapack::eigh_solve(LapackeLayout::COL_MAJOR, 1, mode, 'L', nBeamReduced, v.data(), v.strides(1),
@@ -136,13 +139,12 @@ auto eigh(ContextInternal& ctx, T wl, ConstHostView<std::complex<T>, 2> s,
   return std::make_pair(nBeamReduced, scalingFactor);
 }
 
-template auto eigh<float>(ContextInternal& ctx, float wl, ConstHostView<std::complex<float>, 2> s,
+template auto eigh<float>(float wl, ConstHostView<std::complex<float>, 2> s,
                           ConstHostView<std::complex<float>, 2> w, ConstHostView<float, 2> xyz,
                           HostView<float, 1> d, HostView<std::complex<float>, 2> vUnbeam)
     -> std::pair<std::size_t, float>;
 
-template auto eigh<double>(ContextInternal& ctx, double wl,
-                           ConstHostView<std::complex<double>, 2> s,
+template auto eigh<double>(double wl, ConstHostView<std::complex<double>, 2> s,
                            ConstHostView<std::complex<double>, 2> w, ConstHostView<double, 2> xyz,
                            HostView<double, 1> d, HostView<std::complex<double>, 2> vUnbeam)
     -> std::pair<std::size_t, double>;
