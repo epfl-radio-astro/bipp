@@ -17,7 +17,7 @@ namespace bipp {
 namespace host {
 
 template <typename T>
-auto virtual_vis(ContextInternal& ctx, ConstHostView<T, 1> dMasked,
+auto virtual_vis(ContextInternal& ctx, T scale, ConstHostView<T, 1> dMasked,
                  ConstHostView<std::complex<T>, 2> vAll,
                  HostView<std::complex<T>, 1> virtVis) -> void {
   assert(vAll.shape(0) * vAll.shape(0) == virtVis.shape(0));
@@ -48,7 +48,7 @@ auto virtual_vis(ContextInternal& ctx, ConstHostView<T, 1> dMasked,
 
   if (nEig) {
     for (std::size_t idxEig = 0; idxEig < nEig; ++idxEig) {
-      const auto dVal = d[idxEig];
+      const auto dVal = scale * d[idxEig];
       auto* __restrict__ vScaledPtr = &vScaled[{0, idxEig}];
       const auto* __restrict__ vPtr = &v[{0, idxEig}];
 
@@ -70,11 +70,12 @@ auto virtual_vis(ContextInternal& ctx, ConstHostView<T, 1> dMasked,
   }
 }
 
-template auto virtual_vis<float>(ContextInternal& ctx, ConstHostView<float, 1> dMasked,
+template auto virtual_vis<float>(ContextInternal& ctx, float scale, ConstHostView<float, 1> dMasked,
                                  ConstHostView<std::complex<float>, 2> v,
                                  HostView<std::complex<float>, 1> virtVis) -> void;
 
-template auto virtual_vis<double>(ContextInternal& ctx, ConstHostView<double, 1> dMasked,
+template auto virtual_vis<double>(ContextInternal& ctx, double scale,
+                                  ConstHostView<double, 1> dMasked,
                                   ConstHostView<std::complex<double>, 2> v,
                                   HostView<std::complex<double>, 1> virtVis) -> void;
 

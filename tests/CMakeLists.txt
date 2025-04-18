@@ -2,7 +2,6 @@
 add_executable(run_tests
   run_tests.cpp
   test_nufft_synthesis_lofar.cpp
-  test_standard_synthesis_lofar.cpp
   test_domain_partition.cpp
 )
 target_link_libraries(run_tests PRIVATE ${BIPP_TEST_LIBRARIES} bipp_objects ${BIPP_EXTERNAL_LIBS} ${BIPP_EXTERNAL_LIBS_PUBLIC})

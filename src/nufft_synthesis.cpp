@@ -131,13 +131,14 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
     globLogger.stop_timing(BIPP_LOG_LEVEL_INFO, "read uvw");
     globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "read eig vec");
     read_eig_vec(ctx, dataset, id, eigVec);
+    T scale = dataset.scale(i);
     globLogger.stop_timing(BIPP_LOG_LEVEL_INFO, "read eig vec");
     globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", eigVec);
 
     for (std::size_t imageIdx = 0; imageIdx < nImages; ++imageIdx) {
       copy(dScaled.slice_view(imageIdx).slice_view(i), dSlice);
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "scaled eigenvalues", dSlice);
-      host::virtual_vis<T>(ctx, dSlice, eigVec, virtualVis.slice_view(imageIdx));
+      host::virtual_vis<T>(ctx, scale, dSlice, eigVec, virtualVis.slice_view(imageIdx));
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "virtual vis", virtualVis.slice_view(imageIdx));
     }
 

@@ -128,7 +128,6 @@ private:
       std::array<T, 3> uvwMin = {*uMinMax.first, *vMinMax.first, *wMinMax.first};
       std::array<T, 3> uvwMax = {*uMinMax.second, *vMinMax.second, *wMinMax.second};
 
-      // TODO: add allocator
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points u", uView);
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points v", vView);
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points w", wView);
@@ -143,11 +142,6 @@ private:
         globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft input", valuesSlice);
         plan.transform(imageCpx.data());
         globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft output", imageCpx);
-
-        // const auto nPixel = images_.shape(0);
-        // for (std::size_t pixelIdx = 0; pixelIdx < nPixel; ++pixelIdx) {
-        //   images_[{pixelIdx, imageIdx}] += imageCpx[pixelIdx].real();
-        // }
 
         const T* __restrict__ sourcePtr = reinterpret_cast<const T*>(imageCpx.data());
         float* targetPtr = images_.slice_view(imageIdx).data();

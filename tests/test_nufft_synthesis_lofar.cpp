@@ -8,6 +8,7 @@
 
 #include "bipp/bipp.hpp"
 #include "bipp/communicator.hpp"
+#include "bipp/dataset.hpp"
 #include "bipp/image_synthesis.hpp"
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
@@ -136,11 +137,11 @@ protected:
       auto s = read_json_complex_2d<ValueType>(itData["s_real"], itData["s_imag"]);
 
       auto info =
-          bipp::eigh<ValueType>(ctx_, wl, nAntenna, nBeam, s.data(), nBeam, w.data(), nAntenna,
+          bipp::eigh<ValueType>(wl, nAntenna, nBeam, s.data(), nBeam, w.data(), nAntenna,
                                 xyz.data(), nAntenna, eigValues.data(), eigVec.data(), nAntenna);
 
-      dataset.write(wl, info.second, eigVec.data(), nAntenna, eigValues.data(), xyz.data(),
-                    nAntenna, uvw.data(), nAntenna * nAntenna);
+      dataset.write(wl, info.second, eigVec.data(), nAntenna, eigValues.data(), uvw.data(),
+                    nAntenna * nAntenna);
     }
 
     // create selection
@@ -159,7 +160,6 @@ protected:
 
     bipp::NufftSynthesisOptions opt;
     opt.set_precision(std::is_same_v<T, float> ? BIPP_PRECISION_SINGLE : BIPP_PRECISION_DOUBLE);
-    // opt.set_local_image_partition(bipp::Partition::Grid{{2,2,1}});
 
     auto comm = bipp::Communicator::local();
 
