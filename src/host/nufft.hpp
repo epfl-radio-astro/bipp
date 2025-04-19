@@ -34,9 +34,11 @@ public:
         uvwCollection_(ctx_->host_alloc(), {collectGroupSize * nBaselines, 3}) {
     images_.zero();
 
-    auto pixelX = pixelXYZ.slice_view(0);
-    auto pixelY = pixelXYZ.slice_view(1);
-    auto pixelZ = pixelXYZ.slice_view(2);
+    copy(pixelXYZ, pixelXYZ_);
+
+    auto pixelX = pixelXYZ_.slice_view(0);
+    auto pixelY = pixelXYZ_.slice_view(1);
+    auto pixelZ = pixelXYZ_.slice_view(2);
 
     auto pixelXMinMax = std::minmax_element(pixelX.data(), pixelX.data() + pixelX.size());
     auto pixelYMinMax = std::minmax_element(pixelY.data(), pixelY.data() + pixelY.size());
