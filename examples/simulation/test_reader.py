@@ -89,9 +89,3 @@ with bipp.DatasetFile.open("test.h5") as dataset, bipp.ImageFile.create("image.h
     opt.set_local_uvw_partition(bipp.Partition.grid([1,1,1]))
     ctx = bipp.Context("AUTO", comm)
     bipp.image_synthesis(ctx, opt, dataset, selection, image)
-
-
-#  bipp.image_synthesis(mapping)
-
-
-

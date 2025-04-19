@@ -136,9 +136,9 @@ protected:
       auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
       auto s = read_json_complex_2d<ValueType>(itData["s_real"], itData["s_imag"]);
 
-      auto info =
-          bipp::eigh<ValueType>(wl, nAntenna, nBeam, s.data(), nBeam, w.data(), nAntenna,
-                                xyz.data(), nAntenna, eigValues.data(), eigVec.data(), nAntenna);
+      auto info = bipp::eigh_gram<ValueType>(wl, nAntenna, nBeam, s.data(), nBeam, w.data(),
+                                             nAntenna, xyz.data(), nAntenna, eigValues.data(),
+                                             eigVec.data(), nAntenna);
 
       dataset.write(wl, info.second, eigVec.data(), nAntenna, eigValues.data(), uvw.data(),
                     nAntenna * nAntenna);
