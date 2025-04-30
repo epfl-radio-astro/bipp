@@ -18,7 +18,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y make g++ libopenblas-dev libfftw3-dev git cmake
+        sudo apt-get install -y make g++ libopenblas-dev libfftw3-dev git cmake libhdf5-dev
         cd ${HOME}
         git clone https://github.com/flatironinstitute/finufft.git
         cd ${HOME}/finufft
@@ -83,19 +83,19 @@ jobs:
   #################
   # Build with ROCm
   #################
-  build-rocm:
-    runs-on: ubuntu-22.04
-    container: adhocman/bipp_build:main_x86_64_rocm_5_4_2
+  # build-rocm:
+  #   runs-on: ubuntu-22.04
+  #   container: adhocman/bipp_build:main_x86_64_rocm_5_4_2
 
-    steps:
-    # Checks-out your repository under $GITHUB_WORKSPACE
-    - uses: actions/checkout@v4
+  #   steps:
+  #   # Checks-out your repository under $GITHUB_WORKSPACE
+  #   - uses: actions/checkout@v4
 
-    - name: Build library
-      run: |
-        . /etc/profile
-        cd ${GITHUB_WORKSPACE}
-        mkdir -p build
-        cd build
-        CXX=hipcc cmake .. -DBIPP_GPU=ROCM -DCMAKE_HIP_ARCHITECTURES="gfx906" -DBIPP_PYTHON=ON -DBIPP_OMP=OFF
-        make -j2
+  #   - name: Build library
+  #     run: |
+  #       . /etc/profile
+  #       cd ${GITHUB_WORKSPACE}
+  #       mkdir -p build
+  #       cd build
+  #       CXX=hipcc cmake .. -DBIPP_GPU=ROCM -DCMAKE_HIP_ARCHITECTURES="gfx906" -DBIPP_PYTHON=ON -DBIPP_OMP=OFF
+  #       make -j2
