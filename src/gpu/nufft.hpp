@@ -20,6 +20,7 @@
 #include "memory/view.hpp"
 #include "nufft_interface.hpp"
 #include "gpu/kernels/add_vector.hpp"
+#include "nufft_util.hpp"
 
 namespace bipp {
 namespace gpu {
@@ -85,6 +86,9 @@ private:
   auto transform() -> void {
     if (!count_) return;
 
+    neonufft::Options neoOpt;
+    neoOpt.tol = opt_.tolerance;
+
     auto& queue = ctx_->gpu_queue();
     queue.sync();
 
@@ -100,9 +104,24 @@ private:
             return host::DomainPartition::grid<T, 3>(
                 ctx_->host_alloc(), arg.dimensions,
                 {uvw.slice_view(0), uvw.slice_view(1), uvw.slice_view(2)});
-          } else if constexpr (std::is_same_v<ArgType, Partition::None> ||
-                               std::is_same_v<ArgType, Partition::Auto>) {
-            // TODO: AUTO partitioning
+          } else if constexpr (std::is_same_v<ArgType, Partition::Auto>) {
+            const auto maxMem = queue.device_prop().totalGlobalMem / 2;
+
+            auto grid = optimal_parition_size<T>(
+                uvw, pixelMin_, pixelMax_, maxMem,
+                [&](std::array<T, 3> uvwMin, std::array<T, 3> uvwMax, std::array<T, 3> xyzMin,
+                    std::array<T, 3> xyzMax) -> unsigned long long {
+                  return neonufft::gpu::PlanT3<T, 3>::grid_memory_size(neoOpt, uvwMin, uvwMax,
+                                                                       xyzMin, xyzMax);
+                });
+
+            globLogger.log(BIPP_LOG_LEVEL_INFO, "auto uvw partition: grid ({}, {}, {})", grid[0],
+                           grid[1], grid[2]);
+            return host::DomainPartition::grid<T, 3>(
+                ctx_->host_alloc(), grid,
+                {uvw.slice_view(0), uvw.slice_view(1), uvw.slice_view(2)});
+
+          } else if constexpr (std::is_same_v<ArgType, Partition::None>) {
             globLogger.log(BIPP_LOG_LEVEL_INFO, "uvw partition: none");
             return host::DomainPartition::none(ctx_->host_alloc(), uvw.shape(0));
           }
@@ -128,8 +147,6 @@ private:
 
     auto imageCpx = queue.create_device_array<api::ComplexType<T>, 1>(pixelXYZ_.shape(0));
 
-    neonufft::Options neoOpt;
-    neoOpt.tol = opt_.tolerance;
 
     for (const auto& [uvwBegin, uvwSize] : uvwPartition.groups()) {
       if (!uvwSize) continue;

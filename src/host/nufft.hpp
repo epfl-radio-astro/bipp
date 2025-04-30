@@ -1,9 +1,11 @@
 #pragma once
 
+#include <algorithm>
 #include <complex>
 #include <cstddef>
 #include <memory>
 #include <neonufft/plan.hpp>
+#include <unistd.h>
 
 #include "bipp/config.h"
 #include "bipp/enums.h"
@@ -14,9 +16,19 @@
 #include "memory/copy.hpp"
 #include "memory/view.hpp"
 #include "nufft_interface.hpp"
+#include "nufft_util.hpp"
 
 namespace bipp {
 namespace host {
+
+
+static auto system_memory() -> unsigned long long {
+  unsigned long long pages = sysconf(_SC_PHYS_PAGES);
+  unsigned long long pageSize = sysconf(_SC_PAGE_SIZE);
+  unsigned long long memory = pages * pageSize;
+  return memory > 0 ? memory : 8ull * 1024ull * 1024ull * 1024ull;
+}
+
 template <typename T>
 class NUFFT : public NUFFTInterface<T> {
 public:
@@ -70,6 +82,11 @@ private:
   auto transform() -> void {
     if (!count_) return;
 
+    neonufft::Options neoOpt;
+    neoOpt.tol = opt_.tolerance;
+    neoOpt.sort_input = false;
+    neoOpt.sort_output = false;
+
     auto uvw = uvwCollection_.sub_view({0, 0}, {count_ * nBaselines_, 3});
     auto values = valueCollection_.sub_view({0, 0}, {count_ * nBaselines_, nImages_});
 
@@ -82,9 +99,26 @@ private:
             return host::DomainPartition::grid<T, 3>(
                 ctx_->host_alloc(), arg.dimensions,
                 {uvw.slice_view(0), uvw.slice_view(1), uvw.slice_view(2)});
-          } else if constexpr (std::is_same_v<ArgType, Partition::None> ||
-                               std::is_same_v<ArgType, Partition::Auto>) {
-            // TODO: AUTO partitioning
+          } else if constexpr (std::is_same_v<ArgType, Partition::Auto>) {
+
+            const auto maxMem = system_memory() / 2;
+
+            auto grid =
+                optimal_parition_size<T>(uvw, pixelMin_, pixelMax_, maxMem,
+                                         [&](std::array<T, 3> uvwMin, std::array<T, 3> uvwMax,
+                                             std::array<T, 3> xyzMin,
+                                             std::array<T, 3> xyzMax) -> unsigned long long {
+                                           return neonufft::PlanT3<T, 3>::grid_memory_size(
+                                               neoOpt, uvwMin, uvwMax, xyzMin, xyzMax);
+                                         });
+
+            globLogger.log(BIPP_LOG_LEVEL_INFO, "auto uvw partition: grid ({}, {}, {})", grid[0],
+                           grid[1], grid[2]);
+            return host::DomainPartition::grid<T, 3>(
+                ctx_->host_alloc(), grid,
+                {uvw.slice_view(0), uvw.slice_view(1), uvw.slice_view(2)});
+
+          } else if constexpr (std::is_same_v<ArgType, Partition::None>) {
             globLogger.log(BIPP_LOG_LEVEL_INFO, "uvw partition: none");
             return host::DomainPartition::none(ctx_->host_alloc(), uvw.shape(0));
           }
@@ -106,10 +140,6 @@ private:
 
     HostArray<std::complex<T>, 2> imageCpx(ctx_->host_alloc(), {pixelXYZ_.shape(0), nImages_});
 
-    neonufft::Options neoOpt;
-    neoOpt.tol = opt_.tolerance;
-    neoOpt.sort_input = false;
-    neoOpt.sort_output = false;
 
     for (const auto& [uvwBegin, uvwSize] : uvwPartition.groups()) {
       if (!uvwSize) continue;
@@ -136,6 +166,8 @@ private:
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points w", wView);
 
 
+      // Batched version
+      /*
       neonufft::PlanT3<T, 3> plan(neoOpt, 1, uvwMin, uvwMax, pixelMin_, pixelMax_, nImages_);
       plan.set_input_points(uvwSize, {uView.data(), vView.data(), wView.data()});
       plan.set_output_points(pixelXYZ_.shape(0), {pixelXYZ_.data(), pixelXYZ_.slice_view(1).data(),
@@ -153,8 +185,8 @@ private:
           targetPtr[pixelIdx] += sourcePtr[2 * pixelIdx];  // add real part
         }
       }
+      */
 
-      /*
       neonufft::PlanT3<T, 3> plan(neoOpt, 1, uvwMin, uvwMax, pixelMin_, pixelMax_);
       plan.set_input_points(uvwSize, {uView.data(), vView.data(), wView.data()});
       plan.set_output_points(pixelXYZ_.shape(0), {pixelXYZ_.data(), pixelXYZ_.slice_view(1).data(),
@@ -174,8 +206,6 @@ private:
           targetPtr[pixelIdx] += sourcePtr[2 * pixelIdx];  // add real part
         }
       }
-
-    */
     }
 
     count_ = 0;
