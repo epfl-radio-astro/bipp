@@ -149,6 +149,12 @@ public:
                            deviceAllocator_->size());
   }
 
+  auto host_alloc() -> std::shared_ptr<Allocator>& { return hostAllocator_; }
+
+  auto pinned_alloc() -> std::shared_ptr<Allocator>& { return pinnedAllocator_; }
+
+  auto device_alloc() -> std::shared_ptr<Allocator>& { return deviceAllocator_; }
+
 private:
   std::shared_ptr<Allocator> hostAllocator_;
   std::shared_ptr<Allocator> pinnedAllocator_;

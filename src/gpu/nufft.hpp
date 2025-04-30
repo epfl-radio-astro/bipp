@@ -4,6 +4,7 @@
 #include <complex>
 #include <cstddef>
 #include <memory>
+#include <neonufft/allocator.hpp>
 #include <neonufft/gpu/plan.hpp>
 #include <neonufft/gpu/types.hpp>
 #include <neonufft/plan.hpp>
@@ -105,7 +106,8 @@ private:
                 ctx_->host_alloc(), arg.dimensions,
                 {uvw.slice_view(0), uvw.slice_view(1), uvw.slice_view(2)});
           } else if constexpr (std::is_same_v<ArgType, Partition::Auto>) {
-            const auto maxMem = queue.device_prop().totalGlobalMem / 2;
+            // Use at most66% of memory for fft grid
+            const auto maxMem = queue.device_prop().totalGlobalMem / 3 * 2;
 
             auto grid = optimal_parition_size<T>(
                 uvw, pixelMin_, pixelMax_, maxMem,
@@ -148,6 +150,19 @@ private:
     auto imageCpx = queue.create_device_array<api::ComplexType<T>, 1>(pixelXYZ_.shape(0));
 
 
+    struct NeoAlloc : neonufft::Allocator {
+      explicit NeoAlloc(std::shared_ptr<bipp::Allocator> alloc) : alloc_(std::move(alloc)) {}
+
+      void* allocate(std::size_t size) override {
+        return alloc_->allocate(size);
+      }
+
+      void deallocate(void* ptr) noexcept override { alloc_->deallocate(ptr); }
+
+      std::shared_ptr<bipp::Allocator> alloc_;
+    };
+    std::shared_ptr<neonufft::Allocator> neoAlloc(new NeoAlloc(queue.device_alloc()));
+
     for (const auto& [uvwBegin, uvwSize] : uvwPartition.groups()) {
       if (!uvwSize) continue;
 
@@ -180,7 +195,7 @@ private:
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points v", uvwDevice.slice_view(1));
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points w", uvwDevice.slice_view(2));
       neonufft::gpu::PlanT3<T, 3> plan(neoOpt, 1, uvwMin, uvwMax, pixelMin_, pixelMax_,
-                                       queue.stream());
+                                       queue.stream(), 1, neoAlloc);
       plan.set_input_points(uvwSize, {uvwDevice.data(), uvwDevice.slice_view(1).data(),
                                       uvwDevice.slice_view(2).data()});
       plan.set_output_points(pixelXYZ_.shape(0), {pixelXYZ_.data(), pixelXYZ_.slice_view(1).data(),

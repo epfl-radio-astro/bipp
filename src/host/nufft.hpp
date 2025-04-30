@@ -101,7 +101,8 @@ private:
                 {uvw.slice_view(0), uvw.slice_view(1), uvw.slice_view(2)});
           } else if constexpr (std::is_same_v<ArgType, Partition::Auto>) {
 
-            const auto maxMem = system_memory() / 2;
+            // Use at most66% of memory for fft grid
+            const auto maxMem = system_memory() / 3 * 2;
 
             auto grid =
                 optimal_parition_size<T>(uvw, pixelMin_, pixelMax_, maxMem,
