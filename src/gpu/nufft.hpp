@@ -210,6 +210,8 @@ private:
         globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft output", imageCpx);
         add_vector_real_of_complex<T>(queue.device_prop(), queue.stream(), imageCpx.shape(0),
                                       imageCpx.data(), images_.slice_view(imageIdx).data());
+
+        if (imageIdx < nImages_ - 1) plan.reset();
       }
     }
 

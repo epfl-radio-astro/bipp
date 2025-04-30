@@ -206,6 +206,8 @@ private:
         for (std::size_t pixelIdx = 0; pixelIdx < nPixel; ++pixelIdx) {
           targetPtr[pixelIdx] += sourcePtr[2 * pixelIdx];  // add real part
         }
+
+        if (imageIdx < nImages_ - 1) plan.reset();
       }
     }
 
