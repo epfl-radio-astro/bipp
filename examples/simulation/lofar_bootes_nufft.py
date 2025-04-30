@@ -26,6 +26,7 @@ import bipp.instrument as instrument
 import bipp.frame as frame
 import bipp.statistics as statistics
 import bipp.filter
+import bipp.selection as sel
 import time as tt
 import matplotlib.pyplot as plt
 
@@ -37,12 +38,8 @@ comm = bipp.communicator.world()
 #Note : When using MPI, mixing "CPU" and "GPU" on different ranks is possible.
 ctx = bipp.Context("AUTO", comm)
 
-# Only required when using MPI. Has no effect otherwise.
-if ctx.attach_non_root():
-    sys.exit(0)
-
 # print build config
-print("===== Build config ====")
+print("===== Config ====")
 print("MPI = ", bipp.config.mpi)
 print("OMP = ", bipp.config.omp)
 print("CUDA = ", bipp.config.cuda)
@@ -59,7 +56,6 @@ N_station = 24
 dev = instrument.LofarBlock(N_station)
 mb_cfg = [(_, _, field_center) for _ in range(N_station)]
 mb = beamforming.MatchedBeamformerBlock(mb_cfg)
-gram = bb_gr.GramBlock(ctx)
 
 # Data generation
 T_integration = 8
@@ -69,31 +65,21 @@ time = obs_start + (T_integration * u.s) * np.arange(3595)
 N_antenna = dev(time[0]).data.shape[0]
 obs_end = time[-1]
 
-# Nufft Synthesis options
-
-opt = bipp.NufftSynthesisOptions()
-# Set the tolerance for NUFFT, which is the maximum relative error.
-opt.set_tolerance(1e-3)
-# Set the maximum number amount of memory to be used for collecting time step data.
-# A larger number increases memory usage, but usually improves performance.
-#  opt.set_collect_memory(0.2)
-# Set the domain splitting methods for image and uvw coordinates.
-# Splitting decreases memory usage, but may lead to lower performance.
-# Best used with a wide spread of image or uvw coordinates.
-# Possible options are "grid", "none" or "auto"
-opt.set_local_image_partition(bipp.Partition.grid([1,1,1]))
-opt.set_local_uvw_partition(bipp.Partition.none())
-precision = "single"
-
 
 # Imaging
 N_pix = 350
-
-t1 = tt.time()
 N_level = 3
 time_slice = 25
 
-print("===== Image Synthesis ====")
+# image synthesis options
+precision = "single"
+tol = 1e-3
+
+# file names
+dataset_file = "test.h5"
+image_prop_file = "image_prop.h5"
+image_data_file = "image_data.h5"
+
 print("N_pix = ", N_pix)
 print("precision = ", precision)
 print("N_station = ", N_station)
@@ -102,47 +88,118 @@ print("Proc = ", ctx.processing_unit)
 
 lmn_grid, xyz_grid = frame.make_grids(N_pix, FoV, field_center)
 
-### Intensity Field ===========================================================
-# Parameter Estimation
-I_est = bb_pe.ParameterEstimator(N_level, sigma=0.95, ctx=ctx)
-for t in ProgressBar(time[::200]):
-    XYZ = dev(t)
-    W = mb(XYZ, wl)
-    S = vis(XYZ, W, wl)
-    I_est.collect(wl, S.data, W.data, XYZ.data)
-
-intervals = I_est.infer_parameters()
-fi = bipp.filter.Filter(lsq=intervals, std=intervals)
-
-# Imaging
-imager = bipp.NufftSynthesis(
-    ctx,
-    opt,
-    fi.num_images(),
-    lmn_grid[0],
-    lmn_grid[1],
-    lmn_grid[2],
-    precision,
-)
-
-for t in ProgressBar(time[::time_slice]):
-    XYZ = dev(t)
-    UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
-    W = mb(XYZ, wl)
-    S = vis(XYZ, W, wl)
-    uvw = frame.reshape_and_scale_uvw(wl, UVW_baselines_t)
-    imager.collect(wl, fi, S.data, W.data, XYZ.data, uvw)
-
-images = imager.get().reshape((-1, N_pix, N_pix))
+####################################################
+# Create dataset by computing the eigendecomposition
+####################################################
+print("\n===== Create Dataset ====")
+t1 = tt.time()
+with bipp.DatasetFile.create(dataset_file, "lofar", N_antenna, N_station) as dataset:
+    for t in ProgressBar(time[::time_slice]):
+        XYZ = dev(t)
+        UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
+        W = mb(XYZ, wl)
+        S = vis(XYZ, W, wl)
+        uvw = frame.reshape_uvw(UVW_baselines_t)
+        v, d, scale = bipp.eigh_gram(wl, S.data, W.data, XYZ.data)
+        dataset.write(t.value, wl, scale, v, d, uvw)
 
 t2 = tt.time()
 print(f"Elapsed time: {t2 - t1} seconds.")
 
-lsq_image = fi.get_filter_images("lsq", images)
-std_image = fi.get_filter_images("std", images)
+#################################################
+# Estimate parameters and generate a selection
+#################################################
+print("\n===== Parameter Estimation ====")
+t1 = tt.time()
+selection = {}
+I_est = bb_pe.ParameterEstimator(N_level, sigma=0.95)
+with bipp.DatasetFile.open(dataset_file) as dataset:
+    # collect eigenvalues
+    for idx in range(0, dataset.num_samples()):
+        I_est.collect(dataset.eig_val(idx))
 
-I_lsq_eq = s2image.Image(lsq_image, xyz_grid)
-I_std_eq = s2image.Image(std_image, xyz_grid)
+    # compute intervals to partition eigenvalues
+    intervals = I_est.infer_parameters()
+
+    # generate selection for lsq and std filters with
+    # computed intervals
+    filters = ["lsq", "std"]
+
+    for filter_name in filters:
+        for level in range(intervals.shape[0]):
+            fi = bipp.filter.Filter(filter_name, intervals[level, 0], intervals[level,1])
+            tag = f"{filter_name}_level_{level}"
+            level_selection = {}
+            for idx in range(0, dataset.num_samples()):
+                level_selection[idx] = fi(dataset.eig_val(idx))
+            selection[tag] = level_selection
+
+# optionally export selection for use with 'bipp_synthesis' executable
+sel.export_selection(selection, 'selection.json')
+
+t2 = tt.time()
+print(f"Elapsed time: {t2 - t1} seconds.")
+
+#################################################
+# Create image property file with lmn coordinates
+#################################################
+print("\n===== Image property generation ====")
+t1 = tt.time()
+with bipp.ImagePropFile.create(image_prop_file, lmn_grid.transpose()) as image_prop:
+    # we can optionally write meta data for later use like plotting
+    image_prop.set_meta("fov", FoV)
+
+t2 = tt.time()
+print(f"Elapsed time: {t2 - t1} seconds.")
+
+#################################################
+# Compute image synthesis for given selection
+#################################################
+print("\n===== Image Synthesis ====")
+t1 = tt.time()
+
+# Nufft Synthesis options
+opt = bipp.NufftSynthesisOptions()
+opt.set_tolerance(tol)
+opt.set_precision(precision)
+# Set the domain splitting methods for uvw coordinates.
+# Splitting decreases memory usage, but may lead to lower performance.
+# Best used with a wide spread of image or uvw coordinates.
+# Possible options are "grid", "none" or "auto"
+opt.set_local_uvw_partition(bipp.Partition.auto())
+
+with bipp.DatasetFile.open(dataset_file) as dataset, bipp.ImagePropFile.open(image_prop_file) as image_prop:
+    bipp.image_synthesis(ctx, opt, dataset, selection, image_prop, image_data_file)
+
+t2 = tt.time()
+print(f"Elapsed time: {t2 - t1} seconds.")
+
+####################################################
+# Process images
+####################################################
+print("\n===== Process Images ====")
+t1 = tt.time()
+lsq_images = []
+std_images = []
+with bipp.ImageDataFile.open(image_data_file) as reader:
+    tags = reader.tags()
+    tags.sort()
+    for t in tags:
+        if "lsq" in t:
+            lsq_images.append(reader.get(t).reshape(N_pix, N_pix))
+        elif "std" in t:
+            std_images.append(reader.get(t).reshape(N_pix, N_pix))
+
+
+lsq_images = np.array(lsq_images)
+lsq_images = lsq_images.reshape((-1, N_pix, N_pix))
+
+std_images = np.array(std_images)
+std_images = std_images.reshape((-1, N_pix, N_pix))
+
+
+I_lsq_eq = s2image.Image(lsq_images, xyz_grid)
+I_std_eq = s2image.Image(std_images, xyz_grid)
 
 plt.figure()
 ax = plt.gca()
@@ -156,7 +213,6 @@ I_lsq_eq.draw(
 ax.set_title(
     f"Bipp least-squares, sensitivity-corrected image (NUFFT)\n"
     f"Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n"
-    f"Run time {np.floor(t2 - t1)} seconds."
 )
 
 plt.figure()
@@ -171,13 +227,12 @@ I_std_eq.draw(
 ax.set_title(
     f"Bipp STD, sensitivity-corrected image (NUFFT)\n"
     f"Bootes Field: {sky_model.intensity.size} sources (simulated), LOFAR: {N_station} stations, FoV: {np.round(FoV * 180 / np.pi)} degrees.\n"
-    f"Run time {np.floor(t2 - t1)} seconds."
 )
 
 plt.savefig("nufft_synthesis_std.png")
 plt.figure()
 titles = ["Strong sources", "Mild sources", "Faint Sources"]
-for i in range(lsq_image.shape[0]):
+for i in range(lsq_images.shape[0]):
     plt.subplot(1, N_level, i + 1)
     ax = plt.gca()
     plt.title(titles[i])
@@ -193,3 +248,6 @@ for i in range(lsq_image.shape[0]):
 plt.suptitle(f"Bipp Eigenmaps")
 plt.savefig("nufft_synthesis_lsq.png")
 plt.show()
+
+t2 = tt.time()
+print(f"Elapsed time: {t2 - t1} seconds.")

@@ -330,7 +330,13 @@ PYBIND11_MODULE(pybipp, m) {
       .def_readwrite("normalize_image", &NufftSynthesisOptions::normalizeImage)
       .def("set_normalize_image", &NufftSynthesisOptions::set_normalize_image)
       .def_readwrite("apply_scaling", &NufftSynthesisOptions::apply_scaling)
-      .def("set_apply_scaling", &NufftSynthesisOptions::set_apply_scaling);
+      .def("set_apply_scaling", &NufftSynthesisOptions::set_apply_scaling)
+      .def_property_readonly(
+          "precision",
+          [](const NufftSynthesisOptions& opt) { return precision_to_string(opt.precision); })
+      .def("set_precision", [](NufftSynthesisOptions& opt, const std::string& prec) {
+        opt.set_precision(string_to_precision(prec));
+      });
 
   pybind11::class_<StandardSynthesisOptions>(m, "StandardSynthesisOptions")
       .def(py::init())
