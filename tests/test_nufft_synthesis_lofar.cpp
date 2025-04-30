@@ -137,10 +137,17 @@ protected:
       auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
       auto s = read_json_complex_2d<ValueType>(itData["s_real"], itData["s_imag"]);
 
+      // bipp no longer expects scaled uvw. Rescale back to match.
+      constexpr auto twoPi = float(2 * 3.14159265358979323846);
+      const float uvwScale = wl / twoPi;
+      float* __restrict__ tgtPtr = uvw.data();
+      for (std::size_t i = 0; i < uvw.size(); ++i) {
+        tgtPtr[i] *= uvwScale;
+      }
+
       auto info = bipp::eigh_gram<ValueType>(wl, nAntenna, nBeam, s.data(), nBeam, w.data(),
                                              nAntenna, xyz.data(), nAntenna, eigValues.data(),
                                              eigVec.data(), nAntenna);
-
       dataset.write(timeStamp, wl, info.second, eigVec.data(), nAntenna, eigValues.data(),
                     uvw.data(), nAntenna * nAntenna);
       timeStamp += 1;

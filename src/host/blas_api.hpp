@@ -63,6 +63,10 @@ void cblas_caxpy(const int n, const void* a, const void* x, const int incx, void
 void cblas_zaxpy(const int n, const void* a, const void* x, const int incx, void* y,
                  const int incy);
 
+void cblas_sscal(const int N, const float alpha, float* X, const int incX);
+
+void cblas_dscal(const int N, const double alpha, double* X, const int incX);
+
 #else
 
 void sgemm_(const char* TRANSA, const char* TRANSB, const int* M, const int* N, const int* K,
@@ -104,6 +108,10 @@ void daxpy_(const int* n, const void* a, const void* x, const int* incx, void* y
 void caxpy_(const int* n, const void* a, const void* x, const int* incx, void* y, const int* incy);
 
 void zaxpy_(const int* n, const void* a, const void* x, const int* incx, void* y, const int* incy);
+
+void sscal_(const int* N, const void alpha*, void* X, const int* incX);
+
+void dscal_(const int* N, const void alpha*, void* X, const int* incX);
 
 #endif
 }
@@ -302,6 +310,23 @@ auto axpy(std::complex<double> a, ConstHostView<std::complex<double>,1> x,
   assert(x.size() == y.size());
 
   axpy(x.size(), a, x.data(), x.strides(), y.data(), y.strides());
+}
+
+
+inline auto scal(const int n, const float alpha, float* x, const int incx) -> void {
+#ifdef BIPP_BLAS_C
+  cblas_sscal(n, alpha, x, incx);
+#else
+  sscal_(&n, &alpha, x, &incx);
+#endif
+}
+
+inline auto scal(const int n, const double alpha, double* x, const int incx) -> void {
+#ifdef BIPP_BLAS_C
+  cblas_dscal(n, alpha, x, incx);
+#else
+  dscal_(&n, &alpha, x, &incx);
+#endif
 }
 
 

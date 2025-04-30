@@ -16,6 +16,7 @@
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
 #include "host/domain_partition.hpp"
+#include "host/blas_api.hpp"
 #include "host/nufft.hpp"
 #include "host/virtual_vis.hpp"
 #include "memory/array.hpp"
@@ -84,6 +85,9 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
   const auto nAntenna = dataset.num_antenna();
   const auto nBaselines = nAntenna * nAntenna;
 
+  globLogger.log(BIPP_LOG_LEVEL_INFO, "nPixel: {}, nImages: {}, nBeam: {}, nAntenna: {}", nPixel,
+                 nImages, nBeam, nAntenna);
+
   assert(images.shape(0) == nPixel);
 
   assert(sampleIds.size() == dScaled.shape(1));
@@ -125,15 +129,26 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
   for (std::size_t i = 0; i < sampleIds.size(); ++i) {
     const auto id = sampleIds[i];
 
+    const T wl = dataset.wl(id);
+    const T scale = dataset.scale(id);
+
+
     globLogger.log(BIPP_LOG_LEVEL_DEBUG, "sample id: {}", id);
     globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "read uvw");
     read_uvw(ctx, dataset, id, uvw);
     globLogger.stop_timing(BIPP_LOG_LEVEL_INFO, "read uvw");
     globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "read eig vec");
     read_eig_vec(ctx, dataset, id, eigVec);
-    T scale = dataset.scale(i);
     globLogger.stop_timing(BIPP_LOG_LEVEL_INFO, "read eig vec");
     globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "eigenvectors", eigVec);
+
+    // scale uvw
+    globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "scale uvw");
+    constexpr auto twoPi = T(2 * 3.14159265358979323846);
+    const T uvwScale = twoPi / wl;
+    assert(uvw.is_contiguous());
+    host::blas::scal(uvw.size(), uvwScale, uvw.data(), 1);
+    globLogger.stop_timing(BIPP_LOG_LEVEL_INFO, "scale uvw");
 
     for (std::size_t imageIdx = 0; imageIdx < nImages; ++imageIdx) {
       copy(dScaled.slice_view(imageIdx).slice_view(i), dSlice);
