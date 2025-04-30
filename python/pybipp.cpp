@@ -21,7 +21,6 @@
 #include <map>
 
 #include "bipp/bipp.hpp"
-#include "bipp/image_file.hpp"
 
 using namespace bipp;
 namespace py = pybind11;
@@ -96,74 +95,6 @@ auto string_to_precision(const std::string& prec) -> BippPrecision {
   throw InvalidParameterError();
 }
 
-// void center_array(py::array_t<double> input_array) {
-//   py::buffer_info buf_info = input_array.request();
-//   double *ptr = static_cast<double *>(buf_info.ptr);
-//   const auto N = buf_info.shape[0];
-//   const auto M = buf_info.shape[1];
-//   for (auto j=0; j<M; j++) {
-//     double mean = 0.0;
-//     for (auto i=j*N; i<(j+1)*N; i++) {
-//       mean += ptr[i];
-//     }
-//     mean /= N;
-//     for (auto i=j*N; i<(j+1)*N; i++) {
-//       ptr[i] = ptr[i] - mean;
-//     }
-//   }
-// }
-
-// struct DatasetCreatorDispatcher {
-//   DatasetCreatorDispatcher(const std::string& fileName, const std::string& description,
-//                            std::size_t nAntenna, std::size_t nBeam)
-//       : creator_(fileName, description, nAntenna, nBeam) {}
-//   auto process_and_write(const std::string& precision, double wl,
-//                pybind11::array s, pybind11::array w, pybind11::array xyz, pybind11::array uvw) -> void{
-//     if (precision == "single" || precision == "SINGLE") {
-//       process_and_write_t<float>(wl, s, w, xyz, uvw);
-//     } else if (precision == "double" || precision == "DOUBLE") {
-//       process_and_write_t<double>(wl, s, w, xyz, uvw);
-//     } else {
-//       throw InvalidParameterError();
-//     }
-//   }
-
-//   template <typename T>
-//   auto process_and_write_t(double wl, pybind11::array s, pybind11::array w, pybind11::array xyz,
-//                            pybind11::array uvw) -> void{
-//             py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast> wArray(w);
-//             check_2d_array(wArray);
-//             long nAntenna = creator_.num_antenna();
-//             long nBeam = creator_.num_beam();
-//             py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(xyz);
-//             check_2d_array(xyzArray, {nAntenna, 3});
-//             py::array_t<T, py::array::f_style | py::array::forcecast> uvwArray(uvw);
-//             check_2d_array(uvwArray, {nAntenna * nAntenna, 3});
-
-//             auto sArray =
-//                 py::array_t<std::complex<T>, py::array::f_style | py::array::forcecast>(s);
-//             check_2d_array(sArray, {nBeam, nBeam});
-
-//             creator_.process_and_write(
-//                 wl, sArray.data(0), safe_cast<std::size_t>(sArray.strides(1) / sArray.itemsize()),
-//                 wArray.data(0), safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()),
-//                 xyzArray.data(0), safe_cast<std::size_t>(xyzArray.strides(1) / xyzArray.itemsize()),
-//                 uvwArray.data(0),
-//                 safe_cast<std::size_t>(uvwArray.strides(1) / uvwArray.itemsize()));
-//   }
-
-
-//   auto close() -> void {
-//     creator_.close();
-//   }
-
-//   auto is_open() -> bool {
-//     return creator_.is_open();
-//   }
-
-//   DatasetCreator creator_;
-// };
-
 struct DatasetFileDispatcher {
   DatasetFileDispatcher(DatasetFile file) : file_(std::move(file)) {}
 
@@ -237,7 +168,7 @@ void image_synthesis_dispatch(
     DatasetFileDispatcher& dataset,
     std::unordered_map<std::string, std::unordered_map<std::size_t, std::vector<float>>>
         pySelection,
-    ImageFile& file) {
+    ImagePropFile& imagePropFile, const std::string& imageFileName) {
   // check selection sizes and convert
   std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection;
   {
@@ -253,7 +184,7 @@ void image_synthesis_dispatch(
       }
     }
 
-    image_synthesis(ctx, opt, dataset.file_, selection, file);
+    image_synthesis(ctx, opt, dataset.file_, selection, imagePropFile, imageFileName);
   }
 }
 
@@ -435,30 +366,58 @@ PYBIND11_MODULE(pybipp, m) {
              const std::optional<pybind11::object>&) { d.close(); },
           "Close dataset file");
 
-  pybind11::class_<ImageFile>(m, "ImageFile")
-      .def_static("open", &ImageFile::open, pybind11::arg("file_name"))
+  pybind11::class_<ImagePropFile>(m, "ImagePropFile")
+      .def_static("open", &ImagePropFile::open, pybind11::arg("file_name"))
       .def_static(
           "create",
           [](const std::string& fileName,
              const py::array_t<float, py::array::f_style | py::array::forcecast>& lmn)
-              -> ImageFile {
+              -> ImagePropFile {
             auto numPixel = lmn.shape(0);
             check_2d_array(lmn, {numPixel, 3});
 
-            return ImageFile::create(fileName, numPixel, lmn.data(0),
+            return ImagePropFile::create(fileName, numPixel, lmn.data(0),
                                      safe_cast<std::size_t>(lmn.strides(1) / lmn.itemsize()));
           },
           pybind11::arg("file_name"), pybind11::arg("lmn"))
-      .def("close", &ImageFile::close)
-      .def("is_open", &ImageFile::is_open)
-      .def("tags", &ImageFile::tags)
-      .def("num_tags", &ImageFile::num_tags)
-      .def("num_pixel", &ImageFile::num_pixel)
-      .def("meta_data", &ImageFile::meta_data)
-      .def("set_meta", &ImageFile::set_meta, pybind11::arg("name"), pybind11::arg("value"))
+      .def("close", &ImagePropFile::close)
+      .def("is_open", &ImagePropFile::is_open)
+      .def("num_pixel", &ImagePropFile::num_pixel)
+      .def("meta_data", &ImagePropFile::meta_data)
+      .def("set_meta", &ImagePropFile::set_meta, pybind11::arg("name"), pybind11::arg("value"))
+      .def(
+          "pixel_lmn",
+          [](ImagePropFile& f) -> py::array_t<float, py::array::f_style> {
+            auto lmn = py::array_t<float, py::array::f_style>(
+                {py::ssize_t(f.num_pixel()), py::ssize_t(3)});
+            f.pixel_lmn(lmn.mutable_data(0),
+                        safe_cast<std::size_t>(lmn.strides(1) / lmn.itemsize()));
+            return lmn;
+          })
+      .def("__enter__", [](ImagePropFile& f) -> ImagePropFile& { return f; })
+      .def(
+          "__exit__",
+          [](ImagePropFile& f, const std::optional<pybind11::type>&,
+             const std::optional<pybind11::object>&,
+             const std::optional<pybind11::object>&) { f.close(); },
+          "Close image file");
+
+  pybind11::class_<ImageDataFile>(m, "ImageDataFile")
+      .def_static("open", &ImageDataFile::open, pybind11::arg("file_name"))
+      .def_static(
+          "create",
+          [](const std::string& fileName, std::size_t numPixel) -> ImageDataFile {
+            return ImageDataFile::create(fileName, numPixel);
+          },
+          pybind11::arg("file_name"), pybind11::arg("lmn"))
+      .def("close", &ImageDataFile::close)
+      .def("is_open", &ImageDataFile::is_open)
+      .def("tags", &ImageDataFile::tags)
+      .def("num_tags", &ImageDataFile::num_tags)
+      .def("num_pixel", &ImageDataFile::num_pixel)
       .def(
           "get",
-          [](ImageFile& f, const std::string& tag) -> py::array_t<float, py::array::f_style> {
+          [](ImageDataFile& f, const std::string& tag) -> py::array_t<float, py::array::f_style> {
             auto image = py::array_t<float, py::array::f_style>(py::ssize_t(f.num_pixel()));
             f.get(tag, image.mutable_data(0));
             return image;
@@ -466,7 +425,7 @@ PYBIND11_MODULE(pybipp, m) {
           pybind11::arg("tag"))
       .def(
           "set",
-          [](ImageFile& f, const std::string& tag,
+          [](ImageDataFile& f, const std::string& tag,
              const py::array_t<float, py::array::f_style | py::array::forcecast>& image)
               -> py::array_t<float, py::array::f_style> {
             check_1d_array(image, f.num_pixel());
@@ -474,23 +433,13 @@ PYBIND11_MODULE(pybipp, m) {
             return image;
           },
           pybind11::arg("tag"), pybind11::arg("image"))
-      .def(
-          "pixel_lmn",
-          [](ImageFile& f) -> py::array_t<float, py::array::f_style> {
-            auto lmn = py::array_t<float, py::array::f_style>(
-                {py::ssize_t(f.num_pixel()), py::ssize_t(3)});
-            f.pixel_lmn(lmn.mutable_data(0),
-                        safe_cast<std::size_t>(lmn.strides(1) / lmn.itemsize()));
-            return lmn;
-          })
-      .def("__enter__", [](ImageFile& f) -> ImageFile& { return f; })
+      .def("__enter__", [](ImageDataFile& f) -> ImageDataFile& { return f; })
       .def(
           "__exit__",
-          [](ImageFile& f, const std::optional<pybind11::type>&,
+          [](ImageDataFile& f, const std::optional<pybind11::type>&,
              const std::optional<pybind11::object>&,
              const std::optional<pybind11::object>&) { f.close(); },
           "Close image file");
-
 
   // TODO: describe args
   m.def("image_synthesis", &image_synthesis_dispatch);

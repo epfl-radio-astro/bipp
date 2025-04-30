@@ -4,7 +4,6 @@
 #include "bipp/communicator.hpp"
 #include "bipp/config.h"
 #include "bipp/dataset.hpp"
-#include "bipp/image.hpp"
 #include "bipp/image_synthesis.hpp"
 #include "context_internal.hpp"
 

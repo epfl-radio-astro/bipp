@@ -1,12 +1,13 @@
 #pragma once
 
 #include <bipp/config.h>
+//---
 #include <bipp/enums.h>
 
 #include <array>
 #include <bipp/context.hpp>
 #include <bipp/dataset.hpp>
-#include <bipp/image.hpp>
+#include <bipp/image_prop.hpp>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -230,7 +231,7 @@ void image_synthesis(
     Context& ctx, const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt,
     Dataset& dataset,
     std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection,
-    Image& image);
+    ImageProp& imageProp, const std::string& imageFileName);
 
 /*! \cond PRIVATE */
 }  // namespace bipp

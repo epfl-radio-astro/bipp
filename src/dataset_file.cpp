@@ -16,7 +16,11 @@ public:
   // create new dataset
   DatasetFileImpl(const std::string& fileName, const std::string& description, std::size_t nAntenna,
                   std::size_t nBeam)
-      : ctx_(BIPP_PU_CPU), nAntenna_(nAntenna), nBeam_(nBeam), description_(description) {
+      : fileName_(fileName),
+        ctx_(BIPP_PU_CPU),
+        nAntenna_(nAntenna),
+        nBeam_(nBeam),
+        description_(description) {
     h5File_ = h5::check(H5Fcreate(fileName.data(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT));
 
     // attributes
@@ -63,8 +67,13 @@ public:
   }
 
   // open existing dataset
-  explicit DatasetFileImpl(const std::string& fileName) : ctx_(BIPP_PU_CPU) {
-    h5File_ = h5::check(H5Fopen(fileName.data(), H5F_ACC_RDWR, H5P_DEFAULT));
+  DatasetFileImpl(const std::string& fileName, bool readOnly)
+      : fileName_(fileName), ctx_(BIPP_PU_CPU) {
+    if (readOnly) {
+      h5File_ = h5::check(H5Fopen(fileName.data(), H5F_ACC_RDONLY, H5P_DEFAULT));
+    } else {
+      h5File_ = h5::check(H5Fopen(fileName.data(), H5F_ACC_RDWR, H5P_DEFAULT));
+    }
 
     // check format version
     if (h5::read_size_attr(h5File_.id(), "formatVersionMajor") != datasetFormatVersionMajor) {
@@ -124,6 +133,17 @@ public:
   auto num_antenna() const noexcept -> std::size_t { return nAntenna_; }
 
   auto num_beam() const noexcept -> std::size_t { return nBeam_; }
+
+  auto file_name() const noexcept -> const std::string& { return fileName_; }
+
+  auto is_read_only() const -> bool {
+    unsigned flag = 0;
+    h5::check(H5Fget_intent(h5File_.id(), &flag));
+    if (flag == H5F_ACC_RDONLY) {
+      return true;
+    }
+    return false;
+  }
 
   auto eig_vec(std::size_t index, std::complex<float>* v, std::size_t ldv) -> void {
     if(ldv == nAntenna_){
@@ -207,6 +227,8 @@ public:
   }
 
 private:
+  std::string fileName_;
+
   ContextInternal ctx_;
 
   hsize_t nAntenna_ = 0;
@@ -236,7 +258,7 @@ void DatasetFile::DatasetFileImplDeleter::operator()(DatasetFileImpl* p) { delet
 DatasetFile::DatasetFile(DatasetFileImpl* impl) : impl_(impl) {}
 
 DatasetFile DatasetFile::open(const std::string& fileName) {
-  return DatasetFile(new DatasetFileImpl(fileName));
+  return DatasetFile(new DatasetFileImpl(fileName, true));
 }
 
 DatasetFile DatasetFile::create(const std::string& fileName, const std::string& description,
@@ -309,10 +331,18 @@ float DatasetFile::scale(std::size_t index) {
 
 void DatasetFile::write(float wl, float scale, const std::complex<float>* v, std::size_t ldv,
                         const float* d, const float* uvw, std::size_t lduvw) {
-  if (impl_)
-    impl_->write(wl, scale, v, ldv, d,  uvw, lduvw);
-  else
+  if (impl_) {
+    if (impl_->is_read_only()) {
+      std::string fileName = impl_->file_name();
+      impl_.reset(); // close file
+      // create read-write file
+      impl_.reset(new DatasetFileImpl(fileName, false));
+    }
+
+    impl_->write(wl, scale, v, ldv, d, uvw, lduvw);
+  } else {
     throw GenericError("DatasetFile: write after close");
+  }
 }
 
 void DatasetFile::close() { return impl_.reset(); }

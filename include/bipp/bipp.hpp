@@ -8,7 +8,10 @@
 #include <bipp/dataset.hpp>
 #include <bipp/dataset_file.hpp>
 #include <bipp/exceptions.hpp>
-#include <bipp/image_file.hpp>
+#include <bipp/image_data.hpp>
+#include <bipp/image_data_file.hpp>
+#include <bipp/image_prop.hpp>
+#include <bipp/image_prop_file.hpp>
 #include <bipp/image_synthesis.hpp>
 
 #ifdef BIPP_MPI

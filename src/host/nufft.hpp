@@ -104,7 +104,7 @@ private:
             [](const PartitionGroup& g1, const PartitionGroup& g2) { return g1.size < g2.size; })
             ->size;
 
-    HostArray<std::complex<T>, 1> imageCpx(ctx_->host_alloc(), pixelXYZ_.shape(0));
+    HostArray<std::complex<T>, 2> imageCpx(ctx_->host_alloc(), {pixelXYZ_.shape(0), nImages_});
 
     neonufft::Options neoOpt;
     neoOpt.tol = opt_.tolerance;
@@ -118,6 +118,7 @@ private:
                          uvwSize);
 
       auto uvwPart = uvw.sub_view({uvwBegin, 0}, {uvwSize, 3});
+      auto valuesPart = values.sub_view({uvwBegin, 0}, {uvwSize, nImages_});
 
       auto uView = uvwPart.slice_view(0);
       auto vView = uvwPart.slice_view(1);
@@ -133,6 +134,27 @@ private:
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points u", uView);
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points v", vView);
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points w", wView);
+
+
+      neonufft::PlanT3<T, 3> plan(neoOpt, 1, uvwMin, uvwMax, pixelMin_, pixelMax_, nImages_);
+      plan.set_input_points(uvwSize, {uView.data(), vView.data(), wView.data()});
+      plan.set_output_points(pixelXYZ_.shape(0), {pixelXYZ_.data(), pixelXYZ_.slice_view(1).data(),
+                                                  pixelXYZ_.slice_view(2).data()});
+
+      plan.add_input(valuesPart.data(), valuesPart.strides(1));
+      plan.transform(imageCpx.data(), imageCpx.strides(1));
+
+      for (std::size_t imageIdx = 0; imageIdx < nImages_; ++imageIdx) {
+        const T* __restrict__ sourcePtr =
+            reinterpret_cast<const T*>(imageCpx.slice_view(imageIdx).data());
+        float* targetPtr = images_.slice_view(imageIdx).data();
+        const auto nPixel = images_.shape(0);
+        for (std::size_t pixelIdx = 0; pixelIdx < nPixel; ++pixelIdx) {
+          targetPtr[pixelIdx] += sourcePtr[2 * pixelIdx];  // add real part
+        }
+      }
+
+      /*
       neonufft::PlanT3<T, 3> plan(neoOpt, 1, uvwMin, uvwMax, pixelMin_, pixelMax_);
       plan.set_input_points(uvwSize, {uView.data(), vView.data(), wView.data()});
       plan.set_output_points(pixelXYZ_.shape(0), {pixelXYZ_.data(), pixelXYZ_.slice_view(1).data(),
@@ -152,6 +174,8 @@ private:
           targetPtr[pixelIdx] += sourcePtr[2 * pixelIdx];  // add real part
         }
       }
+
+    */
     }
 
     count_ = 0;

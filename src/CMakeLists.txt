@@ -15,7 +15,8 @@ set(BIPP_SOURCE_FILES
 	host/kernels/gemmexp.cpp
 	host/kernels/nuft_sum.cpp
 	image_synthesis.cpp
-	image_file.cpp
+	image_data_file.cpp
+	image_prop_file.cpp
 	)
 
 set(BIPP_GPU_KERNEL_FILES)

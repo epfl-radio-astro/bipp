@@ -16,6 +16,7 @@
 #include "host/lapack_api.hpp"
 #include "memory/view.hpp"
 #include "memory/copy.hpp"
+#include "memory/array.hpp"
 
 namespace bipp {
 

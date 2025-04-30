@@ -161,17 +161,20 @@ protected:
     bipp::NufftSynthesisOptions opt;
     opt.set_precision(std::is_same_v<T, float> ? BIPP_PRECISION_SINGLE : BIPP_PRECISION_DOUBLE);
 
-    auto comm = bipp::Communicator::local();
-
     std::vector<ValueType> lmn(3 * nPixel);
     std::copy(lmnX.begin(), lmnX.end(), lmn.begin());
     std::copy(lmnY.begin(), lmnY.end(), lmn.begin() + nPixel);
     std::copy(lmnZ.begin(), lmnZ.end(), lmn.begin() + 2 * nPixel);
 
-    auto imgFile =
-        bipp::ImageFile::create("test_nufft_synthesis_lofar_image.h5", nPixel, lmn.data(), nPixel);
+    const std::string imagePropFileName = "test_nufft_synthesis_lofar_image_prop.h5";
+    const std::string imageDataFileName = "test_nufft_synthesis_lofar_image_data.h5";
 
-    bipp::image_synthesis(ctx_, opt, dataset, std::move(selection), imgFile);
+    auto imgPropFile = bipp::ImagePropFile::create(imagePropFileName, nPixel, lmn.data(), nPixel);
+
+    bipp::image_synthesis(ctx_, opt, dataset, std::move(selection), imgPropFile, imageDataFileName);
+
+    // open image file
+    auto imgFile = bipp::ImageDataFile::open(imageDataFileName);
 
     std::vector<ValueType> img(nPixel);
     for (std::size_t idxInterval = 0; idxInterval < nIntervals; ++idxInterval) {

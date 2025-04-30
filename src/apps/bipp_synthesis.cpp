@@ -13,14 +13,16 @@
 #include "bipp/communicator.hpp"
 
 int main(int argc, char** argv) {
-  std::string procName, datasetFileName, selectionFileName, imageFileName, precision;
+  std::string procName, datasetFileName, selectionFileName, imagePropFileName, imageDataFileName,
+      precision;
   std::optional<std::array<std::size_t, 3>> uvwPartition, imagePartition;
   float tolerance = 1e-3;
 
   CLI::App app{"bipp image synthesis"};
   app.add_option("-d,--datset", datasetFileName, "Dataset file name")->required();
   app.add_option("-s,--selection", selectionFileName, "Selection file name");
-  app.add_option("-i,--image", imageFileName, "Output image file name")->required();
+  app.add_option("-i,--image", imagePropFileName, "Image property file name")->required();
+  app.add_option("-o,--output", imageDataFileName, "Output image file name")->required();
   app.add_option("-t,--tol", tolerance, "NUFFT tolerance")->default_val(1e-3);
   app.add_option("-p,--proc", procName, "Processing unit")
       ->check(CLI::IsMember({"auto", "cpu", "gpu"}))
@@ -33,7 +35,6 @@ int main(int argc, char** argv) {
   CLI11_PARSE(app, argc, argv);
 
   auto dataset = bipp::DatasetFile::open(datasetFileName);
-  auto image = bipp::ImageFile::open(imageFileName);
 
   const auto nEig = dataset.num_beam();
 
@@ -75,6 +76,8 @@ int main(int argc, char** argv) {
     }
   }
 
+  auto imageProp = bipp::ImagePropFile::open(imagePropFileName);
+
   auto pu = BIPP_PU_AUTO;
   if (procName == "cpu") {
     pu = BIPP_PU_CPU;
@@ -105,7 +108,7 @@ int main(int argc, char** argv) {
     opt.precision = BIPP_PRECISION_SINGLE;
   }
 
-  bipp::image_synthesis(ctx, opt, dataset, selection, image);
+  bipp::image_synthesis(ctx, opt, dataset, selection, imageProp, imageDataFileName);
 
   return 0;
 }
