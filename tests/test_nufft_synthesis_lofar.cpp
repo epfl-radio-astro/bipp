@@ -130,6 +130,7 @@ protected:
 
     std::vector<ValueType> eigValues(nBeam);
     std::vector<std::complex<ValueType>> eigVec(nBeam * nAntenna);
+    float timeStamp = 0;
     for (const auto& itData : data["data"]) {
       auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
       auto uvw = read_json_scalar_2d<ValueType>(itData["uvw"]);
@@ -140,8 +141,9 @@ protected:
                                              nAntenna, xyz.data(), nAntenna, eigValues.data(),
                                              eigVec.data(), nAntenna);
 
-      dataset.write(wl, info.second, eigVec.data(), nAntenna, eigValues.data(), uvw.data(),
-                    nAntenna * nAntenna);
+      dataset.write(timeStamp, wl, info.second, eigVec.data(), nAntenna, eigValues.data(),
+                    uvw.data(), nAntenna * nAntenna);
+      timeStamp += 1;
     }
 
     // create selection

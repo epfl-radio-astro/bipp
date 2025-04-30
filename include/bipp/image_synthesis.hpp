@@ -71,12 +71,6 @@ struct NufftSynthesisOptions {
   std::optional<std::size_t> collectGroupSize = std::nullopt;
 
   /**
-   * The partition method used in the UVW domain. Partitioning decreases memory usage, but may come
-   * with a performance penalty.
-   */
-  Partition localImagePartition = Partition{Partition::Auto()};
-
-  /**
    * The partition method used in the image domain. Partitioning decreases memory usage, but may
    * come with a performance penalty.
    */
@@ -109,16 +103,6 @@ struct NufftSynthesisOptions {
    */
   inline auto set_collect_group_size(std::optional<std::size_t> size) -> NufftSynthesisOptions& {
     collectGroupSize = size;
-    return *this;
-  }
-
-  /**
-   * Set the partitioning method for the UVW domain.
-   *
-   * @param[in] p Partition method.
-   */
-  inline auto set_local_image_partition(Partition p) -> NufftSynthesisOptions& {
-    localImagePartition = std::move(p);
     return *this;
   }
 

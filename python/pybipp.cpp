@@ -146,7 +146,7 @@ struct DatasetFileDispatcher {
 
   bool is_open() const noexcept { return file_.is_open(); }
 
-  auto write(float wl, float scale,
+  auto write(float timeStamp, float wl, float scale,
              const py::array_t<std::complex<float>, py::array::f_style | py::array::forcecast>& v,
              const py::array_t<float, py::array::f_style | py::array::forcecast>& d,
              const py::array_t<float, py::array::f_style | py::array::forcecast>& uvw) -> void {
@@ -156,8 +156,9 @@ struct DatasetFileDispatcher {
     check_2d_array(uvw, {nAntenna * nAntenna, 3});
     check_1d_array(d, nBeam);
 
-    file_.write(wl, scale, v.data(0), safe_cast<std::size_t>(v.strides(1) / v.itemsize()),
-                d.data(0), uvw.data(0), safe_cast<std::size_t>(uvw.strides(1) / uvw.itemsize()));
+    file_.write(timeStamp, wl, scale, v.data(0),
+                safe_cast<std::size_t>(v.strides(1) / v.itemsize()), d.data(0), uvw.data(0),
+                safe_cast<std::size_t>(uvw.strides(1) / uvw.itemsize()));
   }
 
   DatasetFile file_;
@@ -324,8 +325,6 @@ PYBIND11_MODULE(pybipp, m) {
       .def("set_tolerance", &NufftSynthesisOptions::set_tolerance)
       .def_readwrite("collect_group_size", &NufftSynthesisOptions::collectGroupSize)
       .def("set_collect_group_size", &NufftSynthesisOptions::set_collect_group_size)
-      .def_readwrite("local_image_partition", &NufftSynthesisOptions::localImagePartition)
-      .def("set_local_image_partition", &NufftSynthesisOptions::set_local_image_partition)
       .def_readwrite("local_uvw_partition", &NufftSynthesisOptions::localUVWPartition)
       .def("set_local_uvw_partition", &NufftSynthesisOptions::set_local_uvw_partition)
       .def_readwrite("normalize_image", &NufftSynthesisOptions::normalizeImage)
@@ -356,8 +355,8 @@ PYBIND11_MODULE(pybipp, m) {
       .def("uvw", &DatasetFileDispatcher::uvw, pybind11::arg("index"))
       .def("wl", &DatasetFileDispatcher::wl, pybind11::arg("index"))
       .def("scale", &DatasetFileDispatcher::scale, pybind11::arg("index"))
-      .def("write", &DatasetFileDispatcher::write, pybind11::arg("wl"), pybind11::arg("scale"),
-           pybind11::arg("v"), pybind11::arg("d"), pybind11::arg("uvw"))
+      .def("write", &DatasetFileDispatcher::write, pybind11::arg("time_stamp"), pybind11::arg("wl"),
+           pybind11::arg("scale"), pybind11::arg("v"), pybind11::arg("d"), pybind11::arg("uvw"))
       .def("__enter__", [](DatasetFileDispatcher& d) -> DatasetFileDispatcher& { return d; })
       .def(
           "__exit__",

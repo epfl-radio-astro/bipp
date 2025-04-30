@@ -29,6 +29,8 @@ public:
 
   virtual float wl(std::size_t index) = 0;
 
+  virtual float time_stamp(std::size_t index) = 0;
+
   virtual float scale(std::size_t index) = 0;
 
   virtual ~Dataset() = default;

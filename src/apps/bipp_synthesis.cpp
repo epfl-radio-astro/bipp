@@ -15,7 +15,7 @@
 int main(int argc, char** argv) {
   std::string procName, datasetFileName, selectionFileName, imagePropFileName, imageDataFileName,
       precision;
-  std::optional<std::array<std::size_t, 3>> uvwPartition, imagePartition;
+  std::optional<std::array<std::size_t, 3>> uvwPartition;
   float tolerance = 1e-3;
 
   CLI::App app{"bipp image synthesis"};
@@ -31,7 +31,6 @@ int main(int argc, char** argv) {
       ->check(CLI::IsMember({"single", "double"}))
       ->default_val("single");
   app.add_option("--uvw_part", uvwPartition, "UVW partition size for lower memory usage");
-  app.add_option("--image_part", imagePartition, "Image partition size for lower memory usage");
   CLI11_PARSE(app, argc, argv);
 
   auto dataset = bipp::DatasetFile::open(datasetFileName);
@@ -95,11 +94,6 @@ int main(int argc, char** argv) {
     auto& p = uvwPartition.value();
     opt.localUVWPartition =
         bipp::Partition::Grid{p[0], p[1], p[2]};
-  }
-
-  if(imagePartition.has_value()) {
-    auto& p = imagePartition.value();
-    opt.localImagePartition = bipp::Partition::Grid{p[0], p[1], p[2]};
   }
 
   if (precision == "double") {

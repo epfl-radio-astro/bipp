@@ -59,6 +59,7 @@ public:
 
     // create data spaces
     h5Wl_ = h5::create_one_dim_space(h5File_.id(), "wl", h5::get_type_id<float>(), CHUNK_SIZE);
+    h5Time_ = h5::create_one_dim_space(h5File_.id(), "time", h5::get_type_id<float>(), CHUNK_SIZE);
     h5Scale_ = h5::create_one_dim_space(h5File_.id(), "scale", h5::get_type_id<float>(),
                                        CHUNK_SIZE);
     h5EigVal_ = h5::create_one_dim_space(h5File_.id(), "eigVal", h5EigValType_.id(), CHUNK_SIZE);
@@ -113,6 +114,7 @@ public:
     h5EigVec_ = h5::check(H5Dopen(h5File_.id(), "eigVec", H5P_DEFAULT));
     h5UVW_ = h5::check(H5Dopen(h5File_.id(), "uvw", H5P_DEFAULT));
     h5Wl_ = h5::check(H5Dopen(h5File_.id(), "wl", H5P_DEFAULT));
+    h5Time_ = h5::check(H5Dopen(h5File_.id(), "time", H5P_DEFAULT));
     h5Scale_ = h5::check(H5Dopen(h5File_.id(), "scale", H5P_DEFAULT));
 
     // all samples have the same size. Select one to set number of samples.
@@ -175,14 +177,20 @@ public:
     return value;
   }
 
+  auto time_stamp(std::size_t index) -> float {
+    float value = 0;
+    h5::read_single_element(index, h5Time_.id(), h5::get_type_id<float>(), &value);
+    return value;
+  }
+
   auto scale(std::size_t index) -> float {
     float value = 0;
     h5::read_single_element(index, h5Scale_.id(), h5::get_type_id<decltype(value)>(), &value);
     return value;
   }
 
-  auto write(float wl, float scale, const std::complex<float>* v, std::size_t ldv, const float* d,
-             const float* uvw, std::size_t lduvw) -> void {
+  auto write(float timeStamp, float wl, float scale, const std::complex<float>* v, std::size_t ldv,
+             const float* d, const float* uvw, std::size_t lduvw) -> void {
     ConstHostView<std::complex<float>, 2> vView(v, {nAntenna_, nBeam_}, {1, ldv});
     ConstHostView<float, 2> uvwView (uvw, {nAntenna_ * nAntenna_, 3}, {1, lduvw});
 
@@ -211,6 +219,7 @@ public:
     h5::check(H5Dextend(h5EigVec_.id(), &newSize));
     h5::check(H5Dextend(h5UVW_.id(), &newSize));
     h5::check(H5Dextend(h5Wl_.id(), &newSize));
+    h5::check(H5Dextend(h5Time_.id(), &newSize));
     h5::check(H5Dextend(h5Scale_.id(), &newSize));
 
     // increase countr once datasets have been extended
@@ -222,6 +231,7 @@ public:
     h5::write_single_element(index, h5UVW_.id(), h5UVWType_.id(), uvwView.data());
 
     h5::write_single_element(index, h5Wl_.id(), h5::get_type_id<float>(), &wl);
+    h5::write_single_element(index, h5Time_.id(), h5::get_type_id<float>(), &timeStamp);
     h5::write_single_element(index, h5Scale_.id(), h5::get_type_id<decltype(scale)>(),
                              &scale);
   }
@@ -250,6 +260,7 @@ private:
   h5::DataSet h5EigVec_;
   h5::DataSet h5UVW_;
   h5::DataSet h5Wl_;
+  h5::DataSet h5Time_;
   h5::DataSet h5Scale_;
 };
 
@@ -322,6 +333,13 @@ float DatasetFile::wl(std::size_t index) {
     throw GenericError("DatasetFile: access after close");
 }
 
+float DatasetFile::time_stamp(std::size_t index) {
+  if (impl_)
+    return impl_->time_stamp(index);
+  else
+    throw GenericError("DatasetFile: access after close");
+}
+
 float DatasetFile::scale(std::size_t index) {
   if (impl_)
     return impl_->scale(index);
@@ -329,8 +347,8 @@ float DatasetFile::scale(std::size_t index) {
     throw GenericError("DatasetFile: access after close");
 }
 
-void DatasetFile::write(float wl, float scale, const std::complex<float>* v, std::size_t ldv,
-                        const float* d, const float* uvw, std::size_t lduvw) {
+void DatasetFile::write(float timeStamp, float wl, float scale, const std::complex<float>* v,
+                        std::size_t ldv, const float* d, const float* uvw, std::size_t lduvw) {
   if (impl_) {
     if (impl_->is_read_only()) {
       std::string fileName = impl_->file_name();
@@ -339,7 +357,7 @@ void DatasetFile::write(float wl, float scale, const std::complex<float>* v, std
       impl_.reset(new DatasetFileImpl(fileName, false));
     }
 
-    impl_->write(wl, scale, v, ldv, d, uvw, lduvw);
+    impl_->write(timeStamp, wl, scale, v, ldv, d, uvw, lduvw);
   } else {
     throw GenericError("DatasetFile: write after close");
   }

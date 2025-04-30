@@ -37,10 +37,12 @@ public:
 
   float wl(std::size_t index) override;
 
+  float time_stamp(std::size_t index) override;
+
   float scale(std::size_t index) override;
 
-  void write(float wl, float scale, const std::complex<float>* v, std::size_t ldv, const float* d,
-             const float* uvw, std::size_t lduvw);
+  void write(float timeStamp, float wl, float scale, const std::complex<float>* v, std::size_t ldv,
+             const float* d, const float* uvw, std::size_t lduvw);
 
   void close();
 
