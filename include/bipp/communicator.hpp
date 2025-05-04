@@ -69,7 +69,7 @@ public:
    *
    * @return MPI_Comm
    */
-  static auto mpi_handle() -> const MPI_Comm&;
+  auto mpi_handle() const -> const MPI_Comm&;
 #endif
 
 

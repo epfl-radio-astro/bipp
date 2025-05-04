@@ -20,6 +20,11 @@
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
 #endif
+#ifdef BIPP_MPI
+#include "mpi_util/mpi_init_guard.hpp"
+#include "mpi_util/mpi_check_status.hpp"
+
+#endif
 
 namespace bipp {
 namespace {
@@ -154,6 +159,24 @@ Logger::Logger()  {
       level_ = BIPP_LOG_LEVEL_WARN;
     else if (!std::strcmp(envLog, "error") || !std::strcmp(envLog, "ERROR"))
       level_ = BIPP_LOG_LEVEL_ERROR;
+  }
+
+  if (const char* logRankEnv = std::getenv("BIPP_LOG_RANK")) {
+    std::string logRankString = "0";
+    logRankString = logRankEnv;
+    const int logRank = std::stoi(logRankString);
+#ifdef BIPP_MPI
+    initialize_mpi_init_guard();
+    int rank = 0;
+    mpi_check_status(MPI_Comm_rank(MPI_COMM_WORLD, &rank));
+    if (rank != logRank) {
+      level_ = BIPP_LOG_LEVEL_OFF;
+    }
+#else
+    if (logRank != 0) {
+      level_ = BIPP_LOG_LEVEL_OFF;
+    }
+#endif
   }
 
   const char* logOut = "stdout";

@@ -1,7 +1,6 @@
 #pragma once
 
 
-#include "bipp/bipp.h"
 #include "bipp/config.h"
 
 namespace bipp {

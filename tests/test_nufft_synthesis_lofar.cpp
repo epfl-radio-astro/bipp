@@ -87,7 +87,7 @@ class NufftSynthesisLofar : public ::testing::TestWithParam<std::tuple<BippProce
 protected:
   using ValueType = float;
 
-  NufftSynthesisLofar() : ctx_(std::get<0>(GetParam())) {}
+  NufftSynthesisLofar() : ctx_(std::get<0>(GetParam()), bipp::Communicator::world()) {}
 
   auto test_intensity() -> void {
     const auto data = get_lofar_input_json();
@@ -124,34 +124,47 @@ protected:
     };
 
 
+    const auto& comm = ctx_.communicator();
+
+
     // create dataset
     const std::string datasetFileName = "test_nufft_synthesis_lofar.h5";
-    auto dataset = bipp::DatasetFile::create(datasetFileName, "", nAntenna, nBeam);
+    if (comm.rank() == 0) {
+      auto dataset = bipp::DatasetFile::create(datasetFileName, "", nAntenna, nBeam);
 
-    std::vector<ValueType> eigValues(nBeam);
-    std::vector<std::complex<ValueType>> eigVec(nBeam * nAntenna);
-    float timeStamp = 0;
-    for (const auto& itData : data["data"]) {
-      auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
-      auto uvw = read_json_scalar_2d<ValueType>(itData["uvw"]);
-      auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
-      auto s = read_json_complex_2d<ValueType>(itData["s_real"], itData["s_imag"]);
+      std::vector<ValueType> eigValues(nBeam);
+      std::vector<std::complex<ValueType>> eigVec(nBeam * nAntenna);
+      float timeStamp = 0;
+      for (const auto& itData : data["data"]) {
+        auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
+        auto uvw = read_json_scalar_2d<ValueType>(itData["uvw"]);
+        auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
+        auto s = read_json_complex_2d<ValueType>(itData["s_real"], itData["s_imag"]);
 
-      // bipp no longer expects scaled uvw. Rescale back to match.
-      constexpr auto twoPi = float(2 * 3.14159265358979323846);
-      const float uvwScale = wl / twoPi;
-      float* __restrict__ tgtPtr = uvw.data();
-      for (std::size_t i = 0; i < uvw.size(); ++i) {
-        tgtPtr[i] *= uvwScale;
+        // bipp no longer expects scaled uvw. Rescale back to match.
+        constexpr auto twoPi = float(2 * 3.14159265358979323846);
+        const float uvwScale = wl / twoPi;
+        float* __restrict__ tgtPtr = uvw.data();
+        for (std::size_t i = 0; i < uvw.size(); ++i) {
+          tgtPtr[i] *= uvwScale;
+        }
+
+        auto info = bipp::eigh_gram<ValueType>(wl, nAntenna, nBeam, s.data(), nBeam, w.data(),
+                                               nAntenna, xyz.data(), nAntenna, eigValues.data(),
+                                               eigVec.data(), nAntenna);
+        dataset.write(timeStamp, wl, info.second, eigVec.data(), nAntenna, eigValues.data(),
+                      uvw.data(), nAntenna * nAntenna);
+        timeStamp += 1;
       }
-
-      auto info = bipp::eigh_gram<ValueType>(wl, nAntenna, nBeam, s.data(), nBeam, w.data(),
-                                             nAntenna, xyz.data(), nAntenna, eigValues.data(),
-                                             eigVec.data(), nAntenna);
-      dataset.write(timeStamp, wl, info.second, eigVec.data(), nAntenna, eigValues.data(),
-                    uvw.data(), nAntenna * nAntenna);
-      timeStamp += 1;
     }
+#ifdef BIPP_MPI
+    if (comm.size() > 1) {
+      MPI_Barrier(comm.mpi_handle());
+    }
+#endif
+
+    auto dataset = bipp::DatasetFile::open(datasetFileName);
+
 
     // create selection
     std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection;
@@ -178,21 +191,33 @@ protected:
     const std::string imagePropFileName = "test_nufft_synthesis_lofar_image_prop.h5";
     const std::string imageDataFileName = "test_nufft_synthesis_lofar_image_data.h5";
 
-    auto imgPropFile = bipp::ImagePropFile::create(imagePropFileName, nPixel, lmn.data(), nPixel);
+    if (comm.rank() == 0) {
+      auto imgPropFile = bipp::ImagePropFile::create(imagePropFileName, nPixel, lmn.data(), nPixel);
+    }
+
+#ifdef BIPP_MPI
+    if (comm.size() > 1) {
+      MPI_Barrier(comm.mpi_handle());
+    }
+#endif
+
+    auto imgPropFile = bipp::ImagePropFile::open(imagePropFileName);
 
     bipp::image_synthesis(ctx_, opt, dataset, std::move(selection), imgPropFile, imageDataFileName);
 
     // open image file
-    auto imgFile = bipp::ImageDataFile::open(imageDataFileName);
+    if (comm.rank() == 0) {
+      auto imgFile = bipp::ImageDataFile::open(imageDataFileName);
 
-    std::vector<ValueType> img(nPixel);
-    for (std::size_t idxInterval = 0; idxInterval < nIntervals; ++idxInterval) {
-      const std::string tag = std::string("image_") + std::to_string(idxInterval);
-      imgFile.get(tag, img.data());
-      for (std::size_t i = 0; i < nPixel; ++i) {
-        // Single precision is very inaccurate due to different summation orders
-        // Use twice the absolute error for single precision
-        ASSERT_NEAR(img[i], imgRef[i + idxInterval * nPixel], 0.05 * (4.0 / sizeof(ValueType)));
+      std::vector<ValueType> img(nPixel);
+      for (std::size_t idxInterval = 0; idxInterval < nIntervals; ++idxInterval) {
+        const std::string tag = std::string("image_") + std::to_string(idxInterval);
+        imgFile.get(tag, img.data());
+        for (std::size_t i = 0; i < nPixel; ++i) {
+          // Single precision is very inaccurate due to different summation orders
+          // Use twice the absolute error for single precision
+          ASSERT_NEAR(img[i], imgRef[i + idxInterval * nPixel], 0.05 * (4.0 / sizeof(ValueType)));
+        }
       }
     }
   }

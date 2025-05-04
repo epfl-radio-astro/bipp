@@ -152,6 +152,6 @@ INSTANTIATE_TEST_SUITE_P(DomainPartition, DomainPartitionSingle,
                          ::testing::Combine(::testing::Values(TEST_PROCESSING_UNITS)),
                          param_type_names);
 
-INSTANTIATE_TEST_SUITE_P(Lofar, DomainPartitionDouble,
+INSTANTIATE_TEST_SUITE_P(DomainPartition, DomainPartitionDouble,
                          ::testing::Combine(::testing::Values(TEST_PROCESSING_UNITS)),
                          param_type_names);

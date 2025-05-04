@@ -13,13 +13,13 @@
 #include "bipp/image_prop.hpp"
 #include "bipp/image_data.hpp"
 #include "bipp/image_data_file.hpp"
+#include "bipp/communicator.hpp"
 #include "context_internal.hpp"
 #include "nufft_synthesis.hpp"
 #include "memory/array.hpp"
 #include "memory/copy.hpp"
 
 #ifdef BIPP_MPI
-#include "communicator_internal.hpp"
 #include "mpi_util/mpi_check_status.hpp"
 #include "mpi_util/mpi_data_type.hpp"
 #endif
@@ -81,8 +81,8 @@ void image_synthesis(
       nSamplePerRank, std::max<std::size_t>(nTotalSamples - localSampleBegin, 0));
 
   for(const auto& name : imageNames) {
-    if(selection[name].size() != nTotalSamples) {
-      throw InvalidParameterError("Selection must contain the same sample ids for all imageArray");
+    if (selection[name].size() != nTotalSamples) {
+      throw InvalidParameterError("Selection must contain the same sample ids for all images.");
     }
   }
 
@@ -92,7 +92,7 @@ void image_synthesis(
   {
     const auto& sourceIds = selection.begin()->second;
 
-    for (std::size_t idx = 0; idx < nTotalSamples; ++idx) {
+    for (std::size_t idx = 0; idx < nLocalSamples; ++idx) {
       localSampleIds[idx] = sourceIds[idx + localSampleBegin].first;
     }
   }
@@ -101,7 +101,7 @@ void image_synthesis(
     const auto& sourceIds = selection[name];
     for (std::size_t idx = 0; idx < nLocalSamples; ++idx) {
       if (sourceIds[idx + localSampleBegin].first != localSampleIds[idx]) {
-        throw InvalidParameterError("Selection must contain the same sample ids for all imageArray");
+        throw InvalidParameterError("Selection must contain the same sample ids for all images.");
       }
     }
   }
@@ -122,67 +122,34 @@ void image_synthesis(
     globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "scaled eigenvalues", dScaledSlice);
   }
 
-
-#ifdef BIPP_MPI
-  if(comm.rank() > 0) {
-    unsigned long long nPixel = 0;
-    mpi_check_status(
-        MPI_Broadcast(&nPixel, 1, MPIType<decltype(nPixel)>::get(), 0, comm.mpi_handle()));
-
-    HostArray<float, 2> pixelXYZ(ctxInternal->host_alloc(), {nPixel, 3});
-    HostArray<float, 2> imageArray(ctxInternal->host_alloc(), {nPixel, nImages});
-    imageArray.zero();
-    auto nufftOpt = std::get<NufftSynthesisOptions>(opt);
-    if (nufftOpt.precision == BIPP_PRECISION_SINGLE) {
-      nufft_synthesis<float>(ctxInternal, nufftOpt, dataset, pixelXYZ, localSampleIds, dScaled,
-                             imageArray);
-    } else {
-      nufft_synthesis<double>(ctxInternal, nufftOpt, dataset, pixelXYZ, localSampleIds, dScaled,
-                              imageArray);
-    }
-    assert(imageArray.is_contiguous());
-    mpi_check_status(MPI_Reduce(imageArray.data(), nullptr, imageArray.size(),
-                                MPIType<float>::get(), MPI_SUM, 0, comm.mpi_handle()));
-    return;
-  }
-#endif
-
-  const unsigned long long nPixel = imageProp.num_pixel();
-
-  auto imageData = ImageDataFile::create(imageFileName, nPixel);
-
-#ifdef BIPP_MPI
-  if(comm.size() > 1) {
-    mpi_check_status(
-        MPI_Broadcast(&nPixel, 1, MPIType<decltype(nPixel)>::get(), 0, comm.mpi_handle()));
-  }
-#endif
+  unsigned long long nPixel = imageProp.num_pixel();
 
   HostArray<float, 2> pixelXYZ(ctxInternal->host_alloc(), {nPixel, 3});
-
   imageProp.pixel_lmn(pixelXYZ.data(), pixelXYZ.strides(1));
-
 
   HostArray<float, 2> imageArray(ctxInternal->host_alloc(), {nPixel, nImages});
   imageArray.zero();
 
-  if (std::holds_alternative<NufftSynthesisOptions>(opt)) {
-    auto nufftOpt = std::get<NufftSynthesisOptions>(opt);
-    if (nufftOpt.precision == BIPP_PRECISION_SINGLE) {
-      nufft_synthesis<float>(ctxInternal, nufftOpt, dataset, pixelXYZ, localSampleIds, dScaled,
-                                   imageArray);
-    } else {
-      nufft_synthesis<double>(ctxInternal, nufftOpt, dataset, pixelXYZ, localSampleIds, dScaled,
-                                    imageArray);
-    }
+  auto nufftOpt = std::get<NufftSynthesisOptions>(opt);
+  if (nufftOpt.precision == BIPP_PRECISION_SINGLE) {
+    nufft_synthesis<float>(ctxInternal, nufftOpt, dataset, pixelXYZ, localSampleIds, dScaled,
+                           imageArray);
+  } else {
+    nufft_synthesis<double>(ctxInternal, nufftOpt, dataset, pixelXYZ, localSampleIds, dScaled,
+                            imageArray);
+  }
 
 #ifdef BIPP_MPI
-    if (comm.size() > 1) {
-      assert(imageArray.is_contiguous());
-      mpi_check_status(MPI_Reduce(MPI_IN_PLACE, imageArray.data(), imageArray.size(),
-                                  MPIType<float>::get(), MPI_SUM, 0, comm.mpi_handle()));
-    }
+  if(comm.size() > 1) {
+    assert(imageArray.is_contiguous());
+    void* sendPtr = comm.rank() == 0 ? MPI_IN_PLACE : imageArray.data();
+    void* recvPtr = comm.rank() == 0 ? imageArray.data() : nullptr;
+    mpi_check_status(MPI_Reduce(sendPtr, recvPtr, imageArray.size(),
+                                MPIType<float>::get(), MPI_SUM, 0, comm.mpi_handle()));
+  }
 #endif
+
+  if (comm.rank() == 0) {
 
     if (nufftOpt.normalizeImage) {
       globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "scale image");
@@ -197,17 +164,21 @@ void image_synthesis(
       globLogger.stop_timing(BIPP_LOG_LEVEL_INFO, "scale image");
     }
 
-  } else {
-    throw NotImplementedError();
+    // write image
+    auto imageData = ImageDataFile::create(imageFileName, nPixel);
+    globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "write image");
+    for (std::size_t idxImg = 0; idxImg < nImages; ++idxImg) {
+      globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "image", imageArray.slice_view(idxImg));
+      imageData.set(imageNames[idxImg], &imageArray[{0, idxImg}]);
+    }
+    globLogger.stop_timing(BIPP_LOG_LEVEL_INFO, "write image");
   }
 
-  // write image
-  globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "write imageArray");
-  for (std::size_t idxImg = 0; idxImg < nImages; ++idxImg) {
-    globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "image", imageArray.slice_view(idxImg));
-    imageData.set(imageNames[idxImg], &imageArray[{0, idxImg}]);
-  }
-  globLogger.stop_timing(BIPP_LOG_LEVEL_INFO, "write imageArray");
+#ifdef BIPP_MPI
+    if (comm.size() > 1) {
+      MPI_Barrier(comm.mpi_handle());
+    }
+#endif
 }
 
 }  // namespace bipp

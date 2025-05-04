@@ -3,6 +3,8 @@
 #include "bipp/config.h"
 
 #include "bipp/exceptions.hpp"
+#include "mpi_util/mpi_check_status.hpp"
+#include "mpi_util/mpi_init_guard.hpp"
 
 #ifdef BIPP_MPI
 #include <mpi.h>
@@ -12,6 +14,7 @@ namespace bipp {
 
 #ifdef BIPP_MPI
 Communicator::Communicator(const MPI_Comm& comm) : comm_(comm) {
+  initialize_mpi_init_guard();
   int rank = 0;
   int size = 1;
   mpi_check_status(MPI_Comm_size(comm_.value(), &size));

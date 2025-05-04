@@ -3,10 +3,6 @@
 #include "bipp/config.h"
 #include "context_internal.hpp"
 
-#ifdef BIPP_MPI
-#include "communicator_internal.hpp"
-#endif
-
 namespace bipp {
 
 Context::Context(BippProcessingUnit pu)

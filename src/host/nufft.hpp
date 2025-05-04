@@ -162,6 +162,10 @@ private:
       std::array<T, 3> uvwMin = {*uMinMax.first, *vMinMax.first, *wMinMax.first};
       std::array<T, 3> uvwMax = {*uMinMax.second, *vMinMax.second, *wMinMax.second};
 
+      globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points l", pixelXYZ_.slice_view(0));
+      globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points m", pixelXYZ_.slice_view(1));
+      globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points n", pixelXYZ_.slice_view(2));
+
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points u", uView);
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points v", vView);
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "nufft points w", wView);
