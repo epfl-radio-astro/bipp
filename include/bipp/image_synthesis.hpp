@@ -147,7 +147,16 @@ struct NufftSynthesisOptions {
   }
 };
 
-//TODO: doc
+/**
+ * Compute image synthesis for a dataset and multiple images based on selection.
+ *
+ * @param[in] ctx Context.
+ * @param[in] opt Nufft options.
+ * @param[in] dataset Dataset object.
+ * @param[in] selection Selection of pairs of sample indices and scaled eigenvalues for each images.
+ * @param[in] imageProp Image properties describing the output points.
+ * @param[in] imageFileName Image file name to write output to in hdf5 format.
+ */
 void image_synthesis(
     Context& ctx, const NufftSynthesisOptions& opt, Dataset& dataset,
     std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection,

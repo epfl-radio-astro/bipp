@@ -436,8 +436,9 @@ PYBIND11_MODULE(pybipp, m) {
              const std::optional<pybind11::object>&) { f.close(); },
           "Close image file");
 
-  // TODO: describe args
-  m.def("image_synthesis", &image_synthesis_dispatch);
+  m.def("image_synthesis", &image_synthesis_dispatch, pybind11::arg("ctx"), pybind11::arg("opt"),
+        pybind11::arg("dataset"), pybind11::arg("selection"), pybind11::arg("image_prop"),
+        pybind11::arg("image_file_name"));
 
   m.def(
        "eigh_gram",
