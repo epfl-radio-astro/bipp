@@ -12,7 +12,6 @@ set(BIPP_SOURCE_FILES
 	host/eigensolver.cpp
 	host/gram_matrix.cpp
 	host/virtual_vis.cpp
-	host/kernels/gemmexp.cpp
 	host/kernels/nuft_sum.cpp
 	image_synthesis.cpp
 	image_data_file.cpp
