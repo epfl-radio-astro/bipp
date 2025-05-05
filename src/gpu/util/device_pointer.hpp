@@ -21,7 +21,7 @@ auto is_device_ptr(const T* ptr) -> bool {
   }
 
   // get memory type - cuda 10 changed attribute name
-#if defined(BIPP_CUDA) && (CUDART_VERSION >= 10000)
+#if (defined(BIPP_CUDA) && (CUDART_VERSION >= 10000)) || (defined(BIPP_ROCM) && (HIP_VERSION_MAJOR >= 6))
   auto memoryType = attr.type;
 #else
   auto memoryType = attr.memoryType;
