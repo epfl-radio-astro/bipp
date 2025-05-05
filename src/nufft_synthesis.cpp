@@ -101,6 +101,7 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
                                 ? opt.sampleBatchSize.value()
                                 : (2 * 1000 * 1000 * 1000) / (20 * nBaselines),
                             sampleIds.size());
+  globLogger.log(BIPP_LOG_LEVEL_INFO, "sampleBatchSize: {}", sampleBatchSize);
 
   // copy pixel values to double precision if required
   HostArray<double, 2> pixelArray;

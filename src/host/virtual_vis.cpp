@@ -23,6 +23,8 @@ auto virtual_vis(ContextInternal& ctx, T scale, ConstHostView<T, 1> dMasked,
   assert(vAll.shape(0) * vAll.shape(0) == virtVis.shape(0));
   assert(vAll.shape(1) == dMasked.shape(0));
 
+  globLogger.scoped_timing(BIPP_LOG_LEVEL_INFO, "virtual_vis");
+
   const auto nAntenna = vAll.shape(0);
 
   auto vArray = HostArray<std::complex<T>, 2>(ctx.host_alloc(), vAll.shape());

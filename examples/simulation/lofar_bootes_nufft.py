@@ -31,11 +31,11 @@ import time as tt
 import matplotlib.pyplot as plt
 
 
-comm = bipp.communicator.world()
+# This example is without MPI usage
+comm = bipp.communicator.local()
 
 # Create context with selected processing unit.
 # Options are "AUTO", "CPU" and "GPU".
-#Note : When using MPI, mixing "CPU" and "GPU" on different ranks is possible.
 ctx = bipp.Context("AUTO", comm)
 
 # print build config
