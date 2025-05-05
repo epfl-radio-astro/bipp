@@ -30,18 +30,18 @@ class NUFFT : public NUFFTInterface<T> {
 public:
   NUFFT(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
         ConstHostView<T, 2> pixelXYZ, std::size_t nImages, std::size_t nBaselines,
-        std::size_t collectGroupSize)
+        std::size_t sampleBatchSize)
       : nImages_(nImages),
         nBaselines_(nBaselines),
-        collectGroupSize_(collectGroupSize),
+        sampleBatchSize_(sampleBatchSize),
         ctx_(std::move(ctx)),
         opt_(std::move(opt)),
         images_(ctx_->gpu_queue().create_device_array<float, 2>({pixelXYZ.shape(0), nImages})),
         pixelXYZ_(ctx_->gpu_queue().create_device_array<T, 2>(pixelXYZ.shape())),
         valueCollection_(ctx_->gpu_queue().create_pinned_array<std::complex<T>, 2>(
-            {collectGroupSize * nBaselines, nImages})),
+            {sampleBatchSize * nBaselines, nImages})),
         uvwCollection_(
-            ctx_->gpu_queue().create_pinned_array<T, 2>({collectGroupSize * nBaselines, 3})) {
+            ctx_->gpu_queue().create_pinned_array<T, 2>({sampleBatchSize * nBaselines, 3})) {
     auto& queue = ctx_->gpu_queue();
 
     images_.zero(queue.stream());
@@ -71,7 +71,7 @@ public:
     copy(values, valueCollection_.sub_view({count_ * nBaselines_, 0}, {nBaselines_, nImages_}));
 
     ++count_;
-    if (count_ >= collectGroupSize_) {
+    if (count_ >= sampleBatchSize_) {
       this->transform();
     }
   }
@@ -219,7 +219,7 @@ private:
     count_ = 0;
   }
 
-  std::size_t nImages_, nBaselines_, collectGroupSize_;
+  std::size_t nImages_, nBaselines_, sampleBatchSize_;
   std::size_t count_ = 0;
   std::shared_ptr<ContextInternal> ctx_;
   NufftSynthesisOptions opt_;

@@ -68,7 +68,7 @@ struct NufftSynthesisOptions {
    * The maximum number of collected datasets processed together. Larger number typically improves
    * performance but requires more memory. Internal heuristic is used if unset.
    */
-  std::optional<std::size_t> collectGroupSize = std::nullopt;
+  std::optional<std::size_t> sampleBatchSize = std::nullopt;
 
   /**
    * The partition method used in the image domain. Partitioning decreases memory usage, but may
@@ -101,8 +101,8 @@ struct NufftSynthesisOptions {
    *
    * @param[in] size Collection group size.
    */
-  inline auto set_collect_group_size(std::optional<std::size_t> size) -> NufftSynthesisOptions& {
-    collectGroupSize = size;
+  inline auto set_sample_batch_size(std::optional<std::size_t> size) -> NufftSynthesisOptions& {
+    sampleBatchSize = size;
     return *this;
   }
 
@@ -147,73 +147,9 @@ struct NufftSynthesisOptions {
   }
 };
 
-struct StandardSynthesisOptions {
-  /**
-   * Floating point pricision to use internally.
-   */
-  BippPrecision precision = BIPP_PRECISION_SINGLE;
-
-  /**
-   * The maximum number of collected datasets processed together. Only benefits distributed image
-   * synthesis.
-   */
-  std::optional<std::size_t> collectGroupSize = std::nullopt;
-
-  /**
-   * Normalize image by the number of collect steps.
-   */
-  bool normalizeImage = true;
-
-  /**
-   * Normalize image by the number of non-zero visibilities.
-   */
-  bool apply_scaling = true;
-
-  /**
-   * Set the collection group size.
-   *
-   * @param[in] size Collection group size.
-   */
-  inline auto set_collect_group_size(std::optional<std::size_t> size) -> StandardSynthesisOptions& {
-    collectGroupSize = size;
-    return *this;
-  }
-
-  /**
-   * Set normalization of image.
-   *
-   * @param[in] normalize True or false.
-   */
-  inline auto set_normalize_image(bool normalize) -> StandardSynthesisOptions& {
-    normalizeImage = normalize;
-    return *this;
-  }
-
-  /**
-   * Set scaling setting.
-   *
-   * @param[in] apply True or false.
-   */
-  inline auto set_apply_scaling(bool apply) -> StandardSynthesisOptions& {
-    apply_scaling = apply;
-    return *this;
-  }
-
-  /**
-   * Set floating point precision.
-   *
-   * @param[in] prec Precision.
-   */
-  inline auto set_precision(BippPrecision prec) -> StandardSynthesisOptions& {
-    precision = prec;
-    return *this;
-  }
-};
-
 //TODO: doc
 void image_synthesis(
-    Context& ctx, const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt,
-    Dataset& dataset,
+    Context& ctx, const NufftSynthesisOptions& opt, Dataset& dataset,
     std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection,
     ImageProp& imageProp, const std::string& imageFileName);
 

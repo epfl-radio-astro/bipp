@@ -38,7 +38,7 @@ jobs:
     - name: Run tests
       run: |
         export OMPI_MCA_btl_vader_single_copy_mechanism=none
-        ${GITHUB_WORKSPACE}/build/tests/run_tests
+        ${GITHUB_WORKSPACE}/build/bin/run_tests
 
   ##################
   # Build  with CUDA

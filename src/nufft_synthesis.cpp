@@ -96,31 +96,34 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
 
   // Use at most 2GB for batching. Estimate the memory usage at 20 bytes per baseline independent of
   // precision, to ensure consistency.
-  const std::size_t maxCollectGroupSize = std::min<std::size_t>((2*1000*1000*1000) / (20 * nBaselines), sampleIds.size());
-
+  const std::size_t sampleBatchSize =
+      std::min<std::size_t>((opt.sampleBatchSize.has_value() && opt.sampleBatchSize.value() > 0)
+                                ? opt.sampleBatchSize.value()
+                                : (2 * 1000 * 1000 * 1000) / (20 * nBaselines),
+                            sampleIds.size());
 
   // copy pixel values to double precision if required
   HostArray<double, 2> pixelArray;
   ConstHostView<T, 2> pixelXYZConverted;
-  if constexpr(std::is_same_v<T, double>) {
+  if constexpr (std::is_same_v<T, double>) {
     pixelArray = HostArray<double, 2>(ctx.host_alloc(), {pixelXYZ.shape()});
     copy(pixelXYZ, pixelArray);
     pixelXYZConverted = pixelArray;
-  }else {
+  } else {
     pixelXYZConverted = pixelXYZ;
   }
 
   std::unique_ptr<NUFFTInterface<T>> nufft;
   if (ctx.processing_unit() == BIPP_PU_GPU) {
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
-    nufft.reset(new gpu::NUFFT<T>(ctxPtr, opt, pixelXYZConverted, nImages, nBaselines,
-                                  maxCollectGroupSize));
+    nufft.reset(
+        new gpu::NUFFT<T>(ctxPtr, opt, pixelXYZConverted, nImages, nBaselines, sampleBatchSize));
 #else
     throw GPUSupportError();
 #endif
   } else {
-    nufft.reset(new host::NUFFT<T>(ctxPtr, opt, pixelXYZConverted, nImages, nBaselines,
-                                   maxCollectGroupSize));
+    nufft.reset(
+        new host::NUFFT<T>(ctxPtr, opt, pixelXYZConverted, nImages, nBaselines, sampleBatchSize));
   }
 
   HostArray<T, 2> uvw(ctx.host_alloc(), {nBaselines, 3});
@@ -132,7 +135,6 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
 
     const T wl = dataset.wl(id);
     const T scale = dataset.scale(id);
-
 
     globLogger.log(BIPP_LOG_LEVEL_DEBUG, "sample id: {}", id);
     globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "read uvw");

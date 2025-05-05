@@ -26,8 +26,7 @@
 
 namespace bipp {
 void image_synthesis(
-    Context& ctx, const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt,
-    Dataset& dataset,
+    Context& ctx, const NufftSynthesisOptions& opt, Dataset& dataset,
     std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection,
     ImageProp& imageProp, const std::string& imageFileName) {
   std::shared_ptr<ContextInternal> ctxInternal = InternalContextAccessor::get(ctx);
@@ -130,12 +129,11 @@ void image_synthesis(
   HostArray<float, 2> imageArray(ctxInternal->host_alloc(), {nPixel, nImages});
   imageArray.zero();
 
-  auto nufftOpt = std::get<NufftSynthesisOptions>(opt);
-  if (nufftOpt.precision == BIPP_PRECISION_SINGLE) {
-    nufft_synthesis<float>(ctxInternal, nufftOpt, dataset, pixelXYZ, localSampleIds, dScaled,
+  if (opt.precision == BIPP_PRECISION_SINGLE) {
+    nufft_synthesis<float>(ctxInternal, opt, dataset, pixelXYZ, localSampleIds, dScaled,
                            imageArray);
   } else {
-    nufft_synthesis<double>(ctxInternal, nufftOpt, dataset, pixelXYZ, localSampleIds, dScaled,
+    nufft_synthesis<double>(ctxInternal, opt, dataset, pixelXYZ, localSampleIds, dScaled,
                             imageArray);
   }
 
@@ -151,7 +149,7 @@ void image_synthesis(
 
   if (comm.rank() == 0) {
 
-    if (nufftOpt.normalizeImage) {
+    if (opt.normalizeImage) {
       globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "scale image");
       const float scale = 1.f / float(nTotalSamples);
 

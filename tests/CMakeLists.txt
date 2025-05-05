@@ -8,3 +8,8 @@ target_link_libraries(run_tests PRIVATE ${BIPP_TEST_LIBRARIES} bipp_objects ${BI
 target_include_directories(run_tests PRIVATE ${BIPP_INCLUDE_DIRS})
 target_compile_options(run_tests PRIVATE -DBIPP_TEST_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/data")
 
+set_target_properties(run_tests
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+

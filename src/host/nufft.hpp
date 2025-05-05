@@ -34,16 +34,16 @@ class NUFFT : public NUFFTInterface<T> {
 public:
   NUFFT(std::shared_ptr<ContextInternal> ctx, NufftSynthesisOptions opt,
         ConstHostView<T, 2> pixelXYZ, std::size_t nImages, std::size_t nBaselines,
-        std::size_t collectGroupSize)
+        std::size_t sampleBatchSize)
       : nImages_(nImages),
         nBaselines_(nBaselines),
-        collectGroupSize_(collectGroupSize),
+        sampleBatchSize_(sampleBatchSize),
         ctx_(std::move(ctx)),
         opt_(std::move(opt)),
         images_(ctx_->host_alloc(), {pixelXYZ.shape(0), nImages}),
         pixelXYZ_(ctx_->host_alloc(), pixelXYZ.shape()),
-        valueCollection_(ctx_->host_alloc(), {collectGroupSize * nBaselines, nImages}),
-        uvwCollection_(ctx_->host_alloc(), {collectGroupSize * nBaselines, 3}) {
+        valueCollection_(ctx_->host_alloc(), {sampleBatchSize * nBaselines, nImages}),
+        uvwCollection_(ctx_->host_alloc(), {sampleBatchSize * nBaselines, 3}) {
     images_.zero();
 
     copy(pixelXYZ, pixelXYZ_);
@@ -68,7 +68,7 @@ public:
     copy(values, valueCollection_.sub_view({count_ * nBaselines_, 0}, {nBaselines_, nImages_}));
 
     ++count_;
-    if (count_ >= collectGroupSize_) {
+    if (count_ >= sampleBatchSize_) {
       this->transform();
     }
   }
@@ -218,7 +218,7 @@ private:
     count_ = 0;
   }
 
-  std::size_t nImages_, nBaselines_, collectGroupSize_;
+  std::size_t nImages_, nBaselines_, sampleBatchSize_;
   std::size_t count_ = 0;
   std::shared_ptr<ContextInternal> ctx_;
   NufftSynthesisOptions opt_;

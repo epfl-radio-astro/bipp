@@ -165,8 +165,7 @@ struct DatasetFileDispatcher {
 };
 
 void image_synthesis_dispatch(
-    Context& ctx, const std::variant<NufftSynthesisOptions, StandardSynthesisOptions>& opt,
-    DatasetFileDispatcher& dataset,
+    Context& ctx, const NufftSynthesisOptions& opt, DatasetFileDispatcher& dataset,
     std::unordered_map<std::string, std::unordered_map<std::size_t, std::vector<float>>>
         pySelection,
     ImagePropFile& imagePropFile, const std::string& imageFileName) {
@@ -323,8 +322,8 @@ PYBIND11_MODULE(pybipp, m) {
       .def(py::init())
       .def_readwrite("tolerance", &NufftSynthesisOptions::tolerance)
       .def("set_tolerance", &NufftSynthesisOptions::set_tolerance)
-      .def_readwrite("collect_group_size", &NufftSynthesisOptions::collectGroupSize)
-      .def("set_collect_group_size", &NufftSynthesisOptions::set_collect_group_size)
+      .def_readwrite("sample_batch_size", &NufftSynthesisOptions::sampleBatchSize)
+      .def("set_sample_batch_size", &NufftSynthesisOptions::set_sample_batch_size)
       .def_readwrite("local_uvw_partition", &NufftSynthesisOptions::localUVWPartition)
       .def("set_local_uvw_partition", &NufftSynthesisOptions::set_local_uvw_partition)
       .def_readwrite("normalize_image", &NufftSynthesisOptions::normalizeImage)
@@ -337,15 +336,6 @@ PYBIND11_MODULE(pybipp, m) {
       .def("set_precision", [](NufftSynthesisOptions& opt, const std::string& prec) {
         opt.set_precision(string_to_precision(prec));
       });
-
-  pybind11::class_<StandardSynthesisOptions>(m, "StandardSynthesisOptions")
-      .def(py::init())
-      .def_readwrite("collect_group_size", &StandardSynthesisOptions::collectGroupSize)
-      .def("set_collect_group_size", &StandardSynthesisOptions::set_collect_group_size)
-      .def_readwrite("normalize_image", &StandardSynthesisOptions::normalizeImage)
-      .def("set_normalize_image", &StandardSynthesisOptions::set_normalize_image)
-      .def_readwrite("apply_scaling", &StandardSynthesisOptions::apply_scaling)
-      .def("set_apply_scaling", &StandardSynthesisOptions::set_apply_scaling);
 
   pybind11::class_<DatasetFileDispatcher>(m, "DatasetFile")
       .def_static("open", &DatasetFileDispatcher::open, pybind11::arg("file_name"))
