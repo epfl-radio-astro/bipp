@@ -10,17 +10,14 @@ Bipp requires the following:
 - C++17 compliant compiler
 - CMake 3.11 and later
 - BLAS and LAPACK library like OpenBLAS or Intel MKL
-- `fiNUFFT <https://github.com/flatironinstitute/finufft>`_
+- `neonufft <https://github.com/epfl-radio-astro/neonufft>`_
 
 Bipp can be configured with additional features (check the CMake options below). The optional requirements are:
 
 - Python header files and `pybind11 <https://github.com/pybind/pybind11>`_ for building the Python interface
 - CUDA 9.0 and later for Nvidia GPU hardware
 - ROCm 5.0 and later for AMD GPU hardware
-- cuFINUUFT with type 3 transform support with CUDA or ROCm enabled. Currently, only available in a fork (t3_d3 branch): https://github.com/AdhocMan/cufinufft/tree/t3_d3
 - `Umpire <https://github.com/LLNL/Umpire>`_ for advanced memory management
-- `MAGMA <https://icl.utk.edu/magma/>`_ for an alternative eigensolver implementation on GPU. Currently mandatory with ROCm
-- `VC <https://github.com/VcDevel/Vc>`_ for improved CPU performance through customized vectorization
 
 The Python module has the following dependencies:
 
@@ -55,10 +52,6 @@ Bipp can be configured with the following options:
      - ON, OFF
      - ON
      - Build Python interface
-   * - BIPP_OMP
-     - ON, OFF
-     - ON
-     - Enable multi-threading with OpenMP
    * - BIPP_VC
      - ON, OFF
      - OFF
@@ -138,7 +131,7 @@ Bipp uses skbuild to build the Python module with CMake and Pip. The CMake optio
 
 .. code-block:: bash
 
-   BIPP_GPU=CUDA CMAKE_PREFIX_PATH="${path_to_finufft};${path_to_cufinufft};${CMAKE_PREFIX_PATH}" python3 -m pip install .
+   BIPP_GPU=CUDA CMAKE_PREFIX_PATH="${path_to_neonufft};${path_to_cuneonufft};${CMAKE_PREFIX_PATH}" python3 -m pip install .
 
 
 .. toctree::

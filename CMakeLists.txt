@@ -46,16 +46,12 @@ include(GNUInstallDirs)
 include(FetchContent)
 include(CMakeDependentOption)
 
-#add local module path
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
-
 # Options
 set(BUILD_SHARED_LIBS "ON" CACHE STRING "Build as shared library") # default to shared
 option(BIPP_BUILD_TESTS "Build tests" OFF)
 option(BIPP_BUILD_APPS "Build apps" ON)
 option(BIPP_PYTHON "Build python module" ON)
 option(BIPP_UMPIRE "Use Umpire memory pool library" OFF)
-option(BIPP_OMP "Use OpenMP for multi-threading" ON)
 option(BIPP_MPI "Use MPI for multi-process parallization" OFF)
 
 option(BIPP_INSTALL_LIB "Install library" ON)
@@ -215,22 +211,12 @@ list(APPEND BIPP_EXTERNAL_LIBS hdf5::hdf5)
 
 find_package(neonufft CONFIG REQUIRED)
 list(APPEND BIPP_EXTERNAL_LIBS neonufft::neonufft)
-# finufft has fftw in interface headers
-find_package(FFTW REQUIRED)
-find_package(FFTWF REQUIRED)
-list(APPEND BIPP_EXTERNAL_LIBS FFTW::FFTW FFTWF::FFTWF)
 
 if(BIPP_CUDA OR BIPP_ROCM)
 	if(NOT TARGET neonufft::neonufft_gpu)
 	  message(FATAL_ERROR "Neonufft not compiled with GPU support.")
 	endif()
 	list(APPEND BIPP_EXTERNAL_LIBS neonufft::neonufft_gpu)
-endif()
-
-# OpenMP
-if(BIPP_OMP)
-  find_package(OpenMP REQUIRED)
-  list(APPEND BIPP_EXTERNAL_LIBS OpenMP::OpenMP_CXX)
 endif()
 
 if(BIPP_BUNDLED_SPDLOG)

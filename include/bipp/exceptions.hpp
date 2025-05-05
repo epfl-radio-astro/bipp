@@ -75,13 +75,6 @@ public:
   BippError error_code() const noexcept override { return BippError::BIPP_EIGENSOLVER_ERROR; }
 };
 
-class BIPP_EXPORT FiNUFFTError : public GenericError {
-public:
-  FiNUFFTError() : GenericError("BIPP: FiNUFFTError error") {}
-
-  BippError error_code() const noexcept override { return BippError::BIPP_FINUFFT_ERROR; }
-};
-
 class BIPP_EXPORT HDF5Error : public GenericError {
 public:
   HDF5Error() : GenericError("BIPP: HDF5Error error") {}

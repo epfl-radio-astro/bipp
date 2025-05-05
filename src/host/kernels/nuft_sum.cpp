@@ -3,8 +3,6 @@
 #include <cmath>
 #include <complex>
 
-#include "host/omp_definitions.hpp"
-
 namespace bipp {
 namespace host {
 
@@ -12,7 +10,6 @@ template <typename T>
 auto nuft_sum(T alpha, std::size_t nIn, const std::complex<T>* __restrict__ input, const T* u,
               const T* v, const T* w, std::size_t nOut, const T* x, const T* y, const T* z, T* out)
     -> void {
-  BIPP_OMP_PRAGMA("omp parallel for schedule(static)")
   for (std::size_t idxOut = 0; idxOut < nOut; ++idxOut) {
     const auto xVal = x[idxOut];
     const auto yVal = y[idxOut];

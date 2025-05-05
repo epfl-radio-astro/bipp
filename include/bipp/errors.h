@@ -32,10 +32,6 @@ enum BippError {
    */
   BIPP_EIGENSOLVER_ERROR,
   /**
-   * fiNUFFT error.
-   */
-  BIPP_FINUFFT_ERROR,
-  /**
    * Not Implemented error.
    */
   BIPP_NOT_IMPLEMENTED_ERROR,

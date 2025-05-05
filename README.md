@@ -12,16 +12,13 @@ Bipp requires the following:
 - C++17 compliant compiler
 - CMake 3.11 and later
 - BLAS and LAPACK library like OpenBLAS or Intel MKL
-- [fiNUFFT](https://github.com/flatironinstitute/finufft)
+- [Neonufft](https://github.com/epfl-radio-astro/neonufft) for NUFFT computation
 
 Bipp can be configured with additional features (check the CMake options below). The optional requirements are:
 - Python header files and [pybind11](https://github.com/pybind/pybind11) for building the Python interface
-- CUDA 9.0 and later for Nvidia GPU hardware
-- ROCm 5.0 and later for AMD GPU hardware
-- cuFINUUFT with type 3 transform support with CUDA or ROCm enabled. Currently, only available in a fork (t3_d3 branch): https://github.com/AdhocMan/cufinufft/tree/t3_d3
+- CUDA 11.0 and later for Nvidia GPU hardware
+- ROCm 6.0 and later for AMD GPU hardware
 - [Umpire](https://github.com/LLNL/Umpire) for advanced memory management
-- [MAGMA](https://icl.utk.edu/magma/) for an alternative eigensolver implementation on GPU. Currently mandatory with ROCm
-- [VC](https://github.com/VcDevel/Vc) for improved CPU performance through customized vectorization
 
 The Python module has the following dependencies:
 - numpy
@@ -43,10 +40,7 @@ Bipp can be configured with the following options:
 | Option                      |  Values                   | Default     | Description                                                                                               |
 |-----------------------------|---------------------------|-------------|-----------------------------------------------------------------------------------------------------------|
 | `BIPP_PYTHON`               |  `ON`, `OFF`              | `ON`        | Build Python interface                                                                                    |
-| `BIPP_OMP`                  |  `ON`, `OFF`              | `ON`        | Enable multi-threading with OpenMP                                                                        |
-| `BIPP_VC`                   |  `ON`, `OFF`              | `OFF`       | Use the VC library for vectorization                                                                      |
 | `BIPP_GPU`                  |  `OFF`, `CUDA`, `ROCM`    | `OFF`       | Select GPU backend                                                                                        |
-| `BIPP_MAGMA`                |  `ON`, `OFF`              | `OFF`       | Use MAGMA as eigensolver on GPU                                                                           |
 | `BIPP_BUILD_TESTS`          |  `ON`, `OFF`              | `OFF`       | Build test executables                                                                                    |
 | `BIPP_INSTALL`              |  `LIB`, `PYTHON`, `OFF`   | `LIB`       | Set installation target                                                                                   |
 | `BIPP_UMPIRE`               |  `ON`, `OFF`              | `OFF`       | Use the UMPIRE library for memory allocations                                                             |
@@ -92,6 +86,6 @@ export PYTHONPATH=${path_to_install_to}:$PYTHONPATH
 Bipp uses skbuild to build the Python module with CMake and Pip. The CMake options can be set through environment variables. Example:
 
 ```console
-BIPP_GPU=CUDA CMAKE_PREFIX_PATH="${path_to_finufft};${path_to_cufinufft};${CMAKE_PREFIX_PATH}" python3 -m pip install .
+BIPP_GPU=CUDA CMAKE_PREFIX_PATH="${path_to_neonufft};${CMAKE_PREFIX_PATH}" python3 -m pip install .
 ```
 
