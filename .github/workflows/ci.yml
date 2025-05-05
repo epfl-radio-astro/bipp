@@ -21,7 +21,7 @@ jobs:
         sudo apt-get install -y make g++ libopenblas-dev libfftw3-dev git cmake libhdf5-dev python3-dev
         cd ${HOME}
         git clone https://github.com/epfl-radio-astro/neonufft.git
-        cd ${HOME}/finufft
+        cd ${HOME}/neonufft
         mkdir -p build
         cd build
         cmake .. -DNEONUFFT_BUILD_TESTS=ON -DNEONUFFT_THREADING=NATIVE -DCMAKE_CXX_FLAGS="-march=native" -DNEONUFFT_MULTI_ARCH=OFF
@@ -58,7 +58,7 @@ jobs:
         apt-get install -y make g++ libopenblas-dev libfftw3-dev git cmake libhdf5-dev
         cd ${HOME}
         git clone https://github.com/epfl-radio-astro/neonufft.git
-        cd ${HOME}/finufft
+        cd ${HOME}/neonufft
         mkdir -p build
         cd build
         cmake .. -DNEONUFFT_BUILD_TESTS=ON -DNEONUFFT_THREADING=NATIVE -DCMAKE_CXX_FLAGS="-march=native" -DNEONUFFT_MULTI_ARCH=OFF -DNEONUFFT_GPU=CUDA -DCMAKE_CUDA_ARCHITECTURES=90
@@ -90,7 +90,7 @@ jobs:
         apt-get install -y make g++ libopenblas-dev libfftw3-dev git cmake libhdf5-dev
         cd ${HOME}
         git clone https://github.com/epfl-radio-astro/neonufft.git
-        cd ${HOME}/finufft
+        cd ${HOME}/neonufft
         mkdir -p build
         cd build
         export CXX=/opt/rocm/bin/amdclang++
