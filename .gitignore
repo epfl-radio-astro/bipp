@@ -6,3 +6,7 @@ docs/xml/
 python/bipp.egg-info/
 bipp.egg-info/
 _skbuild/
+*.h5
+examples/simulation/*.png
+examples/simulation/*.json
+compile_commands.json
