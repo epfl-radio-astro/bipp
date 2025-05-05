@@ -66,8 +66,13 @@ public:
 
     // retrieve all existing images
     std::vector<std::string> tags;
-    h5::check(H5Ovisit(h5ImageGroup_.id(), H5_INDEX_NAME, H5_ITER_NATIVE, gatherDatasetNames, &tags,
-                       H5O_INFO_ALL));
+#ifdef BIPP_H5OVISIT2
+    h5::check(H5Ovisit2(h5ImageGroup_.id(), H5_INDEX_NAME, H5_ITER_NATIVE, gatherDatasetNames,
+                        &tags, H5O_INFO_ALL));
+#else
+    h5::check(H5Ovisit3(h5ImageGroup_.id(), H5_INDEX_NAME, H5_ITER_NATIVE, gatherDatasetNames,
+                        &tags, H5O_INFO_ALL));
+#endif
 
     for (const auto& name : tags) {
       images_.insert({name, h5::check(H5Dopen(h5ImageGroup_.id(), name.c_str(), H5P_DEFAULT))});

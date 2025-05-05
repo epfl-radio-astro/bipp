@@ -94,8 +94,9 @@ void nufft_synthesis(std::shared_ptr<ContextInternal> ctxPtr, const NufftSynthes
   assert(images.shape(1) == dScaled.shape(2));
   assert(nBeam == dScaled.shape(0));
 
-  //TODO: decide based on host memory size
-  const std::size_t maxCollectGroupSize = std::max<std::size_t>(200, sampleIds.size());
+  // Use at most 2GB for batching. Estimate the memory usage at 20 bytes per baseline independent of
+  // precision, to ensure consistency.
+  const std::size_t maxCollectGroupSize = std::min<std::size_t>((2*1000*1000*1000) / (20 * nBaselines), sampleIds.size());
 
 
   // copy pixel values to double precision if required
