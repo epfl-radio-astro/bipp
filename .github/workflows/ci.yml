@@ -18,84 +18,90 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y make g++ libopenblas-dev libfftw3-dev git cmake libhdf5-dev
+        sudo apt-get install -y make g++ libopenblas-dev libfftw3-dev git cmake libhdf5-dev python3-dev
         cd ${HOME}
-        git clone https://github.com/flatironinstitute/finufft.git
+        git clone https://github.com/epfl-radio-astro/neonufft.git
         cd ${HOME}/finufft
-        git checkout v2.1.0
-        make lib -j2
+        mkdir -p build
+        cd build
+        cmake .. -DNEONUFFT_BUILD_TESTS=ON -DNEONUFFT_THREADING=NATIVE -DCMAKE_CXX_FLAGS="-march=native" -DNEONUFFT_MULTI_ARCH=OFF
+        make install -j2
 
     - name: Build
       run: |
         cd ${GITHUB_WORKSPACE}
         mkdir -p build
         cd build
-        cmake .. -DBIPP_GPU=OFF -DBIPP_PYTHON=OFF -DCMAKE_PREFIX_PATH=${HOME}/finufft -DBIPP_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=DEBUG
+        cmake .. -DBIPP_GPU=OFF -DBIPP_PYTHON=ON -DBIPP_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=DEBUG
         make -j2
 
     - name: Run tests
       run: |
         export OMPI_MCA_btl_vader_single_copy_mechanism=none
-        export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HOME}/finufft/lib
         ${GITHUB_WORKSPACE}/build/tests/run_tests
 
-  #################
-  # Build with CUDA
-  #################
-  build-cuda-docs:
-    runs-on: ubuntu-22.04
-    container: adhocman/bipp_build:main_x86_64_cuda_11_2
+  ##################
+  # Build  with CUDA
+  ##################
+  build-gcc-cuda:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-24.04
+    container: nvidia/cuda:12.6.1-devel-ubuntu24.04
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE
     - uses: actions/checkout@v4
 
-    - name: Build and install library
+    - name: Install dependencies
       run: |
-        . /etc/profile
+        apt-get update
+        apt-get install -y make g++ libopenblas-dev libfftw3-dev git cmake libhdf5-dev
+        cd ${HOME}
+        git clone https://github.com/epfl-radio-astro/neonufft.git
+        cd ${HOME}/finufft
+        mkdir -p build
+        cd build
+        cmake .. -DNEONUFFT_BUILD_TESTS=ON -DNEONUFFT_THREADING=NATIVE -DCMAKE_CXX_FLAGS="-march=native" -DNEONUFFT_MULTI_ARCH=OFF -DNEONUFFT_GPU=CUDA -DCMAKE_CUDA_ARCHITECTURES=90
+        make install -j2
+
+    - name: Build
+      run: |
         cd ${GITHUB_WORKSPACE}
         mkdir -p build
         cd build
-        CUDACXX=/usr/local/cuda/bin/nvcc cmake .. -DBIPP_GPU=CUDA -DCMAKE_CUDA_ARCHITECTURES="60;86" -DBIPP_PYTHON=ON -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_INSTALL_PREFIX=${HOME}/install_dir -DBIPP_INSTALL_PYTHON_SUFFIX=python
-        make install -j2
-
-    - name: Build tests
-      run: |
-        . /etc/profile
-        cd ${GITHUB_WORKSPACE}
-        mkdir -p build_tests
-        cd build_tests
-        CUDACXX=/usr/local/cuda/bin/nvcc cmake .. -DBIPP_GPU=CUDA -DCMAKE_CUDA_ARCHITECTURES="60;86" -DBIPP_BUILD_TESTS=ON -DBIPP_PYTHON=ON
+        cmake .. -DBIPP_BUILD_TESTS=ON -DBIPP_GPU=CUDA -DCMAKE_CUDA_ARCHITECTURES=90 -DBIPP_PYTHON=OFF
         make -j2
 
-    - name: Build docs
+  ##################
+  # Build  with ROCm
+  ##################
+  build-clang-rocm:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-24.04
+    container: rocm/dev-ubuntu-24.04:6.4-complete
+
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
       run: |
-        . /etc/profile
-        cd ${GITHUB_WORKSPACE}/docs
-        SPHINXBUILD="python3 -m sphinx" make html
+        apt-get update
+        apt-get install -y make g++ libopenblas-dev libfftw3-dev git cmake libhdf5-dev
+        cd ${HOME}
+        git clone https://github.com/epfl-radio-astro/neonufft.git
+        cd ${HOME}/finufft
+        mkdir -p build
+        cd build
+        export CXX=/opt/rocm/bin/amdclang++
+        cmake .. -DNEONUFFT_THREADING=NATIVE -DCMAKE_CXX_FLAGS="-march=native" -DNEONUFFT_MULTI_ARCH=OFF -DNEONUFFT_GPU=ROCM -DCMAKE_HIP_ARCHITECTURES=gfx942 -DCMAKE_PREFIX_PATH=/opt/rocm
+        make install -j2
 
-    - name: Check python module import
+    - name: Build
       run: |
-        . /etc/profile
-        export PYTHONPATH=$PYTHONPATH:${HOME}/install_dir/python
-        python3 -c "import bipp"
-
-  #################
-  # Build with ROCm
-  #################
-  # build-rocm:
-  #   runs-on: ubuntu-22.04
-  #   container: adhocman/bipp_build:main_x86_64_rocm_5_4_2
-
-  #   steps:
-  #   # Checks-out your repository under $GITHUB_WORKSPACE
-  #   - uses: actions/checkout@v4
-
-  #   - name: Build library
-  #     run: |
-  #       . /etc/profile
-  #       cd ${GITHUB_WORKSPACE}
-  #       mkdir -p build
-  #       cd build
-  #       CXX=hipcc cmake .. -DBIPP_GPU=ROCM -DCMAKE_HIP_ARCHITECTURES="gfx906" -DBIPP_PYTHON=ON -DBIPP_OMP=OFF
-  #       make -j2
+        cd ${GITHUB_WORKSPACE}
+        mkdir -p build
+        cd build
+        export CXX=/opt/rocm/bin/amdclang++
+        cmake .. -DBIPP_BUILD_TESTS=ON -DBIPP_GPU=ROCM -DCMAKE_HIP_ARCHITECTURES=gfx942 -DBIPP_PYTHON=OFF -DCMAKE_PREFIX_PATH=/opt/rocm
+        make -j2
