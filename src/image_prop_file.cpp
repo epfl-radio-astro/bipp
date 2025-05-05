@@ -19,7 +19,7 @@ namespace bipp {
 
 namespace {
 
-auto gatherMetaData(hid_t obj, const char* name, const H5O_info2_t* info, void* opData) -> herr_t {
+auto gatherMetaData(hid_t obj, const char* name, const H5O_info_t* info, void* opData) -> herr_t {
   auto& meta = *reinterpret_cast<std::unordered_map<std::string, ImagePropFile::MetaType>*>(opData);
 
   if (info->type == H5O_TYPE_DATASET) {

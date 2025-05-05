@@ -19,7 +19,7 @@ namespace bipp {
 
 namespace {
 
-auto gatherDatasetNames(hid_t obj, const char* name, const H5O_info2_t* info, void* opData) -> herr_t {
+auto gatherDatasetNames(hid_t obj, const char* name, const H5O_info_t* info, void* opData) -> herr_t {
   auto& names = *reinterpret_cast<std::vector<std::string>*>(opData);
 
   if (info->type == H5O_TYPE_DATASET) {
