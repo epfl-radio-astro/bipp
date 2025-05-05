@@ -178,11 +178,12 @@ public:
     h5::File h5File = h5::check(H5Fopen(fileName_.data(), H5F_ACC_RDONLY, H5P_DEFAULT));
     h5::Group h5MetaGroup = h5::check(H5Gopen(h5File.id(), "meta", H5P_DEFAULT));
 
-#ifdef BIPP_H5OVISIT2
-    h5::check(H5Ovisit2(h5MetaGroup.id(), H5_INDEX_NAME, H5_ITER_NATIVE, gatherMetaData, &meta,
+// avoid using H5Ovisit1, because it requires different arguments
+#if (H5_VERS_MAJOR >= 1) && (H5_VERS_MINOR >= 12)
+    h5::check(H5Ovisit3(h5MetaGroup.id(), H5_INDEX_NAME, H5_ITER_NATIVE, gatherMetaData, &meta,
                        H5O_INFO_ALL));
 #else
-    h5::check(H5Ovisit3(h5MetaGroup.id(), H5_INDEX_NAME, H5_ITER_NATIVE, gatherMetaData, &meta,
+    h5::check(H5Ovisit2(h5MetaGroup.id(), H5_INDEX_NAME, H5_ITER_NATIVE, gatherMetaData, &meta,
                        H5O_INFO_ALL));
 #endif
 

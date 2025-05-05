@@ -212,10 +212,6 @@ list(APPEND BIPP_EXTERNAL_LIBS LAPACK::LAPACK)
 # HDF5
 find_package(HDF5 MODULE REQUIRED COMPONENTS C)
 list(APPEND BIPP_EXTERNAL_LIBS hdf5::hdf5)
-# check if H5Ovisit3 is available. Use H5Ovisit2 if not.
-if(HDF5_VERSION VERSION_LESS "1.12.0")
-  list(APPEND BIPP_FLAGS -DBIPP_H5OVISIT2)
-endif()
 
 find_package(neonufft CONFIG REQUIRED)
 list(APPEND BIPP_EXTERNAL_LIBS neonufft::neonufft)

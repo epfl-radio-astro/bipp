@@ -66,11 +66,12 @@ public:
 
     // retrieve all existing images
     std::vector<std::string> tags;
-#ifdef BIPP_H5OVISIT2
-    h5::check(H5Ovisit2(h5ImageGroup_.id(), H5_INDEX_NAME, H5_ITER_NATIVE, gatherDatasetNames,
+// avoid using H5Ovisit1, because it requires different arguments
+#if (H5_VERS_MAJOR >= 1) && (H5_VERS_MINOR >= 12)
+    h5::check(H5Ovisit3(h5ImageGroup_.id(), H5_INDEX_NAME, H5_ITER_NATIVE, gatherDatasetNames,
                         &tags, H5O_INFO_ALL));
 #else
-    h5::check(H5Ovisit3(h5ImageGroup_.id(), H5_INDEX_NAME, H5_ITER_NATIVE, gatherDatasetNames,
+    h5::check(H5Ovisit2(h5ImageGroup_.id(), H5_INDEX_NAME, H5_ITER_NATIVE, gatherDatasetNames,
                         &tags, H5O_INFO_ALL));
 #endif
 
