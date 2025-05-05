@@ -22,7 +22,6 @@ jobs:
         cd ${HOME}
         git clone https://github.com/epfl-radio-astro/neonufft.git
         cd ${HOME}/neonufft
-        git checkout 60deec0413bfff07f53d954062f0339d518ef109
         mkdir -p build
         cd build
         cmake .. -DNEONUFFT_BUILD_TESTS=ON -DNEONUFFT_THREADING=NATIVE -DCMAKE_CXX_FLAGS="-march=native" -DNEONUFFT_MULTI_ARCH=OFF
@@ -60,7 +59,6 @@ jobs:
         cd ${HOME}
         git clone https://github.com/epfl-radio-astro/neonufft.git
         cd ${HOME}/neonufft
-        git checkout 60deec0413bfff07f53d954062f0339d518ef109
         mkdir -p build
         cd build
         cmake .. -DNEONUFFT_BUILD_TESTS=ON -DNEONUFFT_THREADING=NATIVE -DCMAKE_CXX_FLAGS="-march=native" -DNEONUFFT_MULTI_ARCH=OFF -DNEONUFFT_GPU=CUDA -DCMAKE_CUDA_ARCHITECTURES=90
@@ -93,7 +91,6 @@ jobs:
         cd ${HOME}
         git clone https://github.com/epfl-radio-astro/neonufft.git
         cd ${HOME}/neonufft
-        git checkout 60deec0413bfff07f53d954062f0339d518ef109
         mkdir -p build
         cd build
         export CXX=/opt/rocm/bin/amdclang++
