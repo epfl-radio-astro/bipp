@@ -1,3 +1,4 @@
+#include <pybind11/detail/common.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -103,8 +104,10 @@ struct DatasetFileDispatcher {
   }
 
   static DatasetFileDispatcher create(const std::string& fileName, const std::string& description,
-                        std::size_t nAntenna, std::size_t nBeam) {
-    return DatasetFileDispatcher(DatasetFile::create(fileName, description, nAntenna, nBeam));
+                                      std::size_t nAntenna, std::size_t nBeam, float raDeg,
+                                      float decDeg) {
+    return DatasetFileDispatcher(
+        DatasetFile::create(fileName, description, nAntenna, nBeam, raDeg, decDeg));
   }
 
   const std::string& description() const { return file_.description(); }
@@ -114,6 +117,10 @@ struct DatasetFileDispatcher {
   std::size_t num_antenna() const { return file_.num_antenna(); }
 
   std::size_t num_beam() const { return file_.num_beam(); }
+
+  float ra_deg() const {return file_.ra_deg();}
+
+  float dec_deg() const { return file_.dec_deg(); }
 
   py::array eig_vec(std::size_t index) {
     py::array_t<std::complex<float>, py::array::f_style | py::array::forcecast> out(
@@ -340,12 +347,15 @@ PYBIND11_MODULE(pybipp, m) {
   pybind11::class_<DatasetFileDispatcher>(m, "DatasetFile")
       .def_static("open", &DatasetFileDispatcher::open, pybind11::arg("file_name"))
       .def_static("create", &DatasetFileDispatcher::create, pybind11::arg("file_name"),
-                  pybind11::arg("description"), pybind11::arg("n_antenna"), pybind11::arg("n_beam"))
+                  pybind11::arg("description"), pybind11::arg("n_antenna"), pybind11::arg("n_beam"),
+                  pybind11::arg("ra_deg"), pybind11::arg("dec_deg"))
       .def("close", &DatasetFileDispatcher::close)
       .def("is_open", &DatasetFileDispatcher::is_open)
       .def("num_samples", &DatasetFileDispatcher::num_samples)
       .def("num_beam", &DatasetFileDispatcher::num_beam)
       .def("num_antenna", &DatasetFileDispatcher::num_antenna)
+      .def("ra_deg", &DatasetFileDispatcher::ra_deg)
+      .def("dec_deg", &DatasetFileDispatcher::dec_deg)
       .def("eig_vec", &DatasetFileDispatcher::eig_vec, pybind11::arg("index"))
       .def("eig_val", &DatasetFileDispatcher::eig_val, pybind11::arg("index"))
       .def("uvw", &DatasetFileDispatcher::uvw, pybind11::arg("index"))
@@ -365,30 +375,31 @@ PYBIND11_MODULE(pybipp, m) {
       .def_static("open", &ImagePropFile::open, pybind11::arg("file_name"))
       .def_static(
           "create",
-          [](const std::string& fileName,
+          [](const std::string& fileName, std::size_t height, std::size_t width, float fovDeg,
              const py::array_t<float, py::array::f_style | py::array::forcecast>& lmn)
               -> ImagePropFile {
-            auto numPixel = lmn.shape(0);
-            check_2d_array(lmn, {numPixel, 3});
+            check_2d_array(lmn, {py::ssize_t(width * height), 3});
 
-            return ImagePropFile::create(fileName, numPixel, lmn.data(0),
-                                     safe_cast<std::size_t>(lmn.strides(1) / lmn.itemsize()));
+            return ImagePropFile::create(fileName, height, width, fovDeg, lmn.data(0),
+                                         safe_cast<std::size_t>(lmn.strides(1) / lmn.itemsize()));
           },
-          pybind11::arg("file_name"), pybind11::arg("lmn"))
+          pybind11::arg("file_name"), pybind11::arg("height"), pybind11::arg("width"),
+          pybind11::arg("fov_deg"), pybind11::arg("lmn"))
       .def("close", &ImagePropFile::close)
       .def("is_open", &ImagePropFile::is_open)
-      .def("num_pixel", &ImagePropFile::num_pixel)
+      .def("width", &ImagePropFile::width)
+      .def("height", &ImagePropFile::height)
+      .def("fov_deg", &ImagePropFile::fov_deg)
       .def("meta_data", &ImagePropFile::meta_data)
       .def("set_meta", &ImagePropFile::set_meta, pybind11::arg("name"), pybind11::arg("value"))
-      .def(
-          "pixel_lmn",
-          [](ImagePropFile& f) -> py::array_t<float, py::array::f_style> {
-            auto lmn = py::array_t<float, py::array::f_style>(
-                {py::ssize_t(f.num_pixel()), py::ssize_t(3)});
-            f.pixel_lmn(lmn.mutable_data(0),
-                        safe_cast<std::size_t>(lmn.strides(1) / lmn.itemsize()));
-            return lmn;
-          })
+      .def("pixel_lmn",
+           [](ImagePropFile& f) -> py::array_t<float, py::array::f_style> {
+             auto lmn = py::array_t<float, py::array::f_style>(
+                 {py::ssize_t(f.width() * f.height()), py::ssize_t(3)});
+             f.pixel_lmn(lmn.mutable_data(0),
+                         safe_cast<std::size_t>(lmn.strides(1) / lmn.itemsize()));
+             return lmn;
+           })
       .def("__enter__", [](ImagePropFile& f) -> ImagePropFile& { return f; })
       .def(
           "__exit__",
@@ -401,19 +412,26 @@ PYBIND11_MODULE(pybipp, m) {
       .def_static("open", &ImageDataFile::open, pybind11::arg("file_name"))
       .def_static(
           "create",
-          [](const std::string& fileName, std::size_t numPixel) -> ImageDataFile {
-            return ImageDataFile::create(fileName, numPixel);
+          [](const std::string& fileName, std::size_t height, std::size_t width, float fovDeg,
+             float raDeg, float decDeg) -> ImageDataFile {
+            return ImageDataFile::create(fileName, height, width, fovDeg, raDeg, decDeg);
           },
-          pybind11::arg("file_name"), pybind11::arg("lmn"))
+          pybind11::arg("file_name"), pybind11::arg("height"), pybind11::arg("width"),
+          pybind11::arg("fov_deg"), pybind11::arg("ra_deg"), pybind11::arg("dec_deg"))
       .def("close", &ImageDataFile::close)
       .def("is_open", &ImageDataFile::is_open)
       .def("tags", &ImageDataFile::tags)
       .def("num_tags", &ImageDataFile::num_tags)
-      .def("num_pixel", &ImageDataFile::num_pixel)
+      .def("width", &ImageDataFile::width)
+      .def("height", &ImageDataFile::height)
+      .def("fov_deg", &ImageDataFile::fov_deg)
+      .def("ra_deg", &ImageDataFile::ra_deg)
+      .def("dec_deg", &ImageDataFile::dec_deg)
       .def(
           "get",
           [](ImageDataFile& f, const std::string& tag) -> py::array_t<float, py::array::f_style> {
-            auto image = py::array_t<float, py::array::f_style>(py::ssize_t(f.num_pixel()));
+            auto image = py::array_t<float, py::array::f_style>(
+                {py::ssize_t(f.height()), py::ssize_t(f.width())});
             f.get(tag, image.mutable_data(0));
             return image;
           },
@@ -423,8 +441,9 @@ PYBIND11_MODULE(pybipp, m) {
           [](ImageDataFile& f, const std::string& tag,
              const py::array_t<float, py::array::f_style | py::array::forcecast>& image)
               -> py::array_t<float, py::array::f_style> {
-            check_1d_array(image, f.num_pixel());
-            f.set(tag, image.data(0));
+            check_2d_array(image, {py::ssize_t(f.height()), py::ssize_t(f.width())});
+            auto imageContiguous = py::array_t<float, py::array::f_style>(image);
+            f.set(tag, imageContiguous.data(0));
             return image;
           },
           pybind11::arg("tag"), pybind11::arg("image"))

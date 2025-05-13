@@ -47,13 +47,19 @@ auto check_hdf5_name(const std::string& name) {
 class ImageDataFile::ImageDataFileImpl {
 public:
   // create new file
-  ImageDataFileImpl(const std::string& fileName, std::size_t numPixel) : numPixel_(numPixel) {
+  ImageDataFileImpl(const std::string& fileName, std::size_t height, std::size_t width,
+                    float fovDeg, float raDeg, float decDeg)
+      : height_(height), width_(width), fovDeg_(fovDeg), raDeg_(raDeg), decDeg_(decDeg) {
     h5File_ = h5::check(H5Fcreate(fileName.data(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT));
 
     h5ImageGroup_ =
         h5::check(H5Gcreate(h5File_.id(), "images", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT));
 
-    h5::create_size_attr(h5File_.id(), "nPixel", numPixel);
+    h5::create_size_attr(h5File_.id(), "width", width);
+    h5::create_size_attr(h5File_.id(), "height", height);
+    h5::create_float_attr(h5File_.id(), "fovDeg", fovDeg);
+    h5::create_float_attr(h5File_.id(), "raDeg", raDeg);
+    h5::create_float_attr(h5File_.id(), "decDeg", decDeg);
   }
 
   // open file
@@ -62,7 +68,11 @@ public:
 
     h5ImageGroup_ = h5::check(H5Gopen(h5File_.id(), "images", H5P_DEFAULT));
 
-    numPixel_ = h5::read_size_attr(h5File_.id(), "nPixel");
+    width_ = h5::read_size_attr(h5File_.id(), "width");
+    height_ = h5::read_size_attr(h5File_.id(), "height");
+    fovDeg_ = h5::read_float_attr(h5File_.id(), "fovDeg");
+    raDeg_ = h5::read_float_attr(h5File_.id(), "raDeg");
+    decDeg_ = h5::read_float_attr(h5File_.id(), "decDeg");
 
     // retrieve all existing images
     std::vector<std::string> tags;
@@ -90,7 +100,7 @@ public:
       hsize_t dim, maxDim;
       h5::check(H5Sget_simple_extent_dims(dspace.id(), &dim, &maxDim));
 
-      if (dim != numPixel_) {
+      if (dim != width_ * height_) {
         throw FileError(
             "Mismatched image sizes in  image file. Expected same size for all images.");
       }
@@ -115,7 +125,7 @@ public:
       throw InvalidParameterError("Invalid image tag");
     }
 
-    hsize_t size = numPixel_;
+    hsize_t size = width_ * height_;
 
     h5::DataSpace dspace = h5::check(H5Dget_space(it->second.id()));
     h5::DataSpace mspace = h5::check(H5Screate_simple(1, &size, &size));
@@ -130,7 +140,7 @@ public:
     const auto it = images_.find(tag);
     if (it == images_.end()) {
       h5::DataSet dset = h5::create_fixed_one_dim_space(h5ImageGroup_.id(), tag,
-                                                        h5::get_type_id<float>(), numPixel_);
+                                                        h5::get_type_id<float>(), width_ * height_);
       h5::DataSpace dspace = h5::check(H5Dget_space(dset.id()));
       h5::check(H5Dwrite(dset.id(), h5::get_type_id<float>(), dspace.id(), dspace.id(), H5P_DEFAULT,
                          image));
@@ -144,10 +154,19 @@ public:
     }
   }
 
-  std::size_t num_pixel() const { return numPixel_; }
+  std::size_t width() const {return width_;}
+
+  std::size_t height() const {return height_;}
+
+  float fov_deg() const {return fovDeg_;}
+
+  float ra_deg() const {return raDeg_;}
+
+  float dec_deg() const { return decDeg_; }
 
 private:
-  std::size_t numPixel_;
+  std::size_t height_, width_;
+  float fovDeg_, raDeg_, decDeg_;
   h5::File h5File_;
   h5::Group h5ImageGroup_;
   std::unordered_map<std::string, h5::DataSet> images_;
@@ -159,8 +178,9 @@ auto ImageDataFile::ImageFileImplDeleter::operator()(ImageDataFileImpl* p) -> vo
 
 ImageDataFile::ImageDataFile(ImageDataFileImpl* ptr) : impl_(ptr) {}
 
-ImageDataFile ImageDataFile::create(const std::string& fileName, std::size_t numPixel) {
-  return ImageDataFile(new ImageDataFileImpl(fileName, numPixel));
+ImageDataFile ImageDataFile::create(const std::string& fileName, std::size_t height, std::size_t width,
+                              float fovDeg, float raDeg, float decDeg) {
+  return ImageDataFile(new ImageDataFileImpl(fileName, height, width, fovDeg, raDeg, decDeg));
 }
 
 ImageDataFile ImageDataFile::open(const std::string& fileName) {
@@ -199,9 +219,37 @@ void ImageDataFile::set(const std::string& tag, const float* image) {
     throw GenericError("ImageDataFile: access after close");
 }
 
-std::size_t ImageDataFile::num_pixel() const {
+std::size_t ImageDataFile::width() const {
   if (impl_)
-    return impl_->num_pixel();
+    return impl_->width();
+  else
+    throw GenericError("ImageDataFile: access after close");
+}
+
+std::size_t ImageDataFile::height() const {
+  if (impl_)
+    return impl_->height();
+  else
+    throw GenericError("ImageDataFile: access after close");
+}
+
+float ImageDataFile::fov_deg() const {
+  if (impl_)
+    return impl_->fov_deg();
+  else
+    throw GenericError("ImageDataFile: access after close");
+}
+
+float ImageDataFile::ra_deg() const {
+  if (impl_)
+    return impl_->ra_deg();
+  else
+    throw GenericError("ImageDataFile: access after close");
+}
+
+float ImageDataFile::dec_deg() const {
+  if (impl_)
+    return impl_->dec_deg();
   else
     throw GenericError("ImageDataFile: access after close");
 }

@@ -33,6 +33,10 @@ public:
 
   virtual float scale(std::size_t index) = 0;
 
+  virtual float ra_deg() const = 0;
+
+  virtual float dec_deg() const = 0;
+
   virtual ~Dataset() = default;
 };
 

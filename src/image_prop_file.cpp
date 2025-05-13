@@ -85,21 +85,25 @@ auto check_hdf5_name(const std::string& name) {
 class ImagePropFile::ImagePropFileImpl {
 public:
   // create new file
-  ImagePropFileImpl(const std::string& fileName, std::size_t numPixel, const float* lmn,
-                    std::size_t ldlmn)
-      : fileName_(fileName), numPixel_(numPixel) {
+  ImagePropFileImpl(const std::string& fileName, std::size_t height, std::size_t width, float fovDeg,
+                    const float* lmn, std::size_t ldlmn)
+      : fileName_(fileName), height_(height), width_(width), fovDeg_(fovDeg) {
     h5::File h5File =
         h5::check(H5Fcreate(fileName.data(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT));
+
+    h5::create_size_attr(h5File.id(), "width", width);
+    h5::create_size_attr(h5File.id(), "height", height);
+    h5::create_float_attr(h5File.id(), "fovDeg", fovDeg);
 
     h5::Group h5MetaGroup =
         h5::check(H5Gcreate(h5File.id(), "meta", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT));
 
     h5::DataSet h5PixelL =
-        h5::create_fixed_one_dim_space(h5File.id(), "pixel_l", h5::get_type_id<float>(), numPixel);
+        h5::create_fixed_one_dim_space(h5File.id(), "pixel_l", h5::get_type_id<float>(), width_ * height_);
     h5::DataSet h5PixelM =
-        h5::create_fixed_one_dim_space(h5File.id(), "pixel_m", h5::get_type_id<float>(), numPixel);
+        h5::create_fixed_one_dim_space(h5File.id(), "pixel_m", h5::get_type_id<float>(), width_ * height_);
     h5::DataSet h5PixelN =
-        h5::create_fixed_one_dim_space(h5File.id(), "pixel_n", h5::get_type_id<float>(), numPixel);
+        h5::create_fixed_one_dim_space(h5File.id(), "pixel_n", h5::get_type_id<float>(), width_ * height_);
 
     {
       h5::DataSpace dspace = h5::check(H5Dget_space(h5PixelL.id()));
@@ -121,30 +125,24 @@ public:
   }
 
   // open file
-  explicit ImagePropFileImpl(const std::string& fileName) : fileName_(fileName), numPixel_(0) {
+  explicit ImagePropFileImpl(const std::string& fileName) : fileName_(fileName), height_(0), width_(0) {
     h5::File h5File = h5::check(H5Fopen(fileName.data(), H5F_ACC_RDONLY, H5P_DEFAULT));
 
-    h5::DataSet h5PixelL = h5::check(H5Dopen(h5File.id(), "pixel_l", H5P_DEFAULT));
 
-    // retrieve the number of pixels
-    {
-      h5::DataSpace dspace = h5::check(H5Dget_space(h5PixelL.id()));
-      hsize_t dim = 0;
-      hsize_t maxDim = 0;
-      auto ndims = H5Sget_simple_extent_ndims(dspace.id());
-      if (ndims != 1) {
-        throw FileError("Invalid rank of dataset in image file. Expected one dimensional dataset.");
-      }
-      h5::check(H5Sget_simple_extent_dims(dspace.id(), &dim, &maxDim));
+    width_ = h5::read_size_attr(h5File.id(), "width");
+    height_ = h5::read_size_attr(h5File.id(), "height");
+    fovDeg_ = h5::read_float_attr(h5File.id(), "fovDeg");
 
-      numPixel_ = dim;
-    }
   }
 
-  std::size_t num_pixel() const { return numPixel_; }
+  std::size_t width() const {return width_;}
+
+  std::size_t height() const {return height_;}
+
+  float fov_deg() const {return fovDeg_;}
 
   void pixel_lmn(float* lmn, std::size_t ldlmn) {
-    hsize_t size = numPixel_;
+    hsize_t size = width_ * height_;
 
     h5::File h5File = h5::check(H5Fopen(fileName_.data(), H5F_ACC_RDONLY, H5P_DEFAULT));
     h5::DataSet h5PixelL = h5::check(H5Dopen(h5File.id(), "pixel_l", H5P_DEFAULT));
@@ -233,7 +231,8 @@ public:
 
 private:
   std::string fileName_;
-  std::size_t numPixel_;
+  std::size_t height_, width_;
+  float fovDeg_;
 };
 
 auto ImagePropFile::ImageFileImplDeleter::operator()(ImagePropFileImpl* p) -> void {
@@ -242,9 +241,9 @@ auto ImagePropFile::ImageFileImplDeleter::operator()(ImagePropFileImpl* p) -> vo
 
 ImagePropFile::ImagePropFile(ImagePropFileImpl* ptr) : impl_(ptr) {}
 
-ImagePropFile ImagePropFile::create(const std::string& fileName, std::size_t numPixel,
-                                    const float* lmn, std::size_t ldlmn) {
-  return ImagePropFile(new ImagePropFileImpl(fileName, numPixel, lmn, ldlmn));
+ImagePropFile ImagePropFile::create(const std::string& fileName, std::size_t height, std::size_t width, float fovDeg,
+                    const float* lmn, std::size_t ldlmn) {
+  return ImagePropFile(new ImagePropFileImpl(fileName, height, width, fovDeg, lmn, ldlmn));
 }
 
 ImagePropFile ImagePropFile::open(const std::string& fileName) {
@@ -269,9 +268,23 @@ void ImagePropFile::close() { impl_.reset(); }
 
 bool ImagePropFile::is_open() const noexcept { return bool(impl_); }
 
-std::size_t ImagePropFile::num_pixel() const {
+std::size_t ImagePropFile::width() const {
   if (impl_)
-    return impl_->num_pixel();
+    return impl_->width();
+  else
+    throw GenericError("ImagePropFile: access after close");
+}
+
+std::size_t ImagePropFile::height() const {
+  if (impl_)
+    return impl_->height();
+  else
+    throw GenericError("ImagePropFile: access after close");
+}
+
+float ImagePropFile::fov_deg() const {
+  if (impl_)
+    return impl_->fov_deg();
   else
     throw GenericError("ImagePropFile: access after close");
 }

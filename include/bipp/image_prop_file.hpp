@@ -19,8 +19,8 @@ class BIPP_EXPORT ImagePropFile : public ImageProp {
 public:
   using MetaType = std::variant<std::size_t, float, std::vector<float>>;
 
-  static ImagePropFile create(const std::string& fileName, std::size_t numPixel, const float* lmn,
-                              std::size_t ldlmn);
+  static ImagePropFile create(const std::string& fileName, std::size_t height, std::size_t width, float fovDeg,
+                    const float* lmn, std::size_t ldlmn);
 
   static ImagePropFile open(const std::string& fileName);
 
@@ -34,7 +34,11 @@ public:
 
   void set_meta(const std::string& name, const MetaType& data) override;
 
-  std::size_t num_pixel() const override;
+  std::size_t width() const override;
+
+  std::size_t height() const override;
+
+  float fov_deg() const override;
 
 private:
   class ImagePropFileImpl;

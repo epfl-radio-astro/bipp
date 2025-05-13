@@ -19,7 +19,7 @@ public:
   static DatasetFile open(const std::string& fileName);
 
   static DatasetFile create(const std::string& fileName, const std::string& description,
-                        std::size_t nAntenna, std::size_t nBeam);
+                            std::size_t nAntenna, std::size_t nBeam, float raDeg, float decDeg);
 
   const std::string& description() const override;
 
@@ -40,6 +40,10 @@ public:
   float time_stamp(std::size_t index) override;
 
   float scale(std::size_t index) override;
+
+  float ra_deg() const override;
+
+  float dec_deg() const override;
 
   void write(float timeStamp, float wl, float scale, const std::complex<float>* v, std::size_t ldv,
              const float* d, const float* uvw, std::size_t lduvw);

@@ -130,7 +130,7 @@ protected:
     // create dataset
     const std::string datasetFileName = "test_nufft_synthesis_lofar.h5";
     if (comm.rank() == 0) {
-      auto dataset = bipp::DatasetFile::create(datasetFileName, "", nAntenna, nBeam);
+      auto dataset = bipp::DatasetFile::create(datasetFileName, "", nAntenna, nBeam, 0, 0);
 
       std::vector<ValueType> eigValues(nBeam);
       std::vector<std::complex<ValueType>> eigVec(nBeam * nAntenna);
@@ -192,7 +192,8 @@ protected:
     const std::string imageDataFileName = "test_nufft_synthesis_lofar_image_data.h5";
 
     if (comm.rank() == 0) {
-      auto imgPropFile = bipp::ImagePropFile::create(imagePropFileName, nPixel, lmn.data(), nPixel);
+      auto imgPropFile =
+          bipp::ImagePropFile::create(imagePropFileName, nPixel, 1, 10, lmn.data(), nPixel);
     }
 
 #ifdef BIPP_MPI

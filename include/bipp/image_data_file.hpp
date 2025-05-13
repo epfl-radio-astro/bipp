@@ -7,8 +7,6 @@
 #include <cstddef>
 #include <memory>
 #include <string>
-#include <unordered_map>
-#include <variant>
 #include <vector>
 
 /*! \cond PRIVATE */
@@ -17,7 +15,8 @@ namespace bipp {
 
 class BIPP_EXPORT ImageDataFile : public ImageData {
 public:
-  static ImageDataFile create(const std::string& fileName, std::size_t numPixel);
+  static ImageDataFile create(const std::string& fileName, std::size_t height, std::size_t width,
+                              float fovDeg, float raDeg, float decDeg);
 
   static ImageDataFile open(const std::string& fileName);
 
@@ -33,7 +32,15 @@ public:
 
   void set(const std::string& tag, const float* image) override;
 
-  std::size_t num_pixel() const override;
+  std::size_t width() const override;
+
+  std::size_t height() const override;
+
+  float fov_deg() const override;
+
+  float ra_deg() const override;
+
+  float dec_deg() const override;
 
 private:
   class ImageDataFileImpl;

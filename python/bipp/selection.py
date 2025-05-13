@@ -28,5 +28,5 @@ def export_selection(selection, file_name):
 
     """
     with open(file_name, 'w') as f:
-        json.dump(selection, f, cls=NumpyArrayEncoder)
+        json.dump(selection, f, cls=NumpyArrayEncoder, indent=0)
 

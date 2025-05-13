@@ -121,7 +121,7 @@ void image_synthesis(
     globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "scaled eigenvalues", dScaledSlice);
   }
 
-  unsigned long long nPixel = imageProp.num_pixel();
+  unsigned long long nPixel = imageProp.width() * imageProp.height();
 
   HostArray<float, 2> pixelXYZ(ctxInternal->host_alloc(), {nPixel, 3});
   imageProp.pixel_lmn(pixelXYZ.data(), pixelXYZ.strides(1));
@@ -163,7 +163,9 @@ void image_synthesis(
     }
 
     // write image
-    auto imageData = ImageDataFile::create(imageFileName, nPixel);
+    auto imageData =
+        ImageDataFile::create(imageFileName, imageProp.height(), imageProp.width(),
+                              imageProp.fov_deg(), dataset.ra_deg(), dataset.dec_deg());
     globLogger.start_timing(BIPP_LOG_LEVEL_INFO, "write image");
     for (std::size_t idxImg = 0; idxImg < nImages; ++idxImg) {
       globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "image", imageArray.slice_view(idxImg));

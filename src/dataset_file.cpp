@@ -15,12 +15,14 @@ class DatasetFile::DatasetFileImpl {
 public:
   // create new dataset
   DatasetFileImpl(const std::string& fileName, const std::string& description, std::size_t nAntenna,
-                  std::size_t nBeam)
+                  std::size_t nBeam, float raDeg, float decDeg)
       : fileName_(fileName),
         ctx_(BIPP_PU_CPU),
         nAntenna_(nAntenna),
         nBeam_(nBeam),
-        description_(description) {
+        description_(description),
+        raDeg_(raDeg),
+        decDeg_(decDeg) {
     h5File_ = h5::check(H5Fcreate(fileName.data(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT));
 
     // attributes
@@ -30,6 +32,8 @@ public:
     h5::create_size_attr(h5File_.id(), "nAntenna", nAntenna);
     h5::create_string_attr(h5File_.id(), "description",
                            description.size() ? description : " ");
+    h5::create_float_attr(h5File_.id(), "raDeg", raDeg);
+    h5::create_float_attr(h5File_.id(), "decDeg", decDeg);
 
     // create array types
     {
@@ -89,6 +93,8 @@ public:
     nBeam_ = h5::read_size_attr(h5File_.id(), "nBeam");
     nAntenna_ = h5::read_size_attr(h5File_.id(), "nAntenna");
     description_ = h5::read_string_attr(h5File_.id(), "description");
+    raDeg_ = h5::read_float_attr(h5File_.id(), "raDeg");
+    decDeg_ = h5::read_float_attr(h5File_.id(), "decDeg");
 
     // create array types
     {
@@ -137,6 +143,10 @@ public:
   auto num_beam() const noexcept -> std::size_t { return nBeam_; }
 
   auto file_name() const noexcept -> const std::string& { return fileName_; }
+
+  float ra_deg() const {return raDeg_;}
+
+  float dec_deg() const { return decDeg_; }
 
   auto is_read_only() const -> bool {
     unsigned flag = 0;
@@ -245,6 +255,7 @@ private:
   hsize_t nBeam_ = 0;
   hsize_t nSamples_ = 0;
   std::string description_;
+  float raDeg_, decDeg_;
 
   // file
   h5::File h5File_ = H5I_INVALID_HID;
@@ -273,8 +284,9 @@ DatasetFile DatasetFile::open(const std::string& fileName) {
 }
 
 DatasetFile DatasetFile::create(const std::string& fileName, const std::string& description,
-                            std::size_t nAntenna, std::size_t nBeam) {
-  return DatasetFile(new DatasetFileImpl(fileName, description, nAntenna, nBeam));
+                                std::size_t nAntenna, std::size_t nBeam, float raDeg,
+                                float decDeg) {
+  return DatasetFile(new DatasetFileImpl(fileName, description, nAntenna, nBeam, raDeg, decDeg));
 }
 
 const std::string& DatasetFile::description() const {
@@ -366,5 +378,19 @@ void DatasetFile::write(float timeStamp, float wl, float scale, const std::compl
 void DatasetFile::close() { return impl_.reset(); }
 
 bool DatasetFile::is_open() const noexcept { return bool(impl_); }
+
+float DatasetFile::ra_deg() const {
+  if (impl_)
+    return impl_->ra_deg();
+  else
+    throw GenericError("DatasetFile: access after close");
+}
+
+float DatasetFile::dec_deg() const {
+  if (impl_)
+    return impl_->dec_deg();
+  else
+    throw GenericError("DatasetFile: access after close");
+}
 
 }  // namespace bipp

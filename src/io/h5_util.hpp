@@ -210,6 +210,24 @@ inline auto read_size_attr(hid_t hid, const std::string& name) -> unsigned int {
   return size;
 }
 
+inline auto create_float_attr(hid_t hid, const std::string& name, float value) -> void {
+  DataSpace attSpace = check(H5Screate(H5S_SCALAR));
+
+  Attribute attr = check(H5Acreate(hid, name.data(), get_type_id<decltype(value)>(), attSpace.id(),
+                                    H5P_DEFAULT, H5P_DEFAULT));
+
+  check(H5Awrite(attr.id(), get_type_id<decltype(value)>(), &value));
+}
+
+inline auto read_float_attr(hid_t hid, const std::string& name) -> float {
+  Attribute attr = check(H5Aopen(hid, name.data(), H5P_DEFAULT));
+
+  float value = 0;
+  check(H5Aread(attr.id(), get_type_id<decltype(value)>(), &value));
+
+  return value;
+}
+
 inline auto create_fixed_one_dim_space(hid_t fd, const std::string& name, hid_t type, hsize_t size) -> hid_t {
   DataSpace dataspace = check(H5Screate_simple(1, &size, &size));
 

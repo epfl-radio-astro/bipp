@@ -1,9 +1,3 @@
-# #############################################################################
-# lofar_bootes_nufft.py
-# ======================
-# Author : Matthieu Simeoni [matthieu.simeoni@gmail.com]
-# #############################################################################
-
 """
 Simulation LOFAR imaging with Bipp (NUFFT).
 """
@@ -93,7 +87,10 @@ lmn_grid, xyz_grid = frame.make_grids(N_pix, FoV, field_center)
 ####################################################
 print("\n===== Create Dataset ====")
 t1 = tt.time()
-with bipp.DatasetFile.create(dataset_file, "lofar", N_antenna, N_station) as dataset:
+
+dec_deg = (field_center.frame.dec * u.deg).value
+ra_deg = (field_center.frame.ra * u.deg).value
+with bipp.DatasetFile.create(dataset_file, "lofar", N_antenna, N_station, ra_deg, dec_deg) as dataset:
     for t in ProgressBar(time[::time_slice]):
         XYZ = dev(t)
         UVW_baselines_t = dev.baselines(t, uvw=True, field_center=field_center)
@@ -112,14 +109,21 @@ print(f"Elapsed time: {t2 - t1} seconds.")
 print("\n===== Parameter Estimation ====")
 t1 = tt.time()
 selection = {}
-I_est = bb_pe.ParameterEstimator(N_level, sigma=0.95)
 with bipp.DatasetFile.open(dataset_file) as dataset:
     # collect eigenvalues
+    eig_values = []
     for idx in range(0, dataset.num_samples()):
-        I_est.collect(dataset.eig_val(idx))
+        eig_values.append(dataset.eig_val(idx))
 
     # compute intervals to partition eigenvalues
-    intervals = I_est.infer_parameters()
+    intervals = bb_pe.infer_intervals(
+        N_level, 1.0, 'log', 0, float('inf'), eig_values
+    )
+
+    print(f"Eigenvalue intervals:")
+    for interv in intervals:
+        print(f"  [{interv[0]:.2f}, {interv[1]:.2f})")
+    print("")
 
     # generate selection for lsq and std filters with
     # computed intervals
@@ -145,7 +149,7 @@ print(f"Elapsed time: {t2 - t1} seconds.")
 #################################################
 print("\n===== Image property generation ====")
 t1 = tt.time()
-with bipp.ImagePropFile.create(image_prop_file, lmn_grid.transpose()) as image_prop:
+with bipp.ImagePropFile.create(image_prop_file, N_pix, N_pix, FoV, lmn_grid.transpose()) as image_prop:
     # we can optionally write meta data for later use like plotting
     image_prop.set_meta("fov", FoV)
 

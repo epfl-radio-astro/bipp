@@ -23,7 +23,11 @@ public:
 
   virtual void set_meta(const std::string& name, const MetaType& data) = 0;
 
-  virtual std::size_t num_pixel() const = 0;
+  virtual std::size_t width() const = 0;
+
+  virtual std::size_t height() const = 0;
+
+  virtual float fov_deg() const = 0;
 
   virtual ~ImageProp() = default;
 };
