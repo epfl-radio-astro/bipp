@@ -108,18 +108,9 @@ else:
     nChannel = channelEnd - channelStart
 
 if channelEnd - channelStart == 1:
-    frequency = ms.channels["FREQUENCY"][channelStart:channelEnd]
     print("Single channel mode.")
     channel_id = np.arange(channelStart, channelEnd, dtype=np.int32)
 else:
-    frequency = (
-        ms.channels["FREQUENCY"][channelStart]
-        + (
-            ms.channels["FREQUENCY"][channelEnd]
-            - ms.channels["FREQUENCY"][channelStart]
-        )
-        / 2
-    )
     channel_id = np.arange(channelStart, nChannel, dtype=np.int32)
     print(f"Multi-channel mode with {channelEnd - channelStart} channels.")
 
@@ -129,7 +120,7 @@ ra_deg = (field_center.frame.ra * u.deg).value
 print(f"N_station: {N_station} , N_antenna: {N_antenna}")
 print(f"ra (deg): {ra_deg} , dec (deg): {dec_deg}")
 
-skip_count = 0
+n_written = 0
 with bipp.DatasetFile.create(
     args.output, args.telescope.lower(), N_antenna, N_station, ra_deg, dec_deg
 ) as dataset:
@@ -143,7 +134,7 @@ with bipp.DatasetFile.create(
         wl = constants.speed_of_light / f.to_value(u.Hz)
         XYZ = ms.instrument(t)
         W = ms.beamformer(XYZ, wl)
-        S, W = measurement_set.filter_data(S, W)
+        #  S, W = measurement_set.filter_data(S, W)
 
         UVW_baselines_t = ms.instrument.baselines(
             t, uvw=True, field_center=ms.field_center
@@ -151,11 +142,14 @@ with bipp.DatasetFile.create(
         uvw = frame.reshape_uvw(UVW_baselines_t)
 
         if np.allclose(S.data, np.zeros(S.data.shape)):
-            skip_count += 1
             continue
 
         v, d, scale = bipp.eigh_gram(wl, S.data, W.data, XYZ.data)
         dataset.write(t.value, wl, scale, v, d, uvw)
+        n_written += 1
 
-if skip_count:
-    print(f"Skipped {skip_count} entries due to visibility matrix being close to zero.")
+if n_written:
+    print(f"{n_written} samples exported")
+else:
+    print("WARNING: no samples exported!\n")
+

@@ -37,7 +37,6 @@ class LabeledMatrix:
                 raise ValueError("Parameter[data] must be CSC/CSR-ordered.")
         else:
             self.__data = np.array(data, copy=False)
-            self.__data.setflags(write=False)
 
             if self.__data.ndim != 2:
                 raise ValueError("Parameter[data] must be 2D.")

@@ -1,5 +1,3 @@
-#include "host/eigensolver.hpp"
-
 #include <complex>
 #include <cstddef>
 #include <functional>
@@ -61,7 +59,8 @@ BIPP_EXPORT auto eigh(T wl, std::size_t nAntenna, std::size_t nBeam, const std::
   for (std::size_t col = 0; col < sView.shape(1); ++col) {
     for (std::size_t row = col; row < sView.shape(0); ++row) {
       const auto val = sView[{row, col}];
-      if (std::norm(val) > std::numeric_limits<T>::epsilon()) {
+      if (std::abs(val.real()) >= std::numeric_limits<T>::epsilon() ||
+          std::abs(val.imag()) >= std::numeric_limits<T>::epsilon()) {
         nonZeroIndexFlag[col] |= 1;
         nonZeroIndexFlag[row] |= 1;
         nVis += 1 + (row != col);

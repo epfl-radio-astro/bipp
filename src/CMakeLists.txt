@@ -9,7 +9,6 @@ set(BIPP_SOURCE_FILES
 	context.cpp
 	nufft_synthesis.cpp
 	memory/allocator_factory.cpp
-	host/eigensolver.cpp
 	host/gram_matrix.cpp
 	host/virtual_vis.cpp
 	host/kernels/nuft_sum.cpp
