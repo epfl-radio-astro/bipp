@@ -82,7 +82,7 @@ private:
   auto transform() -> void {
     if (!count_) return;
 
-    auto timer = globLogger.scoped_timing(BIPP_LOG_LEVEL_INFO, "nufft");
+    auto timer = globLogger.scoped_timing(BIPP_LOG_LEVEL_INFO, "host::nufft");
     neonufft::Options neoOpt;
     neoOpt.tol = opt_.tolerance;
     neoOpt.sort_input = false;

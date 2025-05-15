@@ -87,7 +87,7 @@ private:
   auto transform() -> void {
     if (!count_) return;
 
-    auto timer = globLogger.scoped_timing(BIPP_LOG_LEVEL_INFO, "nufft");
+    auto timer = globLogger.scoped_timing(BIPP_LOG_LEVEL_INFO, "gpu::nufft");
     neonufft::Options neoOpt;
     neoOpt.tol = opt_.tolerance;
 
