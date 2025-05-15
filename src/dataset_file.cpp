@@ -1,4 +1,5 @@
 #include "bipp/dataset_file.hpp"
+#include <algorithm>
 
 #include "bipp/config.h"
 #include "bipp/exceptions.hpp"
@@ -8,6 +9,7 @@
 #include "memory/array.hpp"
 #include "memory/copy.hpp"
 #include "memory/view.hpp"
+#include "memory/allocator_factory.hpp"
 
 namespace bipp {
 
@@ -17,7 +19,7 @@ public:
   DatasetFileImpl(const std::string& fileName, const std::string& description, std::size_t nAntenna,
                   std::size_t nBeam, float raDeg, float decDeg)
       : fileName_(fileName),
-        ctx_(BIPP_PU_CPU),
+        hostAlloc_(AllocatorFactory::simple_host()),
         nAntenna_(nAntenna),
         nBeam_(nBeam),
         description_(description),
@@ -73,7 +75,7 @@ public:
 
   // open existing dataset
   DatasetFileImpl(const std::string& fileName, bool readOnly)
-      : fileName_(fileName), ctx_(BIPP_PU_CPU) {
+      : fileName_(fileName), hostAlloc_(AllocatorFactory::simple_host()) {
     if (readOnly) {
       h5File_ = h5::check(H5Fopen(fileName.data(), H5F_ACC_RDONLY, H5P_DEFAULT));
     } else {
@@ -161,7 +163,7 @@ public:
     if(ldv == nAntenna_){
       h5::read_single_element(index, h5EigVec_.id(), h5EigVecType_.id(), v);
     } else {
-      HostArray<std::complex<float>, 2> buffer(ctx_.host_alloc(), {nAntenna_, nBeam_});
+      HostArray<std::complex<float>, 2> buffer(hostAlloc_, {nAntenna_, nBeam_});
       h5::read_single_element(index, h5EigVec_.id(), h5EigVecType_.id(), buffer.data());
       copy(buffer, HostView<std::complex<float>, 2>(v, buffer.shape(), {1, ldv}));
     }
@@ -175,7 +177,7 @@ public:
     if (lduvw == nAntenna_ * nAntenna_) {
       h5::read_single_element(index, h5UVW_.id(), h5UVWType_.id(), uvw);
     } else {
-      HostArray<float, 2> buffer(ctx_.host_alloc(), {nAntenna_ * nAntenna_, 3});
+      HostArray<float, 2> buffer(hostAlloc_, {nAntenna_ * nAntenna_, 3});
       h5::read_single_element(index, h5UVW_.id(), h5UVWType_.id(), buffer.data());
       copy(buffer, HostView<float, 2>(uvw, buffer.shape(), {1, lduvw}));
     }
@@ -210,13 +212,13 @@ public:
 
 
     if(!vView.is_contiguous()) {
-      vArray = HostArray<std::complex<float>,2>(ctx_.host_alloc(), vView.shape());
+      vArray = HostArray<std::complex<float>,2>(hostAlloc_, vView.shape());
       copy(vView, vArray);
       vView = vArray;
     }
 
     if(!uvwView.is_contiguous()) {
-      uvwArray = HostArray<float, 2>(ctx_.host_alloc(), uvwView.shape());
+      uvwArray = HostArray<float, 2>(hostAlloc_, uvwView.shape());
       copy(uvwView, uvwArray);
       uvwView = uvwArray;
     }
@@ -249,7 +251,7 @@ public:
 private:
   std::string fileName_;
 
-  ContextInternal ctx_;
+  std::shared_ptr<Allocator> hostAlloc_;
 
   hsize_t nAntenna_ = 0;
   hsize_t nBeam_ = 0;
