@@ -81,14 +81,14 @@ def infer_intervals(N_level, sigma, cluster_func, d_min, d_max, d_all):
     d_all = np.array(d_all).flatten()
     d_all = d_all[d_all != 0.0]
 
+    d_all = d_all[d_all >= d_min]
+    d_all = d_all[d_all <= d_max]
+
     if sigma < 1 and sigma >= 0:
         n_remove = int((1 - sigma) * d_all.shape[0])
         if n_remove <= d_all.shape[0]:
             d_all = np.sort(d_all)
             d_all = d_all[0:-n_remove]
-
-    d_all = d_all[d_all >= d_min]
-    d_all = d_all[d_all <= d_max]
 
     d_all = d_all.reshape(-1, 1)
 
