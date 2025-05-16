@@ -4,21 +4,6 @@
 # Author : Sepand KASHANI [kashani.sepand@gmail.com]
 # #############################################################################
 
-r"""
-Parameter estimators.
-
-Bipp field synthesizers output :math:`N_{\text{beam}}` energy levels, with :math:`N_{\text{beam}}`
-being the height of the visibility/Gram matrices :math:`\Sigma, G`.
-We are often not interested in such fined-grained energy decompositions but would rather have 4-5
-well-separated energy levels as output.
-This is accomplished by clustering energy levels together during the aggregation stage.
-
-As the energy scale depends on the visibilities, it is preferable to infer the cluster centroids
-(and any other parameters of interest) by scanning a portion of the data stream.
-Subclasses of :py:class:`~bipp.phased_array.bipp.parameter_estimator.ParameterEstimator` are
-specifically tailored for such tasks.
-"""
-
 import bipp.imot_tools.math.linalg as pylinalg
 import bipp.imot_tools.util.argcheck as chk
 import numpy as np
@@ -65,83 +50,6 @@ def centroid_to_intervals(centroid=None, d_min=0.0, d_max=np.finfo("f").max):
             intervals[i, 1] = (sorted_centroid[idx] + sorted_centroid[idx + 1]) / 2
 
     return intervals
-
-
-class ParameterEstimator:
-    """
-    Parameter estimator for computing intensity fields.
-
-    Args
-        N_level : int
-            Number of clustered energy levels to output.
-        sigma : float
-            Normalized energy ratio for fPCA decomposition.
-    """
-
-    def __init__(self, N_level, sigma, fne: bool = True):
-        super().__init__()
-
-        if N_level <= 0:
-            raise ValueError("Parameter[N_level] must be positive.")
-        self._N_level = N_level
-
-        if not (0 < sigma <= 1):
-            raise ValueError("Parameter[sigma] must lie in (0,1].")
-        self._sigma = sigma
-
-        # Collected data.
-        self._intervals = []
-        self._d_all = []
-        self._inferred = False
-        self._fne = fne
-
-    def collect(self, D):
-        """
-        Ingest data to internal queue for inference.
-
-        Args
-            S : :py:class:`~bipp.phased_array.data_gen.statistics.VisibilityMatrix`
-                (N_beam, N_beam) visibility matrix.
-            G : :py:class:`~bipp.phased_array.bipp.gram.GramMatrix`
-                (N_beam, N_beam) gram matrix.
-        """
-        D = D[D > 0.0]
-        D = D[np.argsort(D)[::-1]]
-        #  if self._fne:
-        #      idx = np.clip(np.cumsum(D) / np.sum(D), 0, 1) <= self._sigma
-        #      D = D[idx]
-        self._d_all.append(D)
-        self._inferred = False
-
-    def num_level(self):
-        if not self._inferred:
-            self.infer_parameters()
-        if len(self._intervals) == 0:
-            return 0
-        return self._intervals.shape[0]
-
-    def infer_parameters(self):
-        """
-        Estimate parameters given ingested data.
-
-        cluster_intervals : :py:class:`~numpy.ndarray`
-            (N_level,2) intensity field intervals to select eigenvalues for each level.
-        """
-        if len(self._d_all) == 0:
-            return 0, np.empty((0, 2))
-
-        D_all = np.concatenate(self._d_all)
-
-        kmeans = skcl.KMeans(n_clusters=self._N_level).fit(np.log(D_all).reshape(-1, 1))
-
-        cluster_centroid = np.sort(np.exp(kmeans.cluster_centers_)[:, 0])[::-1]
-
-        self._inferred = True
-
-        d_min = np.min(D_all) if self._fne else 0
-
-        self._intervals = centroid_to_intervals(cluster_centroid, d_min)
-        return self._intervals
 
 
 def infer_intervals(N_level, sigma, cluster_func, d_min, d_max, d_all):
