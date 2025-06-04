@@ -1,8 +1,35 @@
 [build-system]
 requires = [
     "wheel",
-    "scikit-build>=0.14.1",
+    "scikit-build-core",
     "cmake>=3.15",
-    "pybind11>=2.9",
+    "pybind11>=2.13",
     "make",
 ]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "bipp"
+version = "0.0.1"
+
+[tool.scikit-build]
+cmake.build-type = "RELEASE"
+wheel.packages = ["python/bipp"]
+# cmake.define = {"CMAKE_POLICY_VERSION_MINIMUM"="3.5", "BIPP_INSTALL_LIB"="OFF"}
+cmake.define.CMAKE_POLICY_VERSION_MINIMUM = "3.5"
+cmake.define.BIPP_INSTALL_LIB = "OFF"
+
+
+[[tool.scikit-build.overrides]]
+if.env.BIPP_GPU = "CUDA"
+inherit.cmake.define = "append"
+cmake.define.BIPP_GPU = "CUDA"
+
+[[tool.scikit-build.overrides]]
+if.env.BIPP_GPU = "ROCM"
+inherit.cmake.define = "append"
+cmake.define.BIPP_GPU = "ROCM"
+
+
+
+

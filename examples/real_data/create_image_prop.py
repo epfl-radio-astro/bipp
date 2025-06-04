@@ -30,9 +30,10 @@ parser.add_argument(
 # Number of Pixels
 args = parser.parse_args()
 
-with bipp.DatasetFile.open(args.dataset) as dataset:
-    field_center = coord.SkyCoord(ra=dataset.ra_deg() * u.deg, dec=dataset.dec_deg() * u.deg, frame="icrs")
+def create_image_prop(args):
+    with bipp.DatasetFile.open(args.dataset) as dataset:
+        field_center = coord.SkyCoord(ra=dataset.ra_deg() * u.deg, dec=dataset.dec_deg() * u.deg, frame="icrs")
 
-lmn_grid, xyz_grid = frame.make_grids(args.width, np.deg2rad(args.fov), field_center)
+    lmn_grid, xyz_grid = frame.make_grids(args.width, np.deg2rad(args.fov), field_center)
 
-bipp.ImagePropFile.create(args.output, args.width, args.width, args.fov, lmn_grid.transpose())
+    bipp.ImagePropFile.create(args.output, args.width, args.width, args.fov, lmn_grid.transpose())

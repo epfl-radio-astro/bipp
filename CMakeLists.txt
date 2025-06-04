@@ -259,8 +259,8 @@ if(BIPP_BUILD_TESTS OR BIPP_BUILD_APPS)
 	set(JSON_BuildTests OFF CACHE INTERNAL "")
 	  FetchContent_Declare(
 	  json
-	  URL https://github.com/nlohmann/json/archive/refs/tags/v3.11.2.tar.gz
-	  URL_MD5 e8d56bc54621037842ee9f0aeae27746
+	  URL https://github.com/nlohmann/json/archive/refs/tags/v3.12.0.tar.gz
+	  URL_MD5 c2528c3e04faccaaee44f1f8f3d30d99
 	)
 	FetchContent_MakeAvailable(json)
   else()
