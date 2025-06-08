@@ -22,32 +22,32 @@ Example for creating a selection with 5 levels for eigenvalues in [0,inf) using 
 """
 
 
-parser = argparse.ArgumentParser(prog="create_selection", description=description, formatter_class=RawTextHelpFormatter)
+#  parser = argparse.ArgumentParser(prog="create_selection", description=description, formatter_class=RawTextHelpFormatter)
 
-parser.add_argument("-d", "--dataset", type=str, required=True, help="Dataset")
+#  parser.add_argument("-d", "--dataset", type=str, required=True, help="Dataset")
 
-parser.add_argument(
-    "-s",
-    "--selection",
-    type=str,
-    required=True,
-    action="append",
-    help="Selection description",
-)
+#  parser.add_argument(
+#      "-s",
+#      "--selection",
+#      type=str,
+#      required=True,
+#      action="append",
+#      help="Selection description",
+#  )
 
-parser.add_argument(
-    "-r",
-    "--range",
-    nargs=3,
-    type=int,
-    help="Index range (start, end, step) to include. Provide 3 integers: start end(exclusive) step.",
-)
+#  parser.add_argument(
+#      "-r",
+#      "--range",
+#      nargs=3,
+#      type=int,
+#      help="Index range (start, end, step) to include. Provide 3 integers: start end(exclusive) step.",
+#  )
 
-parser.add_argument(
-    "-o", "--output", type=str, required=True, help="Name of output json file."
-)
+#  parser.add_argument(
+#      "-o", "--output", type=str, required=True, help="Name of output json file."
+#  )
 
-args = parser.parse_args()
+#  args = parser.parse_args()
 
 
 def create_selection(args):

@@ -12,9 +12,6 @@ import bipp.frame as frame
 import bipp.measurement_set as measurement_set
 import time as tt
 
-# Number of Pixels
-args = parser.parse_args()
-
 def create_dataset(args):
     if args.telescope.lower() == "skalow":
         ms = measurement_set.SKALowMeasurementSet(args.ms_file)

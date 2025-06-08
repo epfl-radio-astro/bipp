@@ -15,10 +15,14 @@ version = "0.0.1"
 [tool.scikit-build]
 cmake.build-type = "RELEASE"
 wheel.packages = ["python/bipp"]
-# cmake.define = {"CMAKE_POLICY_VERSION_MINIMUM"="3.5", "BIPP_INSTALL_LIB"="OFF"}
 cmake.define.CMAKE_POLICY_VERSION_MINIMUM = "3.5"
+cmake.define.BIPP_INSTALL_PYTHON_MODE = "skbuild"
+cmake.define.BIPP_INSTALL_PYTHON = "ON"
+cmake.define.BIPP_INSTALL_APPS= "OFF"
 cmake.define.BIPP_INSTALL_LIB = "OFF"
 
+[project.scripts]
+bipp = "bipp.apps.cli:run_cli"
 
 [[tool.scikit-build.overrides]]
 if.env.BIPP_GPU = "CUDA"

@@ -9,26 +9,26 @@ import bipp
 import astropy.coordinates as coord
 import bipp.frame as frame
 
-parser = argparse.ArgumentParser()
+#  parser = argparse.ArgumentParser()
 
-parser.add_argument(
-    "-d", "--dataset", type=str, required=True, help="datset file"
-)
+#  parser.add_argument(
+#      "-d", "--dataset", type=str, required=True, help="datset file"
+#  )
 
-parser.add_argument(
-    "-f", "--fov", type=float, required=True, help="fov"
-)
+#  parser.add_argument(
+#      "-f", "--fov", type=float, required=True, help="fov"
+#  )
 
-parser.add_argument(
-    "-w", "--width", type=int, required=True, help="image width"
-)
+#  parser.add_argument(
+#      "-w", "--width", type=int, required=True, help="image width"
+#  )
 
-parser.add_argument(
-    "-o", "--output", type=str, required=True, help="Name of output file."
-)
+#  parser.add_argument(
+#      "-o", "--output", type=str, required=True, help="Name of output file."
+#  )
 
-# Number of Pixels
-args = parser.parse_args()
+#  # Number of Pixels
+#  args = parser.parse_args()
 
 def create_image_prop(args):
     with bipp.DatasetFile.open(args.dataset) as dataset:

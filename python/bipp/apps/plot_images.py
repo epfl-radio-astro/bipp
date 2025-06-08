@@ -4,13 +4,13 @@ import bipp
 import matplotlib.pyplot as plt
 
 
-parser = argparse.ArgumentParser()
+#  parser = argparse.ArgumentParser()
 
-parser.add_argument(
-    "-i", "--image", type=str, required=True, help="Image file"
-)
+#  parser.add_argument(
+#      "-i", "--image", type=str, required=True, help="Image file"
+#  )
 
-args = parser.parse_args()
+#  args = parser.parse_args()
 
 def plot_images(args):
     with bipp.ImageDataFile.open(args.image) as image_file:

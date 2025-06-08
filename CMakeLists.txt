@@ -57,10 +57,9 @@ option(BIPP_MPI "Use MPI for multi-process parallization" OFF)
 option(BIPP_INSTALL_LIB "Install library" ON)
 cmake_dependent_option(BIPP_INSTALL_APPS "BIPP_INSTALL_APPS" ON "BIPP_INSTALL_LIB" OFF)
 
-cmake_dependent_option(BIPP_INSTALL_PYTHON "Install Python module" ON "BIPP_PYTHON" OFF)
+cmake_dependent_option(BIPP_INSTALL_PYTHON "Install Python module" OFF "BIPP_PYTHON" OFF)
 cmake_dependent_option(BIPP_INSTALL_PYTHON_DEPS "Install dependencies bundled with Python module" OFF "BIPP_PYTHON" OFF)
-set(BIPP_INSTALL_PYTHON_PREFIX "" CACHE STRING "Python install prefix. If not set, CMAKE_INSTALL_PREFIX will be used.")
-set(BIPP_INSTALL_PYTHON_SUFFIX "platlib" CACHE STRING "Python installation suffix. If platlib, python platlib path will be used.")
+set(BIPP_INSTALL_PYTHON_MODE "platlib" CACHE STRING "Python installation mode. Can be \"platlib\" or \"skbuild\".")
 
 # Library install location
 set(BIPP_INSTALL_LIB_SUFFIX "${CMAKE_INSTALL_LIBDIR}" CACHE STRING "Lib install suffix")
@@ -91,18 +90,21 @@ if(BIPP_PYTHON)
 
 	find_package(Python 3.6 REQUIRED COMPONENTS Interpreter Development.Module OPTIONAL_COMPONENTS Development.Embed)
 
-	if(NOT BIPP_INSTALL_PYTHON_PREFIX)
-	  set(BIPP_INSTALL_PYTHON_PREFIX ${CMAKE_INSTALL_PREFIX})
-	endif()
-
-	if(BIPP_INSTALL_PYTHON_SUFFIX STREQUAL "platlib")
+	if(BIPP_INSTALL_PYTHON)
+	  if(BIPP_INSTALL_PYTHON_MODE STREQUAL "skbuild")
+		if(NOT SKBUILD_PROJECT_NAME)
+		  message(FATAL_ERROR "Expected SKBUILD_PROJECT_NAME to be defined")
+		endif()
+		set(BIPP_INSTALL_PYTHON_PATH ${SKBUILD_PROJECT_NAME})
+	  else()
+		set(BIPP_INSTALL_PYTHON_PREFIX ${CMAKE_INSTALL_PREFIX})
 		execute_process(
 		  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/scripts/python_install_path.py ${BIPP_INSTALL_PYTHON_PREFIX}
 			OUTPUT_VARIABLE BIPP_INSTALL_PYTHON_PATH 
 			OUTPUT_STRIP_TRAILING_WHITESPACE
 			COMMAND_ERROR_IS_FATAL ANY)
-	else()
-	  set(BIPP_INSTALL_PYTHON_PATH "${BIPP_INSTALL_PYTHON_PREFIX}/${BIPP_INSTALL_PYTHON_SUFFIX}")
+		set(BIPP_INSTALL_PYTHON_PATH ${BIPP_INSTALL_PYTHON_PATH}/bipp)
+	  endif()
 	endif()
 endif()
 
