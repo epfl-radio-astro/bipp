@@ -23,7 +23,7 @@ jobs:
       matrix:
         os: [ubuntu-22.04]
         platform_id: [manylinux_x86_64]
-        manylinux_image: [manylinux_2_28]
+        manylinux_image: [manylinux2014]
         python: [39, 310, 311, 312]
         package: [
             {
@@ -77,7 +77,7 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
           CIBW_BEFORE_ALL_LINUX: >
             cd ${HOME} &&
-            yum install -y openblas-openmp fftw-devel wget &&
+            yum install -y openblas-openmp fftw-devel wget hdf5-devel &&
             wget --quiet -O cuda_install.run ${{ matrix.package.cuda_url }} &&
             chmod +x cuda_install.run &&
             ./cuda_install.run --silent --override --toolkit &&
