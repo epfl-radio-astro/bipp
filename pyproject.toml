@@ -34,6 +34,11 @@ if.env.BIPP_GPU = "ROCM"
 inherit.cmake.define = "append"
 cmake.define.BIPP_GPU = "ROCM"
 
+[[tool.scikit-build.overrides]]
+if.env.BIPP_CIBW_WHEEL_BUILD = "1"
+inherit.cmake.define = "append"
+cmake.define.BLAS_LIBRARIES = "/usr/lib64/libopenblaso.so.0"
+
 
 
 
