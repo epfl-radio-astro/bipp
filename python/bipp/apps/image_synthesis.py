@@ -13,13 +13,11 @@ import json
 def image_synthesis(args):
     with bipp.DatasetFile.open(args.dataset) as dataset, bipp.ImagePropFile.open(args.image) as image_prop, open(args.selection) as selection_file:
         selection = json.load(selection_file)
-        print(selection)
         # convert index strings to int
         selection = {tag:{int(i): values for i,values in samples.items()} for tag,samples in selection.items()}
-        print(selection)
 
         comm = bipp.communicator.world()
-        ctx = bipp.Context("AUTO", comm)
+        ctx = bipp.Context(args.proc, comm)
 
         opt = bipp.NufftSynthesisOptions()
         opt.set_tolerance(args.tol)

@@ -89,3 +89,40 @@ Bipp uses skbuild to build the Python module with CMake and Pip. The CMake optio
 BIPP_GPU=CUDA CMAKE_PREFIX_PATH="${path_to_neonufft};${CMAKE_PREFIX_PATH}" python3 -m pip install .
 ```
 
+## Command Line Interface
+BIPP can be used through the Python / C++ API, or through a command line interface.
+This section describes the five steps required for imaging a measurement set through the Python command line interface.
+
+### Dataset conversion
+Compute and store the eigenvectors and eigvenvalues of the visibilities.
+```console
+python3 -m bipp dataset -t SKAlow -ms EOS_21cm-gf_202MHz_4h1d_200.MS -a 512 -o skalow.h5
+```
+
+### Selecting Eigenvalues
+Select eigenvalues and filters.
+A selection is descripted through a 6-value tuple consisting of filter, number of levels, sigma value [0, 1.0], cluster function, minimum and maximum.
+The sigma value is used to exclude large values from the cluster computation.
+
+This example shows creating a selection with 5 levels for eigenvalues in [0,inf) using the 95% smallest eigenvalues with log function for clustering, and one level containing all negative eigenvalues:
+```console
+python3 -m bipp selection -d skalow.h5 -s lsq,5,0.95,log,0,inf -s lsq,1,1.0,none,-inf,0 -o selection.json
+```
+
+### Creating Image Properties
+Create image properties with fov and image size values.
+```console
+python3 -m bipp image_prop -f 10.2 -w 1024 -d skalow.h5 -o image_prop.h5
+```
+
+### Image Synthesis
+Compute the image synthesis.
+```console
+python3 -d skalow.h5 -s selection.json -i image_prop.h5  -o images.h5
+```
+
+### Plotting
+Export the images as PNG files.
+```console
+python3 -m bipp plot -i images.h5
+```
