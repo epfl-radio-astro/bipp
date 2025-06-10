@@ -20,6 +20,7 @@ import bipp.beamforming as beamforming
 import bipp.instrument as instrument
 import bipp.source as sky
 import bipp.array as array
+import bipp.numpy_compat as npc
 
 
 class VisibilityMatrix(array.LabeledMatrix):
@@ -34,7 +35,7 @@ class VisibilityMatrix(array.LabeledMatrix):
     """
 
     def __init__(self, data, beam_idx, check_hermitian=True, weight_spectrum=None):
-        data = np.array(data, copy=False)
+        data = npc.asarray(data)
         if weight_spectrum is not None:
             weight_spectrum = np.array(weight_spectrum, copy=False)
         N_beam = len(beam_idx)

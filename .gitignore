@@ -10,3 +10,4 @@ _skbuild/
 examples/simulation/*.png
 examples/simulation/*.json
 compile_commands.json
+*~

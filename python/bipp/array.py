@@ -12,6 +12,7 @@ import bipp.imot_tools.util.argcheck as chk
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
+import bipp.numpy_compat as npc
 
 
 class LabeledMatrix:
@@ -36,7 +37,7 @@ class LabeledMatrix:
             ):
                 raise ValueError("Parameter[data] must be CSC/CSR-ordered.")
         else:
-            self.__data = np.array(data, copy=False)
+            self.__data = npc.asarray(data)
 
             if self.__data.ndim != 2:
                 raise ValueError("Parameter[data] must be 2D.")
@@ -112,7 +113,7 @@ class LabeledMatrix:
         if not chk.is_instance(LabeledMatrix)(lmtx):
             raise ValueError("Parameter[lmtx] must be a LabeledMatrix.")
 
-        axes = np.array(axes, copy=False)
+        axes = npc.asarray(axes)
         if not np.all((axes == 0) | (axes == 1)):
             raise ValueError("Parameter[axes] can only contain {0, 1}.")
 

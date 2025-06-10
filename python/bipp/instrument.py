@@ -36,6 +36,7 @@ import scipy.linalg as linalg
 import bipp.core as core
 import bipp.array as array
 import bipp.frame as frame
+import bipp.numpy_compat as npc
 import typing as typ
 
 
@@ -84,7 +85,7 @@ class InstrumentGeometry(array.LabeledMatrix):
     """
 
     def __init__(self, xyz, ant_idx):
-        xyz = np.array(xyz, copy=False)
+        xyz = npc.asarray(xyz)
         N_antenna = len(xyz)
         if not chk.has_shape((N_antenna, 3))(xyz):
             raise ValueError("Parameter[xyz] must be a (N_antenna, 3) array.")

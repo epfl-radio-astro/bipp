@@ -13,6 +13,7 @@ import astropy.units as u
 import numpy as np
 
 import bipp.imot_tools.util.argcheck as chk
+import bipp.numpy_compat as npc
 
 
 @chk.check(
@@ -126,7 +127,7 @@ def eq2cart(r, lat, lon):
               [0.],
               [0.]])
     """
-    r = np.array([r]) if chk.is_scalar(r) else np.array(r, copy=False)
+    r = np.array([r]) if chk.is_scalar(r) else npc.asarray(r)
     if np.any(r < 0):
         raise ValueError("Parameter[r] must be non-negative.")
 

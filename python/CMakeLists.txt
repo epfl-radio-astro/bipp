@@ -1,8 +1,8 @@
 if (BIPP_BUNDLED_PYBIND11)
 	FetchContent_Declare(
 		pybind11
-		URL https://github.com/pybind/pybind11/archive/refs/tags/v2.10.4.tar.gz
-		URL_MD5 812eda11d2a114fc0e841faf9626d2c9
+		URL https://github.com/pybind/pybind11/archive/refs/tags/v2.13.6.tar.gz
+		URL_MD5 a04dead9c83edae6d84e2e343da7feeb
 	)
 	FetchContent_MakeAvailable(pybind11)
 else()
