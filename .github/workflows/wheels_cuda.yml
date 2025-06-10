@@ -3,7 +3,7 @@ name: Cuda Wheel builder
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" , "hdf5" ]
   release:
     types: [published]
 
@@ -81,8 +81,7 @@ jobs:
             wget --quiet -O cuda_install.run ${{ matrix.package.cuda_url }} &&
             chmod +x cuda_install.run &&
             ./cuda_install.run --silent --override --toolkit &&
-            bash {project}/.github/build_tools/install_finufft.sh &&
-            bash {project}/.github/build_tools/install_cufinufft.sh
+            bash {project}/.github/build_tools/install_neonufft_cuda.sh
 
         run: |
          bash .github/build_tools/build_wheels.sh

@@ -3,7 +3,7 @@ name: Wheel builder
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" , "hdf5" ]
   release:
     types: [published]
 
@@ -52,7 +52,7 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: >
             cd ${HOME} &&
             yum install -y openblas-openmp fftw-devel wget &&
-            bash {project}/.github/build_tools/install_finufft.sh
+            bash {project}/.github/build_tools/install_neonufft.sh
 
         run: bash .github/build_tools/build_wheels.sh
 
