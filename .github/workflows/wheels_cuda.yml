@@ -67,7 +67,7 @@ jobs:
            BIPP_GPU=CUDA
            CUDACXX=/usr/local/cuda/bin/nvcc
            CUDAARCHS="${{ matrix.package.cuda_arch }}"
-           CIBW_ENVIRONMENT: BIPP_CIBW_WHEEL_BUILD = 1
+           BIPP_CIBW_WHEEL_BUILD=1
            LD_LIBRARY_PATH="/root/cufinufft/lib:$LD_LIBRARY_PATH"
           CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
           CIBW_ARCHS: all
