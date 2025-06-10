@@ -161,12 +161,6 @@ inline auto check(hid_t h) -> hid_t {
   return h;
 }
 
-inline auto check(int h) -> void {
-  if (h < 0) {
-    throw HDF5Error();
-  }
-}
-
 inline auto create_string_attr(hid_t hid, const std::string& name, const std::string& value) -> void {
   DataSpace attSpace = check(H5Screate(H5S_SCALAR));
 
