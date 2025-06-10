@@ -79,6 +79,7 @@ set(BIPP_PYTHON_SRC
 	apps/create_selection.py
 	apps/image_synthesis.py
 	apps/plot_images.py
+	numpy_compat.py
 	)
 
 
