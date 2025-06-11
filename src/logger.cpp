@@ -8,6 +8,8 @@
 #include <limits>
 #include <string>
 #include <vector>
+#include <utility>
+#include "spdlog/logger.h"
 
 #include <spdlog/common.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -17,6 +19,11 @@
 #if defined(BIPP_CUDA) || defined(BIPP_ROCM)
 #include "gpu/util/device_pointer.hpp"
 #include "gpu/util/runtime_api.hpp"
+#endif
+#ifdef BIPP_MPI
+#include "mpi_util/mpi_init_guard.hpp"
+#include "mpi_util/mpi_check_status.hpp"
+
 #endif
 
 namespace bipp {
@@ -139,20 +146,56 @@ auto log_array(spdlog::level::level_enum lvl, spdlog::logger& log, const std::st
 }  // namespace
 
 
-Logger::Logger(BippLogLevel level, const char* out) : level_(level) {
-  spdlog::set_automatic_registration(false);
-  if (!std::strcmp(out, "stdout")) {
-      logger_ = spdlog::stdout_logger_st("bipp");
-  } else if (!std::strcmp(out, "stderr")) {
-      logger_ = spdlog::stderr_logger_st("bipp");
-  } else {
-      try {
-      logger_ = spdlog::basic_logger_st("bipp", out, false);
-      } catch (const spdlog::spdlog_ex& ex) {
-      logger_ = spdlog::stderr_logger_st("bipp");
-      }
+Logger::Logger()  {
+  // Set initial log level if environment variable is set
+  if (const char* envLog = std::getenv("BIPP_LOG_LEVEL")) {
+    if (!std::strcmp(envLog, "off") || !std::strcmp(envLog, "OFF"))
+      level_ = BIPP_LOG_LEVEL_OFF;
+    else if (!std::strcmp(envLog, "debug") || !std::strcmp(envLog, "DEBUG"))
+      level_ = BIPP_LOG_LEVEL_DEBUG;
+    else if (!std::strcmp(envLog, "info") || !std::strcmp(envLog, "INFO"))
+      level_ = BIPP_LOG_LEVEL_INFO;
+    else if (!std::strcmp(envLog, "warn") || !std::strcmp(envLog, "WARN"))
+      level_ = BIPP_LOG_LEVEL_WARN;
+    else if (!std::strcmp(envLog, "error") || !std::strcmp(envLog, "ERROR"))
+      level_ = BIPP_LOG_LEVEL_ERROR;
   }
-  logger_->set_level(convert_level(level));
+
+  if (const char* logRankEnv = std::getenv("BIPP_LOG_RANK")) {
+    std::string logRankString = "0";
+    logRankString = logRankEnv;
+    const int logRank = std::stoi(logRankString);
+#ifdef BIPP_MPI
+    initialize_mpi_init_guard();
+    int rank = 0;
+    mpi_check_status(MPI_Comm_rank(MPI_COMM_WORLD, &rank));
+    if (rank != logRank) {
+      level_ = BIPP_LOG_LEVEL_OFF;
+    }
+#else
+    if (logRank != 0) {
+      level_ = BIPP_LOG_LEVEL_OFF;
+    }
+#endif
+  }
+
+  const char* logOut = "stdout";
+  if (const char* logOutEnv = std::getenv("BIPP_LOG_OUT")) {
+    logOut = logOutEnv;
+  }
+
+  if (level_ != BIPP_LOG_LEVEL_OFF) {
+    spdlog::set_automatic_registration(false);
+    std::shared_ptr<spdlog::logger> logger;
+    if (!std::strcmp(logOut, "stdout")) {
+      logger = spdlog::stdout_logger_st("bipp");
+    } else {
+      logger = spdlog::stderr_logger_st("bipp");
+    }
+    logger->set_level(convert_level(level_));
+
+    data_ = LogObjects{std::move(logger), rt_graph::Timer()};
+  }
 }
 
 auto Logger::convert_level(BippLogLevel l) -> spdlog::level::level_enum {
@@ -172,36 +215,39 @@ auto Logger::convert_level(BippLogLevel l) -> spdlog::level::level_enum {
   return spdlog::level::debug;
 }
 
-auto Logger::log_timings(BippLogLevel level) -> void {
-  if (level > level_ || timer_.empty()) return;
-    const auto result = timer_.process();
+auto Logger::log_timings() -> void {
+  if (BIPP_LOG_LEVEL_INFO <= level_ && data_.has_value() && !data_.value().timer.empty()) {
+    const auto result = data_.value().timer.process();
     auto msg = result.print();
-    log(level, "\n {} \n", msg);
+    log(BIPP_LOG_LEVEL_INFO, "\n{} \n", msg);
+  }
 }
 
 auto Logger::log_matrix(BippLogLevel level, const std::string_view& s, std::size_t m, std::size_t n,
                    const float* array, std::size_t ld) -> void {
-  if (level <= level_) {
-      log_array(convert_level(level), *logger_, s, m, n, array, ld);
+  if (level <= level_ && data_.has_value()) {
+      log_array(convert_level(level), *data_.value().logger, s, m, n, array, ld);
   }
 }
 auto Logger::log_matrix(BippLogLevel level, const std::string_view& s, std::size_t m, std::size_t n,
                    const double* array, std::size_t ld) -> void {
-  if (level <= level_) {
-      log_array(convert_level(level), *logger_, s, m, n, array, ld);
+  if (level <= level_ && data_.has_value()) {
+      log_array(convert_level(level), *data_.value().logger, s, m, n, array, ld);
   }
 }
 auto Logger::log_matrix(BippLogLevel level, const std::string_view& s, std::size_t m, std::size_t n,
                    const std::complex<float>* array, std::size_t ld) -> void {
-  if (level <= level_) {
-      log_array(convert_level(level), *logger_, s, m, n, array, ld);
+  if (level <= level_ && data_.has_value()) {
+      log_array(convert_level(level), *data_.value().logger, s, m, n, array, ld);
   }
 }
 auto Logger::log_matrix(BippLogLevel level, const std::string_view& s, std::size_t m, std::size_t n,
                         const std::complex<double>* array, std::size_t ld) -> void {
-  if (level <= level_) {
-      log_array(convert_level(level), *logger_, s, m, n, array, ld);
+  if (level <= level_ && data_.has_value()) {
+    log_array(convert_level(level), *data_.value().logger, s, m, n, array, ld);
   }
 }
+
+Logger globLogger;
 
 }  // namespace bipp

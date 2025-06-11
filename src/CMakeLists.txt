@@ -1,57 +1,51 @@
 set(BIPP_SOURCE_FILES
 	context_internal.cpp
 	communicator.cpp
+	context.cpp
+	logger.cpp
+	rt_graph.cpp
+	dataset_file.cpp
 	eigensolver.cpp
-	gram_matrix.cpp
-	standard_synthesis.cpp
 	context.cpp
 	nufft_synthesis.cpp
-	logger.cpp
-	imager.cpp
-	synthesis_factory.cpp
-	rt_graph.cpp
 	memory/allocator_factory.cpp
-	host/eigensolver.cpp
 	host/gram_matrix.cpp
-	host/nufft_synthesis.cpp
-	host/nufft_3d3.cpp
 	host/virtual_vis.cpp
-	host/kernels/gemmexp.cpp
 	host/kernels/nuft_sum.cpp
-	host/standard_synthesis.cpp
-	host/collector.cpp
+	image_synthesis.cpp
+	image_data_file.cpp
+	image_prop_file.cpp
 	)
 
-if(BIPP_MPI)
-	list(APPEND BIPP_SOURCE_FILES
-		communicator_internal.cpp
-		distributed_synthesis.cpp
-	        )
-endif()
-
-
+set(BIPP_GPU_KERNEL_FILES)
 if(BIPP_CUDA OR BIPP_ROCM)
-	list(APPEND BIPP_SOURCE_FILES
-		gpu/eigensolver.cpp
-		gpu/gram_matrix.cpp
-		gpu/nufft_3d3.cpp
-		gpu/nufft_synthesis.cpp
-		gpu/virtual_vis.cpp
-		gpu/standard_synthesis.cpp
-		gpu/domain_partition.cu
-		gpu/collector.cpp
-		gpu/util/solver_api.cpp
-		gpu/kernels/gram.cu
-		gpu/kernels/scale_matrix.cu
+    list(APPEND BIPP_GPU_KERNEL_FILES
 		gpu/kernels/add_vector.cu
-		gpu/kernels/gemmexp.cu
-		gpu/kernels/center_vector.cu
-		gpu/kernels/min_max_element.cu
-		gpu/kernels/nuft_sum.cu
-		gpu/kernels/copy_at_indices.cu
-		gpu/kernels/scale_vector.cu
 		)
 endif()
+
+# if(BIPP_CUDA OR BIPP_ROCM)
+#         list(APPEND BIPP_SOURCE_FILES
+#                 gpu/eigensolver.cpp
+#                 gpu/gram_matrix.cpp
+#                 gpu/nufft_3d3.cpp
+#                 gpu/nufft_synthesis.cpp
+#                 gpu/virtual_vis.cpp
+#                 gpu/standard_synthesis.cpp
+#                 gpu/domain_partition.cu
+#                 gpu/collector.cpp
+#                 gpu/util/solver_api.cpp
+#                 gpu/kernels/gram.cu
+#                 gpu/kernels/scale_matrix.cu
+#                 gpu/kernels/add_vector.cu
+#                 gpu/kernels/gemmexp.cu
+#                 gpu/kernels/center_vector.cu
+#                 gpu/kernels/min_max_element.cu
+#                 gpu/kernels/nuft_sum.cu
+#                 gpu/kernels/copy_at_indices.cu
+#                 gpu/kernels/scale_vector.cu
+#                 )
+# endif()
 
 if(BIPP_MPI)
 	list(APPEND BIPP_SOURCE_FILES
@@ -59,14 +53,13 @@ if(BIPP_MPI)
 		)
 endif()
 
-# set all files to CXX, such that .cu files are compiled by the CXX compiler with ROCM enabled
 if(BIPP_ROCM)
-    set_source_files_properties(${BIPP_SOURCE_FILES} PROPERTIES LANGUAGE CXX)
+    set_source_files_properties(${BIPP_GPU_KERNEL_FILES} PROPERTIES LANGUAGE HIP)
 endif()
 
 
 
-add_library(bipp_objects OBJECT ${BIPP_SOURCE_FILES})
+add_library(bipp_objects OBJECT ${BIPP_SOURCE_FILES} ${BIPP_GPU_KERNEL_FILES})
 
 # All .cu files are self-contained. Device linking can have issues with propageted linker flags of other targets like MPI.
 if(BIPP_CUDA)
@@ -85,6 +78,7 @@ target_include_directories(bipp_objects INTERFACE $<BUILD_INTERFACE:${PROJECT_SO
 
 #shared library
 add_library(bipp $<TARGET_OBJECTS:bipp_objects>)
+add_library(bipp::bipp ALIAS bipp)
 
 set_property(TARGET bipp PROPERTY VERSION ${BIPP_VERSION})
 set_property(TARGET bipp PROPERTY SOVERSION ${BIPP_SO_VERSION})
@@ -161,4 +155,8 @@ if(BIPP_INSTALL_LIB)
 	install(DIRECTORY "${PROJECT_SOURCE_DIR}/cmake/modules"
 		DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/bipp"
         FILES_MATCHING PATTERN "*.cmake")
+endif()
+
+if(BIPP_BUILD_APPS)
+    add_subdirectory(apps)
 endif()

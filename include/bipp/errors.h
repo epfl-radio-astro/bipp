@@ -8,9 +8,9 @@ enum BippError {
    */
   BIPP_SUCCESS,
   /**
-   * Unknown error.
+   * Generic error.
    */
-  BIPP_UNKNOWN_ERROR,
+  BIPP_GENERIC_ERROR,
   /**
    * Internal error.
    */
@@ -31,10 +31,6 @@ enum BippError {
    * Eigensolver error.
    */
   BIPP_EIGENSOLVER_ERROR,
-  /**
-   * fiNUFFT error.
-   */
-  BIPP_FINUFFT_ERROR,
   /**
    * Not Implemented error.
    */
@@ -58,7 +54,15 @@ enum BippError {
   /**
    * MPI Error
    */
-  BIPP_MPI_ERROR
+  BIPP_MPI_ERROR,
+  /**
+   * HDF5 error.
+   */
+  BIPP_HDF5_ERROR,
+  /**
+   * File error.
+   */
+  BIPP_FILE_ERROR
 };
 
 #ifndef __cplusplus

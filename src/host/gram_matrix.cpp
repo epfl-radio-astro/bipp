@@ -10,7 +10,6 @@
 #include <utility>
 #include <cassert>
 
-#include "bipp/bipp.h"
 #include "bipp/config.h"
 #include "context_internal.hpp"
 #include "host/blas_api.hpp"
@@ -28,8 +27,9 @@ static T calc_pi_sinc(T x) {
 }
 
 template <typename T>
-auto gram_matrix(ContextInternal& ctx, ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz,
+auto gram_matrix(const std::shared_ptr<Allocator>& alloc, ConstHostView<std::complex<T>, 2> w, ConstHostView<T, 2> xyz,
                  T wl, HostView<std::complex<T>, 2> g) -> void {
+  auto funcTimer = globLogger.scoped_timing(BIPP_LOG_LEVEL_INFO, "host::gram_matrix");
   const auto nAntenna= w.shape(0);
   const auto nBeam= w.shape(1);
 
@@ -38,7 +38,7 @@ auto gram_matrix(ContextInternal& ctx, ConstHostView<std::complex<T>, 2> w, Cons
   assert(g.shape(0) == nBeam);
   assert(g.shape(1) == nBeam);
 
-  auto buffer = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nAntenna, nAntenna});
+  auto buffer = HostArray<std::complex<T>, 2>(alloc, {nAntenna, nAntenna});
 
   auto x = xyz.slice_view(0);
   auto y = xyz.slice_view(1);
@@ -55,19 +55,19 @@ auto gram_matrix(ContextInternal& ctx, ConstHostView<std::complex<T>, 2> w, Cons
     }
   }
 
-  auto bufferC = HostArray<std::complex<T>, 2>(ctx.host_alloc(), {nAntenna, nBeam});
+  auto bufferC = HostArray<std::complex<T>, 2>(alloc, {nAntenna, nBeam});
 
   blas::symm<std::complex<T>>(CblasLeft, CblasLower, {1, 0}, buffer, w, {0, 0}, bufferC);
   blas::gemm<std::complex<T>>(CblasConjTrans, CblasNoTrans, {1, 0}, w, bufferC, {0, 0}, g);
 
-  ctx.logger().log_matrix(BIPP_LOG_LEVEL_DEBUG, "gram", g);
+  globLogger.log_matrix(BIPP_LOG_LEVEL_DEBUG, "gram", g);
 }
 
-template auto gram_matrix<float>(ContextInternal& ctx, ConstHostView<std::complex<float>, 2> w,
+template auto gram_matrix<float>(const std::shared_ptr<Allocator>& alloc, ConstHostView<std::complex<float>, 2> w,
                                  ConstHostView<float, 2> xyz, float wl,
                                  HostView<std::complex<float>, 2> g) -> void;
 
-template auto gram_matrix<double>(ContextInternal& ctx, ConstHostView<std::complex<double>, 2> w,
+template auto gram_matrix<double>(const std::shared_ptr<Allocator>& alloc, ConstHostView<std::complex<double>, 2> w,
                                   ConstHostView<double, 2> xyz, double wl,
                                   HostView<std::complex<double>, 2> g) -> void;
 

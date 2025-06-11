@@ -12,7 +12,7 @@ namespace gpu {
 template <typename T>
 __global__ static void add_vector_real_of_complex_kernel(std::size_t n,
                                                          const api::ComplexType<T>* __restrict__ a,
-                                                         T* __restrict__ b) {
+                                                         float* __restrict__ b) {
   for (std::size_t i = threadIdx.x + blockIdx.x * blockDim.x; i < n; i += gridDim.x * blockDim.x) {
     b[i] += a[i].x;
   }
@@ -20,7 +20,7 @@ __global__ static void add_vector_real_of_complex_kernel(std::size_t n,
 
 template <typename T>
 auto add_vector_real_of_complex(const api::DevicePropType& prop, const api::StreamType& stream,
-                                std::size_t n, const api::ComplexType<T>* a, T* b) -> void {
+                                std::size_t n, const api::ComplexType<T>* a, float* b) -> void {
   constexpr int blockSize = 256;
 
   const dim3 block(std::min<int>(blockSize, prop.maxThreadsDim[0]), 1, 1);
@@ -34,7 +34,7 @@ template auto add_vector_real_of_complex<float>(const api::DevicePropType& prop,
 
 template auto add_vector_real_of_complex<double>(const api::DevicePropType& prop,
                                                  const api::StreamType& stream, std::size_t n,
-                                                 const api::ComplexType<double>* a, double* b)
+                                                 const api::ComplexType<double>* a, float* b)
     -> void;
 
 }  // namespace gpu

@@ -17,6 +17,7 @@ import scipy.linalg as linalg
 import bipp.imot_tools.math.linalg as ilinalg
 import bipp.imot_tools.math.sphere.transform as transform
 import bipp.imot_tools.util.argcheck as chk
+import bipp.numpy_compat as npc
 
 
 @chk.check(
@@ -53,7 +54,7 @@ def spherical(direction, FoV, size):
     if not (0 < np.rad2deg(FoV) <= 179):
         raise ValueError("Parameter[FoV] must be in (0, 179] degrees.")
 
-    size = np.array(size, copy=False)
+    size = npc.asarray(size)
     if np.any(size <= 0):
         raise ValueError("Parameter[size] must contain positive entries.")
 
@@ -111,7 +112,7 @@ def uniform(direction, FoV, size):
     if not (0 < np.rad2deg(FoV) <= 179):
         raise ValueError("Parameter[FoV] must be in (0, 179] degrees.")
 
-    size = np.array(size, copy=False)
+    size = npc.asarray(size)
     if np.any(size <= 0):
         raise ValueError("Parameter[size] must contain positive entries.")
 

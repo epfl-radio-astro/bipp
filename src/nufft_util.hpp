@@ -5,41 +5,47 @@
 #include <cstddef>
 
 #include "bipp/config.h"
+//---
+#include "memory/view.hpp"
 
 namespace bipp {
-inline auto optimal_nufft_input_partition(std::array<double, 3> inputExtent,
-                                          std::array<double, 3> outputExtent,
-                                          std::size_t maxFFTGridSize)
+template <typename T, typename MemFunc>
+auto optimal_parition_size(ConstHostView<T, 2> uvw, std::array<T, 3> xyzMin,
+                           std::array<T, 3> xyzMax, unsigned long long maxMem, MemFunc&& memFunc)
     -> std::array<std::size_t, 3> {
-  // upsampling factor option used for finufft
-  // Note: On CPU, finufft will set this to 1.25 for type 3 transforms if eps > 1e-9
-  constexpr double upsampfactor = 2.0;
-  constexpr double pi = 3.14159265358979323846;
+  auto uView = uvw.slice_view(0);
+  auto vView = uvw.slice_view(1);
+  auto wView = uvw.slice_view(2);
+  auto uMinMax = std::minmax_element(uView.data(), uView.data() + uView.size());
+  auto vMinMax = std::minmax_element(vView.data(), vView.data() + vView.size());
+  auto wMinMax = std::minmax_element(wView.data(), wView.data() + wView.size());
+  const std::array<T, 3> uvwMin = {*uMinMax.first, *vMinMax.first, *wMinMax.first};
+  const std::array<T, 3> uvwMax = {*uMinMax.second, *vMinMax.second, *wMinMax.second};
 
-  std::size_t fftGridSize = 1;
-  for (std::size_t i = 0; i < inputExtent.size(); ++i) {
-    fftGridSize *=
-        static_cast<std::size_t>(upsampfactor * inputExtent[i] * outputExtent[i] / (2 * pi));
+  const std::array<T, 3> xyzExtent = {xyzMax[0] - xyzMin[0], xyzMax[1] - xyzMin[1],
+                                      xyzMax[2] - xyzMin[2]};
+
+  std::array<T, 3> uvwExtent = {uvwMax[0] - uvwMin[0], uvwMax[1] - uvwMin[1],
+                                uvwMax[2] - uvwMin[2]};
+
+  std::array<std::size_t, 3> grid = {1, 1, 1};
+
+  while (memFunc(uvwMin,
+                 {uvwMin[0] + uvwExtent[0], uvwMin[1] + uvwExtent[1], uvwMin[2] + uvwExtent[2]},
+                 xyzMin, xyzMax) > maxMem) {
+    std::size_t maxIdx = 0;
+    if (uvwExtent[1] * xyzExtent[1] >= uvwExtent[0] * xyzExtent[0] &&
+        uvwExtent[1] * xyzExtent[1] >= uvwExtent[2] * xyzExtent[2]) {
+      maxIdx = 1;
+    } else if (uvwExtent[2] * xyzExtent[2] >= uvwExtent[0] * xyzExtent[0] &&
+               uvwExtent[2] * xyzExtent[2] >= uvwExtent[1] * xyzExtent[1]) {
+      maxIdx = 2;
+    }
+
+    grid[maxIdx] += 1;
+    uvwExtent[maxIdx] = (uvwMax[maxIdx] - uvwMin[maxIdx]) / grid[maxIdx];
   }
 
-  const auto partitionSizeTarget = (fftGridSize + maxFFTGridSize - 1) / maxFFTGridSize;
-
-  std::array<std::size_t, 3> gridSize = {1, 1, 1};
-  std::array<double, 3> gridSpacing = inputExtent;
-  while (gridSize[0] * gridSize[1] * gridSize[2] < partitionSizeTarget) {
-    std::array<double, 3> sortedSpacing = gridSpacing;
-    std::sort(sortedSpacing.begin(), sortedSpacing.end());
-
-    const auto maxIndex =
-        std::max_element(gridSpacing.begin(), gridSpacing.end()) - gridSpacing.begin();
-
-    // Increase grid size at dimension with largest gridSpacing by multiplying with factor between
-    // largest and second largest grid spacing
-    gridSize[maxIndex] *= std::min(std::max<std::size_t>(2, sortedSpacing[2] / sortedSpacing[1]),
-                                   partitionSizeTarget);
-    gridSpacing[maxIndex] = inputExtent[maxIndex] / gridSize[maxIndex];
-  }
-
-  return gridSize;
+  return grid;
 }
 }  // namespace bipp

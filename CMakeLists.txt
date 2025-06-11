@@ -46,24 +46,20 @@ include(GNUInstallDirs)
 include(FetchContent)
 include(CMakeDependentOption)
 
-#add local module path
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
-
 # Options
 set(BUILD_SHARED_LIBS "ON" CACHE STRING "Build as shared library") # default to shared
 option(BIPP_BUILD_TESTS "Build tests" OFF)
+option(BIPP_BUILD_APPS "Build apps" ON)
 option(BIPP_PYTHON "Build python module" ON)
-option(BIPP_MAGMA "Use MAGMA library as eigensolver" OFF)
 option(BIPP_UMPIRE "Use Umpire memory pool library" OFF)
-option(BIPP_VC "Use VC vectorization library" OFF)
-option(BIPP_OMP "Use OpenMP for multi-threading" ON)
 option(BIPP_MPI "Use MPI for multi-process parallization" OFF)
 
 option(BIPP_INSTALL_LIB "Install library" ON)
-cmake_dependent_option(BIPP_INSTALL_PYTHON "Install Python module" ON "BIPP_PYTHON" OFF)
+cmake_dependent_option(BIPP_INSTALL_APPS "BIPP_INSTALL_APPS" ON "BIPP_INSTALL_LIB" OFF)
+
+cmake_dependent_option(BIPP_INSTALL_PYTHON "Install Python module" OFF "BIPP_PYTHON" OFF)
 cmake_dependent_option(BIPP_INSTALL_PYTHON_DEPS "Install dependencies bundled with Python module" OFF "BIPP_PYTHON" OFF)
-set(BIPP_INSTALL_PYTHON_PREFIX "" CACHE STRING "Python install prefix. If not set, CMAKE_INSTALL_PREFIX will be used.")
-set(BIPP_INSTALL_PYTHON_SUFFIX "platlib" CACHE STRING "Python installation suffix. If platlib, python platlib path will be used.")
+set(BIPP_INSTALL_PYTHON_MODE "platlib" CACHE STRING "Python installation mode. Can be \"platlib\" or \"skbuild\".")
 
 # Library install location
 set(BIPP_INSTALL_LIB_SUFFIX "${CMAKE_INSTALL_LIBDIR}" CACHE STRING "Lib install suffix")
@@ -73,12 +69,12 @@ cmake_dependent_option(BIPP_BUNDLED_SPDLOG "Use bundled spdlog lib" ON "BIPP_BUN
 cmake_dependent_option(BIPP_BUNDLED_PYBIND11 "Use bundled pybind11 lib" ON "BIPP_BUNDLED_LIBS" OFF)
 cmake_dependent_option(BIPP_BUNDLED_GOOGLETEST "Use bundled googletest lib" ON "BIPP_BUNDLED_LIBS" OFF)
 cmake_dependent_option(BIPP_BUNDLED_JSON "Use bundled json lib" ON "BIPP_BUNDLED_LIBS" OFF)
+cmake_dependent_option(BIPP_BUNDLED_CLI11 "Use bundled CLI11 lib" ON "BIPP_BUNDLED_LIBS" OFF)
 
 set(BIPP_GPU "OFF" CACHE STRING "GPU backend")
 set_property(CACHE BIPP_GPU PROPERTY STRINGS
 	"OFF" "CUDA" "ROCM"
 	)
-set(CMAKE_HIP_ARCHITECTURES "gfx803;gfx900;gfx906" CACHE STRING "HIP GPU architectures")
 
 set(BIPP_BUILD_TYPE "OFF" CACHE STRING "If set, overrides the CMAKE_BUILD_TYPE variable.")
 set_property(CACHE BIPP_BUILD_TYPE PROPERTY STRINGS
@@ -94,18 +90,21 @@ if(BIPP_PYTHON)
 
 	find_package(Python 3.6 REQUIRED COMPONENTS Interpreter Development.Module OPTIONAL_COMPONENTS Development.Embed)
 
-	if(NOT BIPP_INSTALL_PYTHON_PREFIX)
-	  set(BIPP_INSTALL_PYTHON_PREFIX ${CMAKE_INSTALL_PREFIX})
-	endif()
-
-	if(BIPP_INSTALL_PYTHON_SUFFIX STREQUAL "platlib")
+	if(BIPP_INSTALL_PYTHON)
+	  if(BIPP_INSTALL_PYTHON_MODE STREQUAL "skbuild")
+		if(NOT SKBUILD_PROJECT_NAME)
+		  message(FATAL_ERROR "Expected SKBUILD_PROJECT_NAME to be defined")
+		endif()
+		set(BIPP_INSTALL_PYTHON_PATH ${SKBUILD_PROJECT_NAME})
+	  else()
+		set(BIPP_INSTALL_PYTHON_PREFIX ${CMAKE_INSTALL_PREFIX})
 		execute_process(
 		  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/scripts/python_install_path.py ${BIPP_INSTALL_PYTHON_PREFIX}
 			OUTPUT_VARIABLE BIPP_INSTALL_PYTHON_PATH 
 			OUTPUT_STRIP_TRAILING_WHITESPACE
 			COMMAND_ERROR_IS_FATAL ANY)
-	else()
-	  set(BIPP_INSTALL_PYTHON_PATH "${BIPP_INSTALL_PYTHON_PREFIX}/${BIPP_INSTALL_PYTHON_SUFFIX}")
+		set(BIPP_INSTALL_PYTHON_PATH ${BIPP_INSTALL_PYTHON_PATH}/bipp)
+	  endif()
 	endif()
 endif()
 
@@ -117,7 +116,6 @@ if(BIPP_GPU)
 		set(BIPP_CUDA ON)
 	elseif(BIPP_GPU STREQUAL "ROCM")
 		set(BIPP_ROCM ON)
-		set(BIPP_MAGMA ON)
 	else()
 		message(FATAL_ERROR "Invalid GPU backend")
 	endif()
@@ -132,6 +130,9 @@ set(BIPP_FLAGS "")
 set(BIPP_EXTERNAL_LIBS "")
 set(BIPP_EXTERNAL_LIBS_PUBLIC "")
 set(BIPP_INCLUDE_DIRS "")
+
+set(BIPP_TEST_LIBRARIES)
+set(BIPP_APP_LIBRARIES)
 
 # CUDA
 if(BIPP_CUDA)
@@ -153,12 +154,12 @@ if(BIPP_CUDA)
 		set_property(TARGET CUDA::cublas PROPERTY INTERFACE_LINK_LIBRARIES ${CUDA_CUBLAS_LIBRARY})
 		set_property(TARGET CUDA::cublas PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 
-		find_library(CUDA_CUSOLVER_LIBRARY cusolver PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
-		if(NOT TARGET CUDA::cusolver)
-			add_library(CUDA::cusolver INTERFACE IMPORTED)
-		endif()
-		set_property(TARGET CUDA::cusolver PROPERTY INTERFACE_LINK_LIBRARIES ${CUDA_CUSOLVER_LIBRARY})
-		set_property(TARGET CUDA::cusolver PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+		# find_library(CUDA_CUSOLVER_LIBRARY cusolver PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+		# if(NOT TARGET CUDA::cusolver)
+		#     add_library(CUDA::cusolver INTERFACE IMPORTED)
+		# endif()
+		# set_property(TARGET CUDA::cusolver PROPERTY INTERFACE_LINK_LIBRARIES ${CUDA_CUSOLVER_LIBRARY})
+		# set_property(TARGET CUDA::cusolver PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 	endif()
 
 	list(APPEND BIPP_EXTERNAL_LIBS CUDA::cudart CUDA::cublas CUDA::cusolver)
@@ -166,36 +167,12 @@ endif()
 
 # ROCm
 if(BIPP_ROCM)
-	list(APPEND BIPP_FLAGS -fno-gpu-rdc)
-
-	include(CheckCXXCompilerFlag)
-
-	check_cxx_compiler_flag("--offload-arch=gfx906" _IS_OFFLOAD_HIPCC)
-	if(_IS_OFFLOAD_HIPCC)
-		foreach(arch ${CMAKE_HIP_ARCHITECTURES})
-			list(APPEND BIPP_FLAGS --offload-arch=${arch})
-		endforeach()
-	else()
-		check_cxx_compiler_flag("--amdgpu-target=gfx906" _IS_AMDGPU_HIPCC)
-		if(NOT _IS_AMDGPU_HIPCC)
-			message(FATAL_ERROR "ROCm build requires hipcc to be set as CXX compiler.")
-		endif()
-		foreach(arch ${CMAKE_HIP_ARCHITECTURES})
-			list(APPEND BIPP_FLAGS --amdgpu-target=${arch})
-		endforeach()
-	endif()
+	enable_language(HIP)
 
 	find_package(hip CONFIG REQUIRED)
 	find_package(rocblas CONFIG REQUIRED)
 	find_package(hipcub CONFIG REQUIRED)
 	list(APPEND BIPP_EXTERNAL_LIBS hip::host roc::rocblas hip::hipcub)
-endif()
-
-# MAGMA
-if(BIPP_MAGMA)
-	find_package(MAGMA MODULE REQUIRED)
-	list(APPEND BIPP_EXTERNAL_LIBS MAGMA::MAGMA)
-	list(APPEND BIPP_FLAGS -DUSE_HIP) # required to compile magma header
 endif()
 
 # Umpire
@@ -230,49 +207,93 @@ if(NOT TARGET LAPACK::LAPACK)
 endif()
 list(APPEND BIPP_EXTERNAL_LIBS LAPACK::LAPACK)
 
-find_package(FINUFFT REQUIRED)
-list(APPEND BIPP_EXTERNAL_LIBS FINUFFT::finufft)
-# finufft has fftw in interface headers
-find_package(FFTW REQUIRED)
-find_package(FFTWF REQUIRED)
-list(APPEND BIPP_EXTERNAL_LIBS FFTW::FFTW FFTWF::FFTWF)
+# HDF5
+find_package(HDF5 MODULE REQUIRED COMPONENTS C)
+list(APPEND BIPP_EXTERNAL_LIBS hdf5::hdf5)
+
+find_package(neonufft CONFIG REQUIRED)
+list(APPEND BIPP_EXTERNAL_LIBS neonufft::neonufft)
 
 if(BIPP_CUDA OR BIPP_ROCM)
-	find_package(CUFINUFFT REQUIRED)
-	list(APPEND BIPP_EXTERNAL_LIBS CUFINUFFT::cufinufft)
+	if(NOT TARGET neonufft::neonufft_gpu)
+	  message(FATAL_ERROR "Neonufft not compiled with GPU support.")
+	endif()
+	list(APPEND BIPP_EXTERNAL_LIBS neonufft::neonufft_gpu)
 endif()
-
-# OpenMP
-if(BIPP_OMP)
-  find_package(OpenMP REQUIRED)
-  list(APPEND BIPP_EXTERNAL_LIBS OpenMP::OpenMP_CXX)
-endif()
-
-if(BIPP_VC)
-  find_package(Vc CONFIG REQUIRED)
-  list(APPEND BIPP_EXTERNAL_LIBS Vc::Vc)
-endif()
-
 
 if(BIPP_BUNDLED_SPDLOG)
+  set(SPDLOG_INSTALL OFF CACHE BOOL "")
   FetchContent_Declare(
 	spdlog
 	URL https://github.com/gabime/spdlog/archive/refs/tags/v1.14.1.tar.gz
 	URL_MD5 f2c3f15c20e67b261836ff7bfda302cf
   )
-  FetchContent_GetProperties(spdlog)
-  if(NOT spdlog_POPULATED)
-	FetchContent_Populate(spdlog)
-  endif()
-  list(APPEND BIPP_INCLUDE_DIRS ${spdlog_SOURCE_DIR}/include)
+  FetchContent_MakeAvailable(spdlog)
+  list(APPEND BIPP_EXTERNAL_LIBS spdlog::spdlog_header_only)
 else()
   find_package(spdlog CONFIG REQUIRED)
   list(APPEND BIPP_EXTERNAL_LIBS spdlog::spdlog)
 endif()
 
+# header-only command line parser
+if(BIPP_BUILD_APPS)
+  if(BIPP_BUNDLED_CLI11)
+	set(CLI11_INSTALL OFF CACHE BOOL "")
+	set(CLI11_BUILD_TESTS OFF CACHE BOOL "")
+	set(CLI11_BUILD_EXAMPLES OFF CACHE BOOL "")
+	FetchContent_Declare(
+	  cli11
+	  URL https://github.com/CLIUtils/CLI11/archive/refs/tags/v2.4.2.tar.gz
+	  URL_MD5 f9c0acb8c483a524e9dd275955227254
+	)
+	FetchContent_MakeAvailable(cli11)
+  else()
+	find_package(CLI11 CONFIG REQUIRED)
+  endif()
+  list(APPEND BIPP_APP_LIBRARIES CLI11::CLI11)
+endif()
+
+# json parser
+
+if(BIPP_BUILD_TESTS OR BIPP_BUILD_APPS)
+  if(BIPP_BUNDLED_JSON)
+	set(JSON_Install OFF CACHE BOOL "")
+	set(JSON_BuildTests OFF CACHE INTERNAL "")
+	  FetchContent_Declare(
+	  json
+	  URL https://github.com/nlohmann/json/archive/refs/tags/v3.12.0.tar.gz
+	  URL_MD5 c2528c3e04faccaaee44f1f8f3d30d99
+	)
+	FetchContent_MakeAvailable(json)
+  else()
+	find_package(nlohmann_json CONFIG REQUIRED)
+  endif()
+  list(APPEND BIPP_APP_LIBRARIES nlohmann_json::nlohmann_json)
+  list(APPEND BIPP_TEST_LIBRARIES nlohmann_json::nlohmann_json)
+endif()
+
+
+if(BIPP_BUILD_TESTS)
+  if(BIPP_BUNDLED_GOOGLETEST)
+	set(BUILD_GMOCK OFF CACHE BOOL "")
+	set(INSTALL_GTEST OFF CACHE BOOL "")
+	# add googletest
+	FetchContent_Declare(
+	  googletest
+	  URL https://github.com/google/googletest/archive/refs/tags/v1.13.0.tar.gz
+	  URL_MD5 95b29f0038ec84a611df951d74d99897
+	)
+	FetchContent_MakeAvailable(googletest)
+  else()
+	find_package(googletest CONFIG REQUIRED)
+  endif()
+  list(APPEND BIPP_TEST_LIBRARIES gtest)
+endif()
+
+
 # check if C api is available for blas and lapack
 # include(CheckCXXSymbolExists)
-set(CMAKE_REQUIRED_LIBRARIES ${BIPP_EXTERNAL_LIBS})
+set(CMAKE_REQUIRED_LIBRARIES BLAS::BLAS)
 include(CheckFunctionExists)
 
 unset(BIPP_BLAS_C CACHE) # Result is cached, so change of library will not lead to a new check automatically

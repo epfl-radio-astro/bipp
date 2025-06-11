@@ -23,21 +23,15 @@ jobs:
       matrix:
         os: [ubuntu-22.04]
         platform_id: [manylinux_x86_64]
-        manylinux_image: [manylinux2014]
+        manylinux_image: [manylinux_2_28]
         python: [39, 310, 311, 312]
         package: [
             {
               name: "bipp-cuda12x",
               desc: "Bluebild imaging algorithm for radio astronomy build with CUDA 12.x",
               cuda_arch: "60;61;70;75;80;86;89;90",
-              cuda_url: "https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run"
-            },
-            {
-              name: "bipp-cuda11x",
-              desc: "Bluebild imaging algorithm for radio astronomy build with CUDA 11.2 - 11.x",
-              cuda_arch: "60;61;70;75;80;86",
-              cuda_url: "https://developer.download.nvidia.com/compute/cuda/11.2.1/local_installers/cuda_11.2.1_460.32.03_linux.run"
-            },
+              cuda_url: "https://developer.download.nvidia.com/compute/cuda/12.8.1/local_installers/cuda_12.8.1_570.124.06_linux.run"
+            }
           ]
 
     steps:
@@ -67,7 +61,7 @@ jobs:
            BIPP_GPU=CUDA
            CUDACXX=/usr/local/cuda/bin/nvcc
            CUDAARCHS="${{ matrix.package.cuda_arch }}"
-           BIPP_CMAKE_ARGS="-DBLAS_LIBRARIES=/usr/lib64/libopenblaso.so.0 -DCMAKE_PREFIX_PATH=/root/cufinufft"
+           BIPP_CIBW_WHEEL_BUILD=1
            LD_LIBRARY_PATH="/root/cufinufft/lib:$LD_LIBRARY_PATH"
           CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
           CIBW_ARCHS: all
@@ -77,12 +71,11 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
           CIBW_BEFORE_ALL_LINUX: >
             cd ${HOME} &&
-            yum install -y openblas-openmp fftw-devel wget &&
+            yum install -y openblas-openmp fftw-devel wget hdf5-devel &&
             wget --quiet -O cuda_install.run ${{ matrix.package.cuda_url }} &&
             chmod +x cuda_install.run &&
             ./cuda_install.run --silent --override --toolkit &&
-            bash {project}/.github/build_tools/install_finufft.sh &&
-            bash {project}/.github/build_tools/install_cufinufft.sh
+            bash {project}/.github/build_tools/install_neonufft_cuda.sh
 
         run: |
          bash .github/build_tools/build_wheels.sh
@@ -118,26 +111,25 @@ jobs:
           print-hash: true
 
  # Upload cuda 11x wheels
-  pypi-publish-11x:
-    name: Upload bipp-cuda11x release to PyPI
-    if: github.event_name == 'release' && github.event.action == 'created'
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-    needs: [build_cuda_wheels]
-    permissions:
-      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
+  # pypi-publish-11x:
+  #   name: Upload bipp-cuda11x release to PyPI
+  #   if: github.event_name == 'release' && github.event.action == 'created'
+  #   runs-on: ubuntu-latest
+  #   environment:
+  #     name: pypi
+  #   needs: [build_cuda_wheels]
+  #   permissions:
+  #     id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
 
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: bipp-cuda11x-cibw*
-          path: dist
-          merge-multiple: true
+  #   steps:
+  #     - name: Download artifacts
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         pattern: bipp-cuda11x-cibw*
+  #         path: dist
+  #         merge-multiple: true
 
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          print-hash: true
-
+  #     - name: Publish package distributions to PyPI
+  #       uses: pypa/gh-action-pypi-publish@release/v1
+  #       with:
+  #         print-hash: true

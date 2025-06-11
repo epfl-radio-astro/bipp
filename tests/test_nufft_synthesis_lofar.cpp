@@ -1,12 +1,15 @@
-#include <cmath>
 #include <complex>
 #include <fstream>
-#include <stdexcept>
-#include <tuple>
+#include <string>
 #include <type_traits>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "bipp/bipp.hpp"
+#include "bipp/communicator.hpp"
+#include "bipp/dataset.hpp"
+#include "bipp/image_synthesis.hpp"
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
 
@@ -82,65 +85,141 @@ static auto read_json_scalar_1d(JSON j) -> std::vector<T> {
 template <typename T>
 class NufftSynthesisLofar : public ::testing::TestWithParam<std::tuple<BippProcessingUnit>> {
 protected:
-  using ValueType = T;
+  using ValueType = float;
 
-  NufftSynthesisLofar() : ctx_(std::get<0>(GetParam())) {}
+  NufftSynthesisLofar() : ctx_(std::get<0>(GetParam()), bipp::Communicator::world()) {}
 
   auto test_intensity() -> void {
     const auto data = get_lofar_input_json();
     const auto output_data = get_lofar_nufft_output<T>();
 
-    const T wl = ValueType(data["wl"]);
-    const T tol = ValueType(data["eps"]);
+    const ValueType wl = ValueType(data["wl"]);
+    const ValueType tol = ValueType(data["eps"]);
     const std::size_t nAntenna = data["n_antenna"];
     const std::size_t nBeam = data["n_beam"];
     const std::size_t nEig = data["n_eig_int"];
     const std::size_t nIntervals = data["intervals_int"].size();
-    const auto intervals = read_json_scalar_2d<T>(data["intervals_int"]);
+    const auto intervals = read_json_scalar_2d<ValueType>(data["intervals_int"]);
 
-    const auto imgRef = read_json_scalar_2d<T>(output_data[std::string("int_") + "lsq"]);
-    const auto lmnX = read_json_scalar_1d<T>(output_data["lmn_x"]);
-    const auto lmnY = read_json_scalar_1d<T>(output_data["lmn_y"]);
-    const auto lmnZ = read_json_scalar_1d<T>(output_data["lmn_z"]);
+    const auto imgRef = read_json_scalar_2d<ValueType>(output_data[std::string("int_") + "lsq"]);
+    const auto lmnX = read_json_scalar_1d<ValueType>(output_data["lmn_x"]);
+    const auto lmnY = read_json_scalar_1d<ValueType>(output_data["lmn_y"]);
+    const auto lmnZ = read_json_scalar_1d<ValueType>(output_data["lmn_z"]);
+
     const std::size_t nPixel = imgRef.size() / nIntervals;
 
-    bipp::NufftSynthesis<T> imager(ctx_, bipp::NufftSynthesisOptions(), nIntervals, nPixel,
-                                   lmnX.data(), lmnY.data(), lmnZ.data());
-
     // map intervals to mask
-    auto eigMaskFunc = [&](std::size_t idxBin, std::size_t nEigOut, T* d) -> void {
-      const T dMin = intervals[idxBin * 2];
-      const T dMax = intervals[idxBin * 2 + 1];
+    auto eigMaskFunc = [&](std::size_t idxBin, std::size_t nEigOut, ValueType* d) -> void {
+      const ValueType dMin = intervals[idxBin * 2];
+      const ValueType dMax = intervals[idxBin * 2 + 1];
 
       std::size_t idxEig = 0;
-      for(; idxEig < nEigOut - nEig; ++idxEig) {
-        d[idxEig] = 0;
-      }
-      for(; idxEig < nEigOut; ++idxEig) {
+      for(; idxEig < nEig; ++idxEig) {
         const auto val = d[idxEig];
         d[idxEig] *= (val >= dMin && val <= dMax);
       }
+      for(; idxEig < nEigOut ; ++idxEig) {
+        d[idxEig] = 0;
+      }
     };
 
-    std::size_t nEpochs = 0;
-    for (const auto& itData : data["data"]) {
-      auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
-      auto uvw = read_json_scalar_2d<ValueType>(itData["uvw"]);
-      auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
-      auto s = read_json_complex_2d<ValueType>(itData["s_real"], itData["s_imag"]);
 
-      imager.collect(nAntenna, nBeam, wl, eigMaskFunc, s.data(), nBeam, w.data(), nAntenna,
-                     xyz.data(), nAntenna, uvw.data(), nAntenna * nAntenna);
-      ++nEpochs;
+    const auto& comm = ctx_.communicator();
+
+
+    // create dataset
+    const std::string datasetFileName = "test_nufft_synthesis_lofar.h5";
+    if (comm.rank() == 0) {
+      auto dataset = bipp::DatasetFile::create(datasetFileName, "", nAntenna, nBeam, 0, 0);
+
+      std::vector<ValueType> eigValues(nBeam);
+      std::vector<std::complex<ValueType>> eigVec(nBeam * nAntenna);
+      float timeStamp = 0;
+      for (const auto& itData : data["data"]) {
+        auto xyz = read_json_scalar_2d<ValueType>(itData["xyz"]);
+        auto uvw = read_json_scalar_2d<ValueType>(itData["uvw"]);
+        auto w = read_json_complex_2d<ValueType>(itData["w_real"], itData["w_imag"]);
+        auto s = read_json_complex_2d<ValueType>(itData["s_real"], itData["s_imag"]);
+
+        // bipp no longer expects scaled uvw. Rescale back to match.
+        constexpr auto twoPi = float(2 * 3.14159265358979323846);
+        const float uvwScale = wl / twoPi;
+        float* __restrict__ tgtPtr = uvw.data();
+        for (std::size_t i = 0; i < uvw.size(); ++i) {
+          tgtPtr[i] *= uvwScale;
+        }
+
+        auto info = bipp::eigh_gram<ValueType>(wl, nAntenna, nBeam, s.data(), nBeam, w.data(),
+                                               nAntenna, xyz.data(), nAntenna, eigValues.data(),
+                                               eigVec.data(), nAntenna);
+        dataset.write(timeStamp, wl, info.second, eigVec.data(), nAntenna, eigValues.data(),
+                      uvw.data(), nAntenna * nAntenna);
+        timeStamp += 1;
+      }
+    }
+#ifdef BIPP_MPI
+    if (comm.size() > 1) {
+      MPI_Barrier(comm.mpi_handle());
+    }
+#endif
+
+    auto dataset = bipp::DatasetFile::open(datasetFileName);
+
+
+    // create selection
+    std::unordered_map<std::string, std::vector<std::pair<std::size_t, const float*>>> selection;
+    std::vector<std::vector<float>> eigenvalues;
+    for (std::size_t idxInterval = 0; idxInterval < nIntervals; ++idxInterval) {
+      const std::string tag = std::string("image_") + std::to_string(idxInterval);
+
+      for (std::size_t idxSample = 0; idxSample < dataset.num_samples(); ++idxSample) {
+        eigenvalues.emplace_back(dataset.num_beam());
+        dataset.eig_val(idxSample, eigenvalues.back().data());
+        eigMaskFunc(idxInterval, eigenvalues.back().size(), eigenvalues.back().data());
+        selection[tag].emplace_back(idxSample, eigenvalues.back().data());
+      }
     }
 
-    std::vector<T> img(imgRef.size());
-    imager.get(img.data(), nPixel);
+    bipp::NufftSynthesisOptions opt;
+    opt.set_precision(std::is_same_v<T, float> ? BIPP_PRECISION_SINGLE : BIPP_PRECISION_DOUBLE);
 
-    for (std::size_t i = 0; i < img.size(); ++i) {
-      // Single precision is very inaccurate due to different summation orders
-      // Use twice the absolute error for single precision
-      ASSERT_NEAR(img[i], imgRef[i], 0.05 * (4.0 / sizeof(T)));
+    std::vector<ValueType> lmn(3 * nPixel);
+    std::copy(lmnX.begin(), lmnX.end(), lmn.begin());
+    std::copy(lmnY.begin(), lmnY.end(), lmn.begin() + nPixel);
+    std::copy(lmnZ.begin(), lmnZ.end(), lmn.begin() + 2 * nPixel);
+
+    const std::string imagePropFileName = "test_nufft_synthesis_lofar_image_prop.h5";
+    const std::string imageDataFileName = "test_nufft_synthesis_lofar_image_data.h5";
+
+    if (comm.rank() == 0) {
+      auto imgPropFile =
+          bipp::ImagePropFile::create(imagePropFileName, nPixel, 1, 10, lmn.data(), nPixel);
+    }
+
+#ifdef BIPP_MPI
+    if (comm.size() > 1) {
+      MPI_Barrier(comm.mpi_handle());
+    }
+#endif
+
+    auto imgPropFile = bipp::ImagePropFile::open(imagePropFileName);
+
+    bipp::image_synthesis(ctx_, opt, dataset, std::move(selection), imgPropFile, imageDataFileName);
+
+    // open image file
+    if (comm.rank() == 0) {
+      auto imgFile = bipp::ImageDataFile::open(imageDataFileName);
+
+      std::vector<ValueType> img(nPixel);
+      for (std::size_t idxInterval = 0; idxInterval < nIntervals; ++idxInterval) {
+        const std::string tag = std::string("image_") + std::to_string(idxInterval);
+        imgFile.get(tag, img.data());
+        for (std::size_t i = 0; i < nPixel; ++i) {
+          // Single precision is very inaccurate due to different summation orders
+          // Use twice the absolute error for single precision
+          ASSERT_NEAR(img[i], imgRef[i + idxInterval * nPixel], 0.05 * (4.0 / sizeof(ValueType)));
+        }
+      }
     }
   }
 

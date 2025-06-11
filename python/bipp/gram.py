@@ -16,6 +16,7 @@ import bipp.core as core
 import bipp.beamforming as beamforming
 import bipp.instrument as instrument
 import bipp.array as array
+import bipp.numpy_compat as npc
 import bipp.pybipp
 
 
@@ -31,7 +32,7 @@ class GramMatrix(array.LabeledMatrix):
     """
 
     def __init__(self, data, beam_idx):
-        data = np.array(data, copy=False)
+        data = npc.asarray(data)
         N_beam = len(beam_idx)
 
         if not chk.has_shape((N_beam, N_beam))(data):

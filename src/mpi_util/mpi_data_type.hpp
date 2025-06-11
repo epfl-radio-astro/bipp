@@ -6,7 +6,6 @@
 #include <memory>
 #include <array>
 
-#include "bipp/bipp.h"
 #include "bipp/config.h"
 #include "memory/view.hpp"
 

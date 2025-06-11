@@ -4,6 +4,8 @@
 
 enum BippProcessingUnit { BIPP_PU_AUTO, BIPP_PU_CPU, BIPP_PU_GPU };
 
+enum BippPrecision { BIPP_PRECISION_SINGLE, BIPP_PRECISION_DOUBLE };
+
 enum BippLogLevel {
   BIPP_LOG_LEVEL_OFF,
   BIPP_LOG_LEVEL_ERROR,
@@ -17,5 +19,6 @@ enum BippLogLevel {
 // C only
 typedef enum BippProcessingUnit BippProcessingUnit;
 typedef enum BippLogLevel BippLogLevel;
+typedef enum BippPrecision BippPrecision;
 /*! \endcond */
 #endif  // cpp

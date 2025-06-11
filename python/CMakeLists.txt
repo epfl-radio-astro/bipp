@@ -1,8 +1,8 @@
 if (BIPP_BUNDLED_PYBIND11)
 	FetchContent_Declare(
 		pybind11
-		URL https://github.com/pybind/pybind11/archive/refs/tags/v2.10.4.tar.gz
-		URL_MD5 812eda11d2a114fc0e841faf9626d2c9
+		URL https://github.com/pybind/pybind11/archive/refs/tags/v2.13.6.tar.gz
+		URL_MD5 a04dead9c83edae6d84e2e343da7feeb
 	)
 	FetchContent_MakeAvailable(pybind11)
 else()
@@ -29,6 +29,7 @@ set_target_properties(pybipp PROPERTIES
 
 set(BIPP_PYTHON_SRC
 	__init__.py
+	__main__.py
 	gram.py
 	source.py
 	parameter_estimator.py
@@ -40,6 +41,7 @@ set(BIPP_PYTHON_SRC
 	beamforming.py
 	filter.py
 	measurement_set.py
+	selection.py
 	imot_tools/io/s2image.py
 	imot_tools/io/plot.py
 	imot_tools/io/fits.py
@@ -71,6 +73,13 @@ set(BIPP_PYTHON_SRC
 	imot_tools/data/math/special/spherical_jn_threshold.csv
 	data/instrument/LOFAR.csv
 	data/instrument/MWA.csv
+	apps/cli.py
+	apps/create_dataset.py
+	apps/create_image_prop.py
+	apps/create_selection.py
+	apps/image_synthesis.py
+	apps/plot_images.py
+	numpy_compat.py
 	)
 
 
@@ -82,36 +91,22 @@ foreach(src IN LISTS BIPP_PYTHON_SRC)
 endforeach()
 
 if(BIPP_INSTALL_PYTHON)
-	foreach(src IN LISTS BIPP_PYTHON_SRC)
-		get_filename_component(dir ${BIPP_INSTALL_PYTHON_PATH}/bipp/${src} DIRECTORY )
-		install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/bipp/${src} DESTINATION ${dir})
-	endforeach()
 
-	if(BIPP_INSTALL_PYTHON_DEPS)
-		# make sure the module can find the library
-		if(APPLE)
-			set(BIPP_PYTHON_RPATH "@loader_path/_libs")
-		else()
-			target_link_options(pybipp PRIVATE "-Wl,--disable-new-dtags")
-			set(BIPP_PYTHON_RPATH "$ORIGIN/_libs")
-		endif()
-		set_target_properties(pybipp PROPERTIES
-				INSTALL_RPATH_USE_LINK_PATH FALSE
-				INSTALL_RPATH ${BIPP_PYTHON_RPATH})
-		foreach(dep IN LISTS FINUFFT_LIBRARIES BLAS_LIBRARIES LAPACK_LIBRARIES FFTW_LIBRARIES FFTW_OMP_LIBRARIES FFTWF_LIBRARIES FFTWF_OMP_LIBRARIES)
-			if(EXISTS ${dep})
-				file(REAL_PATH ${dep} dep_resolved)
-				file(GLOB dep_link "${dep}.[0-9]")
-				if(dep_link)
-					cmake_path(GET dep_link FILENAME dep_link_file)
-					install(FILES ${dep_resolved} DESTINATION ${BIPP_INSTALL_PYTHON_PATH}/bipp/_libs RENAME ${dep_link_file})
-				else()
-					install(FILES ${dep_resolved} DESTINATION ${BIPP_INSTALL_PYTHON_PATH}/bipp/_libs)
-				endif()
-			endif()
+	if(NOT BIPP_INSTALL_PYTHON_MODE STREQUAL "skbuild")
+		foreach(src IN LISTS BIPP_PYTHON_SRC)
+			get_filename_component(dir ${BIPP_INSTALL_PYTHON_PATH}/bipp/${src} DIRECTORY )
+			install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/bipp/${src} DESTINATION ${dir})
 		endforeach()
 	endif()
 
+	# make sure the module can find the library
+	if(APPLE)
+		set(BIPP_PYTHON_RPATH "@loader_path/_libs")
+	else()
+		target_link_options(pybipp PRIVATE "-Wl,--disable-new-dtags")
+		set(BIPP_PYTHON_RPATH "$ORIGIN/_libs")
+	endif()
+
 	# destiantion dir must match module name in setup.py
-	install(TARGETS pybipp DESTINATION ${BIPP_INSTALL_PYTHON_PATH}/bipp)
+	install(TARGETS pybipp DESTINATION ${BIPP_INSTALL_PYTHON_PATH})
 endif()

@@ -15,20 +15,26 @@ namespace bipp {
  */
 class BIPP_EXPORT GenericError : public std::exception {
 public:
-  const char* what() const noexcept override { return "BIPP: Generic error"; }
+  GenericError() : msg_("BIPP: Generic error") {}
 
-  virtual BippError error_code() const noexcept { return BippError::BIPP_UNKNOWN_ERROR; }
+  // Only to be used with string literals
+  template <std::size_t N>
+  GenericError(const char (&msg)[N]) : msg_(msg) {}
+
+  const char* what() const noexcept override { return msg_; }
+
+  virtual BippError error_code() const noexcept { return BippError::BIPP_GENERIC_ERROR; }
+
+private:
+  const char* msg_;
 };
 
 class BIPP_EXPORT InternalError : public GenericError {
 public:
-  InternalError() : msg_("BIPP: Internal error") {}
+  InternalError() : GenericError("BIPP: Internal error") {}
 
-  // Only to be used with string literals
   template <std::size_t N>
-  InternalError(const char (&msg)[N]) : msg_(msg) {}
-
-  const char* what() const noexcept override { return msg_; }
+  InternalError(const char (&msg)[N]) : GenericError(msg) {}
 
   BippError error_code() const noexcept override { return BippError::BIPP_INTERNAL_ERROR; }
 
@@ -38,21 +44,24 @@ private:
 
 class BIPP_EXPORT InvalidParameterError : public GenericError {
 public:
-  const char* what() const noexcept override { return "BIPP: Invalid parameter error"; }
+  InvalidParameterError() : GenericError("BIPP: InvalidParameterError error") {}
+
+  template <std::size_t N>
+  InvalidParameterError(const char (&msg)[N]) : GenericError(msg) {}
 
   BippError error_code() const noexcept override { return BippError::BIPP_INVALID_PARAMETER_ERROR; }
 };
 
 class BIPP_EXPORT InvalidPointerError : public GenericError {
 public:
-  const char* what() const noexcept override { return "BIPP: Invalid pointer error"; }
+  InvalidPointerError() : GenericError("BIPP: InvalidPointerError error") {}
 
   BippError error_code() const noexcept override { return BippError::BIPP_INVALID_POINTER_ERROR; }
 };
 
 class BIPP_EXPORT InvalidAllocatorFunctionError : public GenericError {
 public:
-  const char* what() const noexcept override { return "BIPP: Invalid allocator function error"; }
+  InvalidAllocatorFunctionError() : GenericError("BIPP: InvalidAllocatorFunctionError error") {}
 
   BippError error_code() const noexcept override {
     return BippError::BIPP_INVALID_ALLOCATOR_FUNCTION;
@@ -61,28 +70,31 @@ public:
 
 class BIPP_EXPORT EigensolverError : public GenericError {
 public:
-  const char* what() const noexcept override { return "BIPP: Eigensolver error"; }
+  EigensolverError() : GenericError("BIPP: EigensolverError error") {}
 
   BippError error_code() const noexcept override { return BippError::BIPP_EIGENSOLVER_ERROR; }
 };
 
-class BIPP_EXPORT FiNUFFTError : public GenericError {
+class BIPP_EXPORT HDF5Error : public GenericError {
 public:
-  const char* what() const noexcept override { return "BIPP: fiNUFFT error"; }
+  HDF5Error() : GenericError("BIPP: HDF5Error error") {}
 
-  BippError error_code() const noexcept override { return BippError::BIPP_FINUFFT_ERROR; }
+  template <std::size_t N>
+  HDF5Error(const char (&msg)[N]) : GenericError(msg) {}
+
+  BippError error_code() const noexcept override { return BippError::BIPP_HDF5_ERROR; }
 };
 
 class BIPP_EXPORT NotImplementedError : public GenericError {
 public:
-  const char* what() const noexcept override { return "BIPP: Not implemented"; }
+  NotImplementedError() : GenericError("BIPP: NotImplementedError error") {}
 
   BippError error_code() const noexcept override { return BippError::BIPP_NOT_IMPLEMENTED_ERROR; }
 };
 
 class BIPP_EXPORT GPUError : public GenericError {
 public:
-  GPUError() : msg_("") {}
+  GPUError() : msg_("BIPP: GPU Error") {}
 
   GPUError(const char* msg) : msg_(msg) {}
 
@@ -115,6 +127,16 @@ public:
   MPIError() : GPUError("BIPP: MPI Error") {}
 
   BippError error_code() const noexcept override { return BippError::BIPP_MPI_ERROR; }
+};
+
+class BIPP_EXPORT FileError : public GenericError {
+public:
+  FileError() : GenericError("BIPP: FileError") {}
+
+  template <std::size_t N>
+  FileError(const char (&msg)[N]) : GenericError(msg) {}
+
+  BippError error_code() const noexcept override { return BippError::BIPP_FILE_ERROR; }
 };
 
 /*! \cond PRIVATE */

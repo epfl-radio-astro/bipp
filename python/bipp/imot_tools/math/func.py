@@ -17,6 +17,7 @@ import scipy.special as special
 
 import bipp.imot_tools.util.argcheck as chk
 import bipp.imot_tools.math.special as ispecial
+import bipp.numpy_compat as npc
 
 
 class Tukey:
@@ -107,7 +108,7 @@ class Tukey:
         -------
         Tukey(T, beta, alpha)(x) : :py:class:`~numpy.ndarray`
         """
-        x = np.array(x, copy=False)
+        x = npc.asarray(x)
 
         y = x - self._beta + self._T / 2
         left_lim = float(self._T * self._alpha / 2)
@@ -263,7 +264,7 @@ class SphericalDirichlet:
         if chk.is_scalar(x):
             x = np.array([x], dtype=float)
         else:
-            x = np.array(x, copy=False, dtype=float)
+            x = npc.asarray(x, dtype=float)
 
         if not np.all((-1 <= x) & (x <= 1)):
             raise ValueError("Parameter[x] must lie in [-1, 1].")
@@ -354,8 +355,8 @@ class Kent:
             raise ValueError("Parameter[beta] must lie in [0, 1).")
         self._beta = beta
 
-        self._g1 = np.array(g1, copy=False) / linalg.norm(g1)
-        a = np.array(a, copy=False) / linalg.norm(a)
+        self._g1 = npc.asarray(g1) / linalg.norm(g1)
+        a = npc.asarray(a) / linalg.norm(a)
         if np.allclose(self._g1, a):
             raise ValueError("Parameters[g1, a] must not be colinear.")
 

@@ -7,8 +7,7 @@
 #endif
 
 #include <cstddef>
-#include <memory>
-#include <type_traits>
+#include <optional>
 
 /*! \cond PRIVATE */
 namespace bipp {
@@ -32,7 +31,6 @@ public:
    * @return Communicator
    */
   static auto custom(const MPI_Comm& comm) -> Communicator;
-
 #endif
 
   /**
@@ -52,36 +50,40 @@ public:
   static auto local() -> Communicator;
 
   /**
-   * Check if calling process is root.
-   *
-   * @return True or false
-   */
-  auto is_root() const -> bool;
-
-  /**
    * The process rank
    *
    * @return Rank
    */
-  auto rank() const -> std::size_t;
+  inline auto rank() const -> std::size_t { return rank_; }
 
   /**
    * The number size / number of processes.
    *
    * @return Size
    */
-  auto size() const -> std::size_t;
+  inline auto size() const -> std::size_t { return size_; }
+
+#ifdef BIPP_MPI
+  /**
+   * The mpi communicator used.
+   *
+   * @return MPI_Comm
+   */
+  auto mpi_handle() const -> const MPI_Comm&;
+#endif
+
 
 private:
   /*! \cond PRIVATE */
-  friend InternalCommunicatorAccessor;
 
   Communicator() = default;
 
+  std::size_t rank_ = 0;
+  std::size_t size_ = 1;
 #ifdef BIPP_MPI
   Communicator(const MPI_Comm& comm);
 
-  std::shared_ptr<CommunicatorInternal> comm_;
+  std::optional<MPI_Comm> comm_;
 #endif
   /*! \endcond */
 };

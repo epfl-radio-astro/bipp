@@ -24,7 +24,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         platform_id: [manylinux_x86_64]
-        manylinux_image: [manylinux2014]
+        manylinux_image: [manylinux_2_28]
         python: [39, 310, 311, 312]
 
     steps:
@@ -39,7 +39,7 @@ jobs:
       - name: Build and test wheels
         env:
           CIBW_PRERELEASE_PYTHONS: ${{ matrix.prerelease }}
-          CIBW_ENVIRONMENT: BIPP_CMAKE_ARGS="-DBLAS_LIBRARIES=/usr/lib64/libopenblaso.so.0"
+          CIBW_ENVIRONMENT: BIPP_CIBW_WHEEL_BUILD=1
           CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
           CIBW_ARCHS: all
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
@@ -51,8 +51,8 @@ jobs:
           CIBW_TEST_SKIP: "*cp312*"
           CIBW_BEFORE_ALL_LINUX: >
             cd ${HOME} &&
-            yum install -y openblas-openmp fftw-devel wget &&
-            bash {project}/.github/build_tools/install_finufft.sh
+            yum install -y openblas-openmp fftw-devel wget hdf5-devel &&
+            bash {project}/.github/build_tools/install_neonufft.sh
 
         run: bash .github/build_tools/build_wheels.sh
 
@@ -110,4 +110,3 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           print-hash: true
-

@@ -14,6 +14,11 @@
 #include "memory/allocator.hpp"
 
 
+#if defined(BIPP_CUDA) || defined(BIPP_ROCM)
+#include "gpu/util/runtime_api.hpp"
+#endif
+
+
 /*
  *
  *  Views are non-owning objects allowing access to memory through multi-dimensional indexing.
@@ -397,6 +402,26 @@ public:
   inline auto shrink(const IndexType& newShape) -> DeviceView<T, DIM>& {
     this->shrink_impl(newShape);
     return *this;
+  }
+
+  inline auto zero(const gpu::api::StreamType& stream) -> void {
+    if (this->size()) {
+      if constexpr (DIM == 1) {
+        // break function call recursion
+        gpu::api::memset_async(this->data(), 0, this->shape(0) * sizeof(T), stream);
+      } else {
+        if (this->is_contiguous()) {
+          gpu::api::memset_async(this->data(), 0, this->size() * sizeof(T), stream);
+        } else {
+          if constexpr (DIM == 2) {
+            gpu::api::memset_2d_async(this->data(), this->strides(1) * sizeof(T), 0,
+                                      this->shape(0) * sizeof(T), this->shape(1), stream);
+          } else {
+            for (std::size_t i = 0; i < this->shape(DIM - 1); ++i) this->slice_view(i).zero(stream);
+          }
+        }
+      }
+    }
   }
 
 protected:
