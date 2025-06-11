@@ -10,7 +10,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "bipp"
-version = "0.0.1"
+dynamic = ["version"]
 
 [tool.scikit-build]
 cmake.build-type = "RELEASE"
@@ -39,6 +39,8 @@ if.env.BIPP_CIBW_WHEEL_BUILD = "1"
 inherit.cmake.define = "append"
 cmake.define.BLAS_LIBRARIES = "/usr/lib64/libopenblaso.so.0"
 
-
-
-
+[tool.scikit-build.metadata.version]
+provider = "scikit_build_core.metadata.regex"
+input = "VERSION"
+regex = "(?P<major>[0-9]+).(?P<minor>[0-9]+).(?P<patch>[0-9]+)"
+result = "{major}.{minor}.{patch}"
