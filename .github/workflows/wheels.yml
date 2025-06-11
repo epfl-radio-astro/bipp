@@ -3,7 +3,7 @@ name: Wheel builder
 
 on:
   push:
-    branches: [ "main" , "hdf5" ]
+    branches: [ "main" ]
   release:
     types: [published]
 
