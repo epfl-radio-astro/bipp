@@ -117,7 +117,6 @@ write_basic_package_version_file(
 	VERSION ${Upstream_VERSION}
 	COMPATIBILITY AnyNewerVersion
 )
-export(TARGETS bipp NAMESPACE bipp:: FILE ${PROJECT_BINARY_DIR}/${BIPP_TARGETS_FILE})
 configure_file(${PROJECT_SOURCE_DIR}/cmake/${BIPP_CONFIG_FILE}
 	"${PROJECT_BINARY_DIR}/${BIPP_CONFIG_FILE}"
 	@ONLY
