@@ -3,7 +3,7 @@ name: Wheel builder
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" , "fix_static_build" ]
   release:
     types: [published]
 
