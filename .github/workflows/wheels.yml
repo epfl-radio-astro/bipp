@@ -25,7 +25,7 @@ jobs:
         os: [ubuntu-latest]
         platform_id: [manylinux_x86_64]
         manylinux_image: [manylinux_2_28]
-        python: [39, 310, 311, 312, 313, 314]
+        python: [39, 310, 311, 312, 313]
 
     steps:
       - name: Checkout bipp
