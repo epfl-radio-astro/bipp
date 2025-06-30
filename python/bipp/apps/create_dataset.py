@@ -24,6 +24,7 @@ def create_dataset(args):
         N_antenna = 128 if args.antenna is None else args.antenna
     elif args.telescope.lower() == "lofar":
         N_antenna = 37 if args.antenna is None else args.antenna
+        N_station = N_antenna if args.station is None else args.station
         ms = measurement_set.LofarMeasurementSet(
             args.ms_file, N_station=N_station, station_only=True
         )
