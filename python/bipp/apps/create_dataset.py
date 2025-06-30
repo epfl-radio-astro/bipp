@@ -54,7 +54,7 @@ def create_dataset(args):
         nChannel = ms.channels["FREQUENCY"].shape[0]
     else:
         channelStart = args.channel[0]
-        channelEnd = args.channel[0]
+        channelEnd = args.channel[1]
         nChannel = channelEnd - channelStart
 
     if channelEnd - channelStart == 1:
