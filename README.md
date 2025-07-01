@@ -34,7 +34,7 @@ The Python module has the following dependencies:
 ## Installation
 
 ### Pip packages
-For x86 systems, binaray pip packages are available for CPU only and CUDA configurations.
+For x86 systems, binaray pip packages are available for CPU and CUDA configurations.
 
 To install a CPU only version:
 ```bash
@@ -45,11 +45,11 @@ To install the CUDA 12 version:
 ```bash
 python -m pip install bipp-cuda12x
 ```
-The package does not come with bundled cuda libraries. It therefore requires the cuda libraries to be visible to the runtime linker. 
+The package does not come with bundled CUDA libraries. It therefore requires the cuda libraries to be visible to the runtime linker. 
 On some systems, this can be done by setting `LD_LIBRARY_PATH`. For example, if the cuda libraries are located at `/usr/local/cuda/lib64`, then setting `export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH` might be required.
 
 
-### Build From Source
+### Building From Source
 Bipp uses CMake to configure the build and has the following options:
 
 | Option                      |  Values                   | Default     | Description                                                                                               |
