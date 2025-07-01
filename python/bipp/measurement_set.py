@@ -207,6 +207,7 @@ class MeasurementSet:
         )
     )
     def visibilities(self, channel_id, time_id, column, sort_time=True, log_level=0):
+
         query = f"select NAME from {self._msf}::ANTENNA"
         antenna_table = ct.taql(query)
         n_ant = len(antenna_table.getcol("NAME"))
@@ -289,7 +290,7 @@ class MeasurementSet:
 
                     for i in range(0, (chunk[1] - chunk[0] + 1)):
                         S.fill(0)
-                        S[ant2, ant1] = data[:, i].conj()
+                        S[ant2, ant1] = data[:, i]
                         if weight_spectrum is not None and np.any(weight[:, i]):
                             WS.fill(0)
                             WS[ant2, ant1] = weight[:, i]
@@ -325,7 +326,7 @@ class MeasurementSet:
                         continue
 
                     S.fill(0)
-                    S[ant2, ant1] = data[:, 0].conj()
+                    S[ant2, ant1] = data[:, 0]
 
                     if weight_spectrum is not None and np.any(weight):
                         WS.fill(0)

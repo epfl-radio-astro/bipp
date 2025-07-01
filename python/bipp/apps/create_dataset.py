@@ -24,6 +24,7 @@ def create_dataset(args):
         N_antenna = 128 if args.antenna is None else args.antenna
     elif args.telescope.lower() == "lofar":
         N_antenna = 37 if args.antenna is None else args.antenna
+        N_station = N_antenna if args.station is None else args.station
         ms = measurement_set.LofarMeasurementSet(
             args.ms_file, N_station=N_station, station_only=True
         )
@@ -54,7 +55,7 @@ def create_dataset(args):
         nChannel = ms.channels["FREQUENCY"].shape[0]
     else:
         channelStart = args.channel[0]
-        channelEnd = args.channel[0]
+        channelEnd = args.channel[1]
         nChannel = channelEnd - channelStart
 
     if channelEnd - channelStart == 1:
@@ -84,7 +85,6 @@ def create_dataset(args):
             wl = constants.speed_of_light / f.to_value(u.Hz)
             XYZ = ms.instrument(t)
             W = ms.beamformer(XYZ, wl)
-            #  S, W = measurement_set.filter_data(S, W)
 
             UVW_baselines_t = ms.instrument.baselines(
                 t, uvw=True, field_center=ms.field_center
@@ -94,7 +94,12 @@ def create_dataset(args):
             if np.allclose(S.data, np.zeros(S.data.shape)):
                 continue
 
-            v, d, scale = bipp.eigh_gram(wl, S.data, W.data, XYZ.data)
+            # See https://wsclean.readthedocs.io/en/latest/chgcentre.html#a-lofar-bug
+            if args.telescope.lower() == "lofar":
+                v, d, scale = bipp.eigh_gram(wl, S.data.conj(), W.data, XYZ.data)
+            else:
+                v, d, scale = bipp.eigh_gram(wl, S.data, W.data, XYZ.data)
+
             dataset.write(t.value, wl, scale, v, d, uvw)
             n_written += 1
 
