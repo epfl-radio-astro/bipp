@@ -4,20 +4,13 @@ Image synthesis in radio astronomy is done with interferometry, a powerful techn
 
 .. toctree::
    :maxdepth: 2
-   :caption: Python API REFERENCE:
-   :hidden:
-
-   python
-
-.. toctree::
-   :maxdepth: 2
    :caption: C++ API REFERENCE:
    :hidden:
 
    context
    exceptions
-   nufft_synthesis
-   standard_synthesis
+   synthesis
+   eigendecomposition
 
 
 .. Indices and tables
