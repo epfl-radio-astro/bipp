@@ -1,4 +1,4 @@
-[![Documentation](https://readthedocs.org/projects/bipp/badge/?version=latest)](https://bipp.readthedocs.io/en/latest/?badge=latest)
+[![API Documentation](https://readthedocs.org/projects/bipp/badge/?version=latest)](https://bipp.readthedocs.io/en/latest/?badge=latest)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![CI](https://github.com/epfl-radio-astro/bipp/actions/workflows/ci.yml/badge.svg)](https://github.com/epfl-radio-astro/bipp/actions/workflows/ci.yml)
 
@@ -31,12 +31,27 @@ The Python module has the following dependencies:
 - healpy
 - casacore
 
-
 ## Installation
-Bipp uses CMake to configure the build.
 
-### CMake options
-Bipp can be configured with the following options:
+### Pip packages
+For x86 systems, binaray pip packages are available for CPU and CUDA configurations.
+
+To install a CPU only version:
+```bash
+python -m pip install bipp
+```
+
+To install the CUDA 12 version:
+```bash
+python -m pip install bipp-cuda12x
+```
+The package does not come with bundled CUDA libraries. It therefore requires the cuda libraries to be visible to the runtime linker. 
+On some systems, this can be done by setting `LD_LIBRARY_PATH`. For example, if the cuda libraries are located at `/usr/local/cuda/lib64`, then setting `export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH` might be required.
+
+
+### Building From Source
+Bipp uses CMake to configure the build and has the following options:
+
 | Option                      |  Values                   | Default     | Description                                                                                               |
 |-----------------------------|---------------------------|-------------|-----------------------------------------------------------------------------------------------------------|
 | `BIPP_PYTHON`               |  `ON`, `OFF`              | `ON`        | Build Python interface                                                                                    |
@@ -48,9 +63,6 @@ Bipp can be configured with the following options:
 | `BIPP_INSTALL_LIB`          |  `ON`, `OFF`              | `ON`        | Add library to list of install targets.                                                                   |
 | `BIPP_INSTALL_PYTHON`       |  `ON`, `OFF`              | `ON`        | Add python module to list of install targets.                                                             |
 | `BIPP_INSTALL_LIB_SUFFIX`   |  string                   | lib or lib64| Installation path suffix appended to `CMAKE_INSTALL_PREFIX` for library target                            |
-| `BIPP_INSTALL_PYTHON_PREFIX`|  string                   |             |  If set, used instead of `CMAKE_INSTALL_PREFIX` for python module target.                                 |
-| `BIPP_INSTALL_PYTHON_SUFFIX`|  string                   |  platlib    | Installation path suffix for python module target.  If "platlib", the python platlib path will be used.   |
-
 
 Some useful general CMake options are:
 | Option                     |  Description                                                                    |
@@ -61,8 +73,6 @@ Some useful general CMake options are:
 | `CMAKE_CUDA_ARCHITECTURES` |  Semicolon separated list of CUDA architectures to compile for                  |
 | `CMAKE_HIP_ARCHITECTURES`  |  Semicolon separated list of HIP architectures to compile for                   |
 
-### Manual Build
-The build process follows the standard CMake workflow.
 
 To install a minimal build of the library without Python support:
 ```console
@@ -71,7 +81,6 @@ cd build
 cmake .. -DBIPP_PYTHON=OFF -DCMAKE_INSTALL_PREFIX=/usr/local -DBIPP_INSTALL=LIB
 make -j8 install
 ```
-
 
 To build bipp with Python support and install the python module to custom directory:
 ```console
@@ -82,9 +91,7 @@ make -j8 install
 export PYTHONPATH=${path_to_install_to}:$PYTHONPATH
 ```
 
-### Python - Pip
-Bipp uses skbuild to build the Python module with CMake and Pip. The CMake options can be set through environment variables. Example:
-
+To build using pip from source, the following can be used:
 ```console
 BIPP_GPU=CUDA CMAKE_PREFIX_PATH="${path_to_neonufft};${CMAKE_PREFIX_PATH}" python3 -m pip install .
 ```
@@ -118,7 +125,7 @@ python3 -m bipp image_prop -f 10.2 -w 1024 -d skalow.h5 -o image_prop.h5
 ### Image Synthesis
 Compute the image synthesis.
 ```console
-python3 -d skalow.h5 -s selection.json -i image_prop.h5  -o images.h5
+python3 -m bipp synthesis -d skalow.h5 -s selection.json -i image_prop.h5  -o images.h5
 ```
 
 ### Plotting
