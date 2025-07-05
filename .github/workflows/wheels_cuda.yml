@@ -3,7 +3,7 @@ name: Cuda Wheel builder
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" , "pypi_publish" ]
   release:
     types: [published]
 
@@ -89,7 +89,7 @@ jobs:
  # Upload cuda 12x wheels
   pypi-publish-12x:
     name: Upload bipp-cuda12x release to PyPI
-    if: github.event_name == 'release' && github.event.action == 'created'
+    # if: github.event_name == 'release' && github.event.action == 'created'
     runs-on: ubuntu-latest
     environment:
       name: pypi

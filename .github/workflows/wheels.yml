@@ -3,7 +3,7 @@ name: Wheel builder
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" , "pypi_publish" ]
   release:
     types: [published]
 
@@ -90,7 +90,7 @@ jobs:
  # Upload wheels
   pypi-publish:
     name: Upload release to PyPI
-    if: github.event_name == 'release' && github.event.action == 'created'
+    # if: github.event_name == 'release' && github.event.action == 'created'
     runs-on: ubuntu-latest
     environment:
       name: pypi
