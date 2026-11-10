@@ -1,0 +1,86 @@
+name: GPU Simulator
+
+# Optional, non-required check. The hosted runners have no GPU, so this builds
+# neonufft and bipp for gfx942 and runs the `run_tests` gtest binary (CPU and
+# GPU parameterizations) on a simulated AMD Instinct MI300X
+# (https://github.com/pantheongpu/pantheonsim). A simulator cannot reproduce
+# hardware-specific behavior or timing, so it complements real-GPU testing and
+# does not replace it.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "include/**"
+      - "src/**"
+      - "tests/**"
+      - "cmake/**"
+      - "CMakeLists.txt"
+      - ".github/workflows/gpu-sim.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  run-tests:
+    name: run_tests (ROCm 7.1 and simulated MI300X)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Set up the simulated GPU and ROCm
+        uses: pantheongpu/setup-pantheonsim@ca87fe3143b29166822b923d6050945c5179408c # v0.1.5
+        with:
+          gpu: amd/mi300x
+          cuda-toolkit: none
+          rocm: "7.1"
+
+      # The action installs only the compiler side of ROCm. bipp needs rocBLAS
+      # and hipCUB (with rocPRIM); neonufft needs hipFFT (with rocFFT).
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make g++ cmake git libopenblas-dev libfftw3-dev libhdf5-dev \
+            rocblas-dev hipcub-dev rocprim-dev hipfft-dev rocfft-dev
+
+      # Same neonufft build as the ROCm job in ci.yml, but Release, gfx942 and
+      # installed into a user prefix.
+      - name: Build and install neonufft
+        run: |
+          git clone --depth 1 https://github.com/epfl-radio-astro/neonufft.git "${RUNNER_TEMP}/neonufft"
+          git -C "${RUNNER_TEMP}/neonufft" log -1 --format='neonufft %H'
+          cmake -S "${RUNNER_TEMP}/neonufft" -B "${RUNNER_TEMP}/neonufft-build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=/opt/rocm/lib/llvm/bin/clang++ \
+            -DCMAKE_CXX_FLAGS="-march=native" \
+            -DNEONUFFT_THREADING=NATIVE -DNEONUFFT_MULTI_ARCH=OFF \
+            -DNEONUFFT_GPU=ROCM -DCMAKE_HIP_ARCHITECTURES=gfx942 \
+            -DCMAKE_PREFIX_PATH=/opt/rocm \
+            -DCMAKE_INSTALL_PREFIX="${RUNNER_TEMP}/neonufft-install"
+          cmake --build "${RUNNER_TEMP}/neonufft-build" -j3
+          cmake --install "${RUNNER_TEMP}/neonufft-build"
+
+      # The explicit CMAKE_HIP_ARCHITECTURES keeps CMake from probing for a GPU.
+      - name: Configure bipp
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=/opt/rocm/lib/llvm/bin/clang++ \
+            -DBIPP_BUILD_TESTS=ON -DBIPP_GPU=ROCM -DBIPP_PYTHON=OFF -DBIPP_MPI=OFF \
+            -DCMAKE_HIP_ARCHITECTURES=gfx942 \
+            -DCMAKE_PREFIX_PATH="/opt/rocm;${RUNNER_TEMP}/neonufft-install"
+
+      - name: Build bipp
+        run: cmake --build build -j3
+
+      - name: Test
+        run: vgpu run build/bin/run_tests
